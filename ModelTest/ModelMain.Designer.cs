@@ -70,6 +70,38 @@ namespace ModelTest
             label11 = new Label();
             label10 = new Label();
             tabPage3 = new TabPage();
+            tabControl2 = new TabControl();
+            tabPage9 = new TabPage();
+            panel4 = new Panel();
+            panel5 = new Panel();
+            btnTerminalBW_AOn = new Button();
+            btnTerminalBW_ADown = new Button();
+            btnTerminalBW_VOn = new Button();
+            btnTerminalBW_VDown = new Button();
+            btnChangeTerminalClass = new Button();
+            cbxTerminalV1 = new ComboBox();
+            label25 = new Label();
+            cbx_TerminalV1_IN = new CheckBox();
+            label24 = new Label();
+            tbxTerminalAdds = new TextBox();
+            cbx_TerminalV1_IC = new CheckBox();
+            cbx_TerminalV1_UA = new CheckBox();
+            cbx_TerminalV1_IB = new CheckBox();
+            cbx_TerminalV1_UB = new CheckBox();
+            cbx_TerminalV1_IA = new CheckBox();
+            cbx_TerminalV1_UC = new CheckBox();
+            tabPage10 = new TabPage();
+            button1 = new Button();
+            textBox1 = new TextBox();
+            button2 = new Button();
+            textBox2 = new TextBox();
+            label23 = new Label();
+            label22 = new Label();
+            tabPage4 = new TabPage();
+            tabPage5 = new TabPage();
+            tabPage6 = new TabPage();
+            tabPage7 = new TabPage();
+            tabPage8 = new TabPage();
             LogUnit = new GroupBox();
             panellog = new Panel();
             textBoxlog = new TextBox();
@@ -101,6 +133,12 @@ namespace ModelTest
             tabPage1.SuspendLayout();
             TestUnit.SuspendLayout();
             tabPage2.SuspendLayout();
+            tabPage3.SuspendLayout();
+            tabControl2.SuspendLayout();
+            tabPage9.SuspendLayout();
+            panel4.SuspendLayout();
+            panel5.SuspendLayout();
+            tabPage10.SuspendLayout();
             LogUnit.SuspendLayout();
             panellog.SuspendLayout();
             statusStrip1.SuspendLayout();
@@ -115,12 +153,17 @@ namespace ModelTest
             tabControl1.Controls.Add(tabPage1);
             tabControl1.Controls.Add(tabPage2);
             tabControl1.Controls.Add(tabPage3);
+            tabControl1.Controls.Add(tabPage4);
+            tabControl1.Controls.Add(tabPage5);
+            tabControl1.Controls.Add(tabPage6);
+            tabControl1.Controls.Add(tabPage7);
+            tabControl1.Controls.Add(tabPage8);
             tabControl1.Dock = DockStyle.Fill;
             tabControl1.Location = new Point(0, 0);
             tabControl1.Margin = new Padding(5, 4, 5, 4);
             tabControl1.Name = "tabControl1";
             tabControl1.SelectedIndex = 0;
-            tabControl1.Size = new Size(1960, 512);
+            tabControl1.Size = new Size(1960, 581);
             tabControl1.TabIndex = 0;
             // 
             // tabPage1
@@ -130,7 +173,7 @@ namespace ModelTest
             tabPage1.Margin = new Padding(5, 4, 5, 4);
             tabPage1.Name = "tabPage1";
             tabPage1.Padding = new Padding(5, 4, 5, 4);
-            tabPage1.Size = new Size(1952, 475);
+            tabPage1.Size = new Size(1952, 544);
             tabPage1.TabIndex = 0;
             tabPage1.Text = "模组测试单元";
             tabPage1.UseVisualStyleBackColor = true;
@@ -167,14 +210,14 @@ namespace ModelTest
             TestUnit.Margin = new Padding(5, 4, 5, 4);
             TestUnit.Name = "TestUnit";
             TestUnit.Padding = new Padding(5, 4, 5, 4);
-            TestUnit.Size = new Size(1942, 467);
+            TestUnit.Size = new Size(1942, 536);
             TestUnit.TabIndex = 1;
             TestUnit.TabStop = false;
             TestUnit.Text = "测试单元";
             // 
             // CCOACDown
             // 
-            CCOACDown.Location = new Point(160, 355);
+            CCOACDown.Location = new Point(498, 210);
             CCOACDown.Margin = new Padding(5, 4, 5, 4);
             CCOACDown.Name = "CCOACDown";
             CCOACDown.Size = new Size(141, 35);
@@ -185,7 +228,7 @@ namespace ModelTest
             // 
             // CCOACOn
             // 
-            CCOACOn.Location = new Point(9, 355);
+            CCOACOn.Location = new Point(347, 210);
             CCOACOn.Margin = new Padding(5, 4, 5, 4);
             CCOACOn.Name = "CCOACOn";
             CCOACOn.Size = new Size(141, 35);
@@ -196,7 +239,7 @@ namespace ModelTest
             // 
             // CCODCDown
             // 
-            CCODCDown.Location = new Point(160, 276);
+            CCODCDown.Location = new Point(497, 134);
             CCODCDown.Margin = new Padding(5, 4, 5, 4);
             CCODCDown.Name = "CCODCDown";
             CCODCDown.Size = new Size(141, 35);
@@ -207,7 +250,7 @@ namespace ModelTest
             // 
             // CCODCOn
             // 
-            CCODCOn.Location = new Point(9, 276);
+            CCODCOn.Location = new Point(346, 134);
             CCODCOn.Margin = new Padding(5, 4, 5, 4);
             CCODCOn.Name = "CCODCOn";
             CCODCOn.Size = new Size(141, 35);
@@ -219,7 +262,7 @@ namespace ModelTest
             // label21
             // 
             label21.AutoSize = true;
-            label21.Location = new Point(10, 327);
+            label21.Location = new Point(348, 182);
             label21.Margin = new Padding(5, 0, 5, 0);
             label21.Name = "label21";
             label21.Size = new Size(394, 24);
@@ -229,7 +272,7 @@ namespace ModelTest
             // label20
             // 
             label20.AutoSize = true;
-            label20.Location = new Point(10, 248);
+            label20.Location = new Point(347, 106);
             label20.Margin = new Padding(5, 0, 5, 0);
             label20.Name = "label20";
             label20.Size = new Size(303, 24);
@@ -241,7 +284,7 @@ namespace ModelTest
             label3.AutoSize = true;
             label3.Dock = DockStyle.Bottom;
             label3.ForeColor = Color.Red;
-            label3.Location = new Point(5, 439);
+            label3.Location = new Point(5, 508);
             label3.Margin = new Padding(5, 0, 5, 0);
             label3.Name = "label3";
             label3.Size = new Size(437, 24);
@@ -251,7 +294,7 @@ namespace ModelTest
             // checkBoxN
             // 
             checkBoxN.AutoSize = true;
-            checkBoxN.Location = new Point(583, 156);
+            checkBoxN.Location = new Point(431, 21);
             checkBoxN.Name = "checkBoxN";
             checkBoxN.Size = new Size(69, 28);
             checkBoxN.TabIndex = 21;
@@ -261,7 +304,9 @@ namespace ModelTest
             // checkBoxC
             // 
             checkBoxC.AutoSize = true;
-            checkBoxC.Location = new Point(508, 156);
+            checkBoxC.Checked = true;
+            checkBoxC.CheckState = CheckState.Checked;
+            checkBoxC.Location = new Point(356, 21);
             checkBoxC.Name = "checkBoxC";
             checkBoxC.Size = new Size(66, 28);
             checkBoxC.TabIndex = 20;
@@ -271,7 +316,9 @@ namespace ModelTest
             // checkBoxB
             // 
             checkBoxB.AutoSize = true;
-            checkBoxB.Location = new Point(434, 156);
+            checkBoxB.Checked = true;
+            checkBoxB.CheckState = CheckState.Checked;
+            checkBoxB.Location = new Point(282, 21);
             checkBoxB.Name = "checkBoxB";
             checkBoxB.Size = new Size(65, 28);
             checkBoxB.TabIndex = 19;
@@ -281,7 +328,9 @@ namespace ModelTest
             // checkBoxA
             // 
             checkBoxA.AutoSize = true;
-            checkBoxA.Location = new Point(358, 156);
+            checkBoxA.Checked = true;
+            checkBoxA.CheckState = CheckState.Checked;
+            checkBoxA.Location = new Point(206, 21);
             checkBoxA.Name = "checkBoxA";
             checkBoxA.Size = new Size(67, 28);
             checkBoxA.TabIndex = 18;
@@ -291,7 +340,7 @@ namespace ModelTest
             // checkBox2
             // 
             checkBox2.AutoSize = true;
-            checkBox2.Location = new Point(419, 21);
+            checkBox2.Location = new Point(97, 23);
             checkBox2.Name = "checkBox2";
             checkBox2.Size = new Size(78, 28);
             checkBox2.TabIndex = 1;
@@ -304,7 +353,7 @@ namespace ModelTest
             checkBox1.AutoSize = true;
             checkBox1.Checked = true;
             checkBox1.CheckState = CheckState.Checked;
-            checkBox1.Location = new Point(335, 21);
+            checkBox1.Location = new Point(13, 23);
             checkBox1.Name = "checkBox1";
             checkBox1.Size = new Size(78, 28);
             checkBox1.TabIndex = 0;
@@ -314,7 +363,7 @@ namespace ModelTest
             // 
             // btnPowerDown_AC
             // 
-            btnPowerDown_AC.Location = new Point(160, 196);
+            btnPowerDown_AC.Location = new Point(160, 210);
             btnPowerDown_AC.Margin = new Padding(5, 4, 5, 4);
             btnPowerDown_AC.Name = "btnPowerDown_AC";
             btnPowerDown_AC.Size = new Size(141, 35);
@@ -325,7 +374,7 @@ namespace ModelTest
             // 
             // btnPowerOn_AC
             // 
-            btnPowerOn_AC.Location = new Point(9, 196);
+            btnPowerOn_AC.Location = new Point(5, 210);
             btnPowerOn_AC.Margin = new Padding(5, 4, 5, 4);
             btnPowerOn_AC.Name = "btnPowerOn_AC";
             btnPowerOn_AC.Size = new Size(141, 35);
@@ -337,7 +386,7 @@ namespace ModelTest
             // label8
             // 
             label8.AutoSize = true;
-            label8.Location = new Point(10, 160);
+            label8.Location = new Point(9, 182);
             label8.Margin = new Padding(5, 0, 5, 0);
             label8.Name = "label8";
             label8.Size = new Size(340, 24);
@@ -403,7 +452,7 @@ namespace ModelTest
             // 
             // btnPowerDown_DC
             // 
-            btnPowerDown_DC.Location = new Point(160, 106);
+            btnPowerDown_DC.Location = new Point(160, 134);
             btnPowerDown_DC.Margin = new Padding(5, 4, 5, 4);
             btnPowerDown_DC.Name = "btnPowerDown_DC";
             btnPowerDown_DC.Size = new Size(141, 35);
@@ -414,7 +463,7 @@ namespace ModelTest
             // 
             // btnPowerOn_DC
             // 
-            btnPowerOn_DC.Location = new Point(9, 106);
+            btnPowerOn_DC.Location = new Point(5, 134);
             btnPowerOn_DC.Margin = new Padding(5, 4, 5, 4);
             btnPowerOn_DC.Name = "btnPowerOn_DC";
             btnPowerOn_DC.Size = new Size(141, 35);
@@ -426,7 +475,7 @@ namespace ModelTest
             // label4
             // 
             label4.AutoSize = true;
-            label4.Location = new Point(10, 23);
+            label4.Location = new Point(10, 106);
             label4.Margin = new Padding(5, 0, 5, 0);
             label4.Name = "label4";
             label4.Size = new Size(318, 24);
@@ -450,7 +499,7 @@ namespace ModelTest
             tabPage2.Margin = new Padding(5, 4, 5, 4);
             tabPage2.Name = "tabPage2";
             tabPage2.Padding = new Padding(5, 4, 5, 4);
-            tabPage2.Size = new Size(1952, 475);
+            tabPage2.Size = new Size(1952, 544);
             tabPage2.TabIndex = 1;
             tabPage2.Text = "国网广播报文测试";
             tabPage2.UseVisualStyleBackColor = true;
@@ -499,12 +548,12 @@ namespace ModelTest
             // 
             label9.AutoSize = true;
             label9.ForeColor = Color.Red;
-            label9.Location = new Point(1694, 447);
+            label9.Location = new Point(6, 516);
             label9.Margin = new Padding(5, 0, 5, 0);
             label9.Name = "label9";
-            label9.Size = new Size(257, 24);
+            label9.Size = new Size(275, 24);
             label9.TabIndex = 23;
-            label9.Text = "通道端口：485-2，232，红外";
+            label9.Text = "通道端口：485-2，232，红外等";
             // 
             // CSG698FF
             // 
@@ -568,35 +617,387 @@ namespace ModelTest
             // 
             // tabPage3
             // 
+            tabPage3.Controls.Add(tabControl2);
             tabPage3.Location = new Point(4, 33);
             tabPage3.Name = "tabPage3";
             tabPage3.Padding = new Padding(3);
-            tabPage3.Size = new Size(1952, 475);
+            tabPage3.Size = new Size(1952, 544);
             tabPage3.TabIndex = 2;
-            tabPage3.Text = "tabPage3";
+            tabPage3.Text = "终端测试单元：V1";
             tabPage3.UseVisualStyleBackColor = true;
+            // 
+            // tabControl2
+            // 
+            tabControl2.Controls.Add(tabPage9);
+            tabControl2.Controls.Add(tabPage10);
+            tabControl2.Dock = DockStyle.Fill;
+            tabControl2.Location = new Point(3, 3);
+            tabControl2.Name = "tabControl2";
+            tabControl2.SelectedIndex = 0;
+            tabControl2.Size = new Size(1946, 538);
+            tabControl2.TabIndex = 0;
+            // 
+            // tabPage9
+            // 
+            tabPage9.Controls.Add(panel4);
+            tabPage9.Location = new Point(4, 33);
+            tabPage9.Name = "tabPage9";
+            tabPage9.Padding = new Padding(3);
+            tabPage9.Size = new Size(1938, 501);
+            tabPage9.TabIndex = 0;
+            tabPage9.Text = "主控";
+            tabPage9.UseVisualStyleBackColor = true;
+            // 
+            // panel4
+            // 
+            panel4.Controls.Add(panel5);
+            panel4.Dock = DockStyle.Top;
+            panel4.Location = new Point(3, 3);
+            panel4.Name = "panel4";
+            panel4.Size = new Size(1932, 328);
+            panel4.TabIndex = 19;
+            // 
+            // panel5
+            // 
+            panel5.BorderStyle = BorderStyle.FixedSingle;
+            panel5.Controls.Add(btnTerminalBW_AOn);
+            panel5.Controls.Add(btnTerminalBW_ADown);
+            panel5.Controls.Add(btnTerminalBW_VOn);
+            panel5.Controls.Add(btnTerminalBW_VDown);
+            panel5.Controls.Add(btnChangeTerminalClass);
+            panel5.Controls.Add(cbxTerminalV1);
+            panel5.Controls.Add(label25);
+            panel5.Controls.Add(cbx_TerminalV1_IN);
+            panel5.Controls.Add(label24);
+            panel5.Controls.Add(tbxTerminalAdds);
+            panel5.Controls.Add(cbx_TerminalV1_IC);
+            panel5.Controls.Add(cbx_TerminalV1_UA);
+            panel5.Controls.Add(cbx_TerminalV1_IB);
+            panel5.Controls.Add(cbx_TerminalV1_UB);
+            panel5.Controls.Add(cbx_TerminalV1_IA);
+            panel5.Controls.Add(cbx_TerminalV1_UC);
+            panel5.Dock = DockStyle.Left;
+            panel5.Location = new Point(0, 0);
+            panel5.Name = "panel5";
+            panel5.Size = new Size(629, 328);
+            panel5.TabIndex = 30;
+            // 
+            // btnTerminalBW_AOn
+            // 
+            btnTerminalBW_AOn.Location = new Point(181, 121);
+            btnTerminalBW_AOn.Margin = new Padding(5, 4, 5, 4);
+            btnTerminalBW_AOn.Name = "btnTerminalBW_AOn";
+            btnTerminalBW_AOn.Size = new Size(141, 35);
+            btnTerminalBW_AOn.TabIndex = 33;
+            btnTerminalBW_AOn.Text = "表位上电流";
+            btnTerminalBW_AOn.UseVisualStyleBackColor = true;
+            btnTerminalBW_AOn.Click += btnTerminalBW_AOn_Click;
+            // 
+            // btnTerminalBW_ADown
+            // 
+            btnTerminalBW_ADown.Location = new Point(336, 121);
+            btnTerminalBW_ADown.Margin = new Padding(5, 4, 5, 4);
+            btnTerminalBW_ADown.Name = "btnTerminalBW_ADown";
+            btnTerminalBW_ADown.Size = new Size(141, 35);
+            btnTerminalBW_ADown.TabIndex = 32;
+            btnTerminalBW_ADown.Text = "表位下电流";
+            btnTerminalBW_ADown.UseVisualStyleBackColor = true;
+            btnTerminalBW_ADown.Click += btnTerminalBW_ADown_Click;
+            // 
+            // btnTerminalBW_VOn
+            // 
+            btnTerminalBW_VOn.Location = new Point(181, 44);
+            btnTerminalBW_VOn.Margin = new Padding(5, 4, 5, 4);
+            btnTerminalBW_VOn.Name = "btnTerminalBW_VOn";
+            btnTerminalBW_VOn.Size = new Size(141, 35);
+            btnTerminalBW_VOn.TabIndex = 31;
+            btnTerminalBW_VOn.Text = "表位上电压";
+            btnTerminalBW_VOn.UseVisualStyleBackColor = true;
+            btnTerminalBW_VOn.Click += btnTerminalBW_VOn_Click;
+            // 
+            // btnTerminalBW_VDown
+            // 
+            btnTerminalBW_VDown.Location = new Point(336, 44);
+            btnTerminalBW_VDown.Margin = new Padding(5, 4, 5, 4);
+            btnTerminalBW_VDown.Name = "btnTerminalBW_VDown";
+            btnTerminalBW_VDown.Size = new Size(141, 35);
+            btnTerminalBW_VDown.TabIndex = 30;
+            btnTerminalBW_VDown.Text = "表位下电压";
+            btnTerminalBW_VDown.UseVisualStyleBackColor = true;
+            btnTerminalBW_VDown.Click += btnTerminalBW_VDown_Click;
+            // 
+            // btnChangeTerminalClass
+            // 
+            btnChangeTerminalClass.Location = new Point(473, 189);
+            btnChangeTerminalClass.Margin = new Padding(5, 4, 5, 4);
+            btnChangeTerminalClass.Name = "btnChangeTerminalClass";
+            btnChangeTerminalClass.Size = new Size(141, 35);
+            btnChangeTerminalClass.TabIndex = 18;
+            btnChangeTerminalClass.Text = "切换";
+            btnChangeTerminalClass.UseVisualStyleBackColor = true;
+            btnChangeTerminalClass.Click += btnChangeTerminalClass_Click;
+            // 
+            // cbxTerminalV1
+            // 
+            cbxTerminalV1.FormattingEnabled = true;
+            cbxTerminalV1.Location = new Point(142, 192);
+            cbxTerminalV1.Margin = new Padding(5, 4, 5, 4);
+            cbxTerminalV1.Name = "cbxTerminalV1";
+            cbxTerminalV1.Size = new Size(321, 32);
+            cbxTerminalV1.TabIndex = 15;
+            // 
+            // label25
+            // 
+            label25.AutoSize = true;
+            label25.Location = new Point(14, 10);
+            label25.Margin = new Padding(5, 0, 5, 0);
+            label25.Name = "label25";
+            label25.Size = new Size(46, 24);
+            label25.TabIndex = 19;
+            label25.Text = "地址";
+            // 
+            // cbx_TerminalV1_IN
+            // 
+            cbx_TerminalV1_IN.AutoSize = true;
+            cbx_TerminalV1_IN.Location = new Point(403, 86);
+            cbx_TerminalV1_IN.Name = "cbx_TerminalV1_IN";
+            cbx_TerminalV1_IN.Size = new Size(56, 28);
+            cbx_TerminalV1_IN.TabIndex = 29;
+            cbx_TerminalV1_IN.Text = "IN";
+            cbx_TerminalV1_IN.UseVisualStyleBackColor = true;
+            // 
+            // label24
+            // 
+            label24.AutoSize = true;
+            label24.Location = new Point(14, 195);
+            label24.Margin = new Padding(5, 0, 5, 0);
+            label24.Name = "label24";
+            label24.Size = new Size(118, 24);
+            label24.TabIndex = 14;
+            label24.Text = "终端类型切换";
+            // 
+            // tbxTerminalAdds
+            // 
+            tbxTerminalAdds.Location = new Point(66, 6);
+            tbxTerminalAdds.Margin = new Padding(5, 4, 5, 4);
+            tbxTerminalAdds.Name = "tbxTerminalAdds";
+            tbxTerminalAdds.Size = new Size(87, 30);
+            tbxTerminalAdds.TabIndex = 20;
+            tbxTerminalAdds.Text = "1";
+            // 
+            // cbx_TerminalV1_IC
+            // 
+            cbx_TerminalV1_IC.AutoSize = true;
+            cbx_TerminalV1_IC.Location = new Point(336, 86);
+            cbx_TerminalV1_IC.Name = "cbx_TerminalV1_IC";
+            cbx_TerminalV1_IC.Size = new Size(53, 28);
+            cbx_TerminalV1_IC.TabIndex = 27;
+            cbx_TerminalV1_IC.Text = "IC";
+            cbx_TerminalV1_IC.UseVisualStyleBackColor = true;
+            // 
+            // cbx_TerminalV1_UA
+            // 
+            cbx_TerminalV1_UA.AutoSize = true;
+            cbx_TerminalV1_UA.Checked = true;
+            cbx_TerminalV1_UA.CheckState = CheckState.Checked;
+            cbx_TerminalV1_UA.Location = new Point(186, 10);
+            cbx_TerminalV1_UA.Name = "cbx_TerminalV1_UA";
+            cbx_TerminalV1_UA.Size = new Size(62, 28);
+            cbx_TerminalV1_UA.TabIndex = 22;
+            cbx_TerminalV1_UA.Text = "UA";
+            cbx_TerminalV1_UA.UseVisualStyleBackColor = true;
+            // 
+            // cbx_TerminalV1_IB
+            // 
+            cbx_TerminalV1_IB.AutoSize = true;
+            cbx_TerminalV1_IB.Location = new Point(262, 86);
+            cbx_TerminalV1_IB.Name = "cbx_TerminalV1_IB";
+            cbx_TerminalV1_IB.Size = new Size(52, 28);
+            cbx_TerminalV1_IB.TabIndex = 26;
+            cbx_TerminalV1_IB.Text = "IB";
+            cbx_TerminalV1_IB.UseVisualStyleBackColor = true;
+            // 
+            // cbx_TerminalV1_UB
+            // 
+            cbx_TerminalV1_UB.AutoSize = true;
+            cbx_TerminalV1_UB.Checked = true;
+            cbx_TerminalV1_UB.CheckState = CheckState.Checked;
+            cbx_TerminalV1_UB.Location = new Point(262, 10);
+            cbx_TerminalV1_UB.Name = "cbx_TerminalV1_UB";
+            cbx_TerminalV1_UB.Size = new Size(60, 28);
+            cbx_TerminalV1_UB.TabIndex = 23;
+            cbx_TerminalV1_UB.Text = "UB";
+            cbx_TerminalV1_UB.UseVisualStyleBackColor = true;
+            // 
+            // cbx_TerminalV1_IA
+            // 
+            cbx_TerminalV1_IA.AutoSize = true;
+            cbx_TerminalV1_IA.Location = new Point(186, 86);
+            cbx_TerminalV1_IA.Name = "cbx_TerminalV1_IA";
+            cbx_TerminalV1_IA.Size = new Size(54, 28);
+            cbx_TerminalV1_IA.TabIndex = 25;
+            cbx_TerminalV1_IA.Text = "IA";
+            cbx_TerminalV1_IA.UseVisualStyleBackColor = true;
+            // 
+            // cbx_TerminalV1_UC
+            // 
+            cbx_TerminalV1_UC.AutoSize = true;
+            cbx_TerminalV1_UC.Checked = true;
+            cbx_TerminalV1_UC.CheckState = CheckState.Checked;
+            cbx_TerminalV1_UC.Location = new Point(336, 10);
+            cbx_TerminalV1_UC.Name = "cbx_TerminalV1_UC";
+            cbx_TerminalV1_UC.Size = new Size(61, 28);
+            cbx_TerminalV1_UC.TabIndex = 24;
+            cbx_TerminalV1_UC.Text = "UC";
+            cbx_TerminalV1_UC.UseVisualStyleBackColor = true;
+            // 
+            // tabPage10
+            // 
+            tabPage10.Controls.Add(button1);
+            tabPage10.Controls.Add(textBox1);
+            tabPage10.Controls.Add(button2);
+            tabPage10.Controls.Add(textBox2);
+            tabPage10.Controls.Add(label23);
+            tabPage10.Controls.Add(label22);
+            tabPage10.Location = new Point(4, 33);
+            tabPage10.Name = "tabPage10";
+            tabPage10.Padding = new Padding(3);
+            tabPage10.Size = new Size(1938, 501);
+            tabPage10.TabIndex = 1;
+            tabPage10.Text = "遥信";
+            tabPage10.UseVisualStyleBackColor = true;
+            // 
+            // button1
+            // 
+            button1.Location = new Point(663, 4);
+            button1.Margin = new Padding(5, 4, 5, 4);
+            button1.Name = "button1";
+            button1.Size = new Size(141, 35);
+            button1.TabIndex = 23;
+            button1.Text = "断开";
+            button1.UseVisualStyleBackColor = true;
+            // 
+            // textBox1
+            // 
+            textBox1.Location = new Point(314, 5);
+            textBox1.Margin = new Padding(5, 4, 5, 4);
+            textBox1.Name = "textBox1";
+            textBox1.Size = new Size(205, 30);
+            textBox1.TabIndex = 22;
+            textBox1.Text = "4000";
+            // 
+            // button2
+            // 
+            button2.Location = new Point(521, 4);
+            button2.Margin = new Padding(5, 4, 5, 4);
+            button2.Name = "button2";
+            button2.Size = new Size(141, 35);
+            button2.TabIndex = 18;
+            button2.Text = "连接";
+            button2.UseVisualStyleBackColor = true;
+            // 
+            // textBox2
+            // 
+            textBox2.Location = new Point(51, 5);
+            textBox2.Margin = new Padding(5, 4, 5, 4);
+            textBox2.Name = "textBox2";
+            textBox2.Size = new Size(205, 30);
+            textBox2.TabIndex = 21;
+            textBox2.Text = "192.168.127.201";
+            // 
+            // label23
+            // 
+            label23.AutoSize = true;
+            label23.Location = new Point(17, 10);
+            label23.Margin = new Padding(5, 0, 5, 0);
+            label23.Name = "label23";
+            label23.Size = new Size(30, 24);
+            label23.TabIndex = 19;
+            label23.Text = "IP:";
+            // 
+            // label22
+            // 
+            label22.AutoSize = true;
+            label22.Location = new Point(259, 10);
+            label22.Margin = new Padding(5, 0, 5, 0);
+            label22.Name = "label22";
+            label22.Size = new Size(50, 24);
+            label22.TabIndex = 20;
+            label22.Text = "Port:";
+            // 
+            // tabPage4
+            // 
+            tabPage4.Location = new Point(4, 33);
+            tabPage4.Name = "tabPage4";
+            tabPage4.Padding = new Padding(3);
+            tabPage4.Size = new Size(1952, 544);
+            tabPage4.TabIndex = 3;
+            tabPage4.Text = "电表测试单元：V1";
+            tabPage4.UseVisualStyleBackColor = true;
+            // 
+            // tabPage5
+            // 
+            tabPage5.Location = new Point(4, 33);
+            tabPage5.Name = "tabPage5";
+            tabPage5.Padding = new Padding(3);
+            tabPage5.Size = new Size(1952, 544);
+            tabPage5.TabIndex = 4;
+            tabPage5.Text = "终端V2";
+            tabPage5.UseVisualStyleBackColor = true;
+            // 
+            // tabPage6
+            // 
+            tabPage6.Location = new Point(4, 33);
+            tabPage6.Name = "tabPage6";
+            tabPage6.Padding = new Padding(3);
+            tabPage6.Size = new Size(1952, 544);
+            tabPage6.TabIndex = 5;
+            tabPage6.Text = "终端V2";
+            tabPage6.UseVisualStyleBackColor = true;
+            // 
+            // tabPage7
+            // 
+            tabPage7.Location = new Point(4, 33);
+            tabPage7.Name = "tabPage7";
+            tabPage7.Padding = new Padding(3);
+            tabPage7.Size = new Size(1952, 544);
+            tabPage7.TabIndex = 6;
+            tabPage7.Text = "tabPage7";
+            tabPage7.UseVisualStyleBackColor = true;
+            // 
+            // tabPage8
+            // 
+            tabPage8.Location = new Point(4, 33);
+            tabPage8.Name = "tabPage8";
+            tabPage8.Padding = new Padding(3);
+            tabPage8.Size = new Size(1952, 544);
+            tabPage8.TabIndex = 7;
+            tabPage8.Text = "tabPage8";
+            tabPage8.UseVisualStyleBackColor = true;
             // 
             // LogUnit
             // 
             LogUnit.Controls.Add(panellog);
             LogUnit.Dock = DockStyle.Fill;
+            LogUnit.Font = new Font("微软雅黑", 9F, FontStyle.Bold, GraphicsUnit.Point, 134);
+            LogUnit.ForeColor = Color.Green;
             LogUnit.Location = new Point(0, 0);
             LogUnit.Margin = new Padding(5, 4, 5, 4);
             LogUnit.Name = "LogUnit";
             LogUnit.Padding = new Padding(5, 4, 5, 4);
-            LogUnit.Size = new Size(1960, 320);
+            LogUnit.Size = new Size(1960, 251);
             LogUnit.TabIndex = 2;
             LogUnit.TabStop = false;
-            LogUnit.Text = "日志单元";
+            LogUnit.Text = "日志单元-双击清空日志";
             // 
             // panellog
             // 
             panellog.Controls.Add(textBoxlog);
             panellog.Dock = DockStyle.Fill;
-            panellog.Location = new Point(5, 27);
+            panellog.Location = new Point(5, 28);
             panellog.Margin = new Padding(5, 4, 5, 4);
             panellog.Name = "panellog";
-            panellog.Size = new Size(1950, 289);
+            panellog.Size = new Size(1950, 219);
             panellog.TabIndex = 0;
             // 
             // textBoxlog
@@ -611,8 +1012,9 @@ namespace ModelTest
             textBoxlog.Name = "textBoxlog";
             textBoxlog.ReadOnly = true;
             textBoxlog.ScrollBars = ScrollBars.Both;
-            textBoxlog.Size = new Size(1950, 289);
+            textBoxlog.Size = new Size(1950, 219);
             textBoxlog.TabIndex = 0;
+            textBoxlog.MouseDoubleClick += textBoxlog_MouseDoubleClick;
             // 
             // statusStrip1
             // 
@@ -851,16 +1253,16 @@ namespace ModelTest
             panel2.Dock = DockStyle.Top;
             panel2.Location = new Point(0, 150);
             panel2.Name = "panel2";
-            panel2.Size = new Size(1960, 512);
+            panel2.Size = new Size(1960, 581);
             panel2.TabIndex = 4;
             // 
             // panel3
             // 
             panel3.Controls.Add(LogUnit);
             panel3.Dock = DockStyle.Fill;
-            panel3.Location = new Point(0, 662);
+            panel3.Location = new Point(0, 731);
             panel3.Name = "panel3";
-            panel3.Size = new Size(1960, 320);
+            panel3.Size = new Size(1960, 251);
             panel3.TabIndex = 5;
             // 
             // ModelMain
@@ -883,6 +1285,14 @@ namespace ModelTest
             TestUnit.PerformLayout();
             tabPage2.ResumeLayout(false);
             tabPage2.PerformLayout();
+            tabPage3.ResumeLayout(false);
+            tabControl2.ResumeLayout(false);
+            tabPage9.ResumeLayout(false);
+            panel4.ResumeLayout(false);
+            panel5.ResumeLayout(false);
+            panel5.PerformLayout();
+            tabPage10.ResumeLayout(false);
+            tabPage10.PerformLayout();
             LogUnit.ResumeLayout(false);
             panellog.ResumeLayout(false);
             panellog.PerformLayout();
@@ -967,5 +1377,37 @@ namespace ModelTest
         private Button CCODCDown;
         private Button CCOACDown;
         private Button CCOACOn;
+        private TabPage tabPage4;
+        private TabPage tabPage5;
+        private TabPage tabPage6;
+        private TabPage tabPage7;
+        private TabPage tabPage8;
+        private TabControl tabControl2;
+        private TabPage tabPage9;
+        private TabPage tabPage10;
+        private Button button1;
+        private TextBox textBox1;
+        private Button button2;
+        private TextBox textBox2;
+        private Label label23;
+        private Label label22;
+        private ComboBox cbxTerminalV1;
+        private Label label24;
+        private Panel panel4;
+        private Button btnChangeTerminalClass;
+        private TextBox tbxTerminalAdds;
+        private Label label25;
+        private CheckBox cbx_TerminalV1_IA;
+        private CheckBox cbx_TerminalV1_UC;
+        private CheckBox cbx_TerminalV1_UB;
+        private CheckBox cbx_TerminalV1_UA;
+        private CheckBox cbx_TerminalV1_IN;
+        private CheckBox cbx_TerminalV1_IC;
+        private CheckBox cbx_TerminalV1_IB;
+        private Panel panel5;
+        private Button btnTerminalBW_VOn;
+        private Button btnTerminalBW_VDown;
+        private Button btnTerminalBW_AOn;
+        private Button btnTerminalBW_ADown;
     }
 }

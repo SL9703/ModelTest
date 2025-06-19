@@ -31,6 +31,29 @@ namespace ModelTest
             [Description("三相智能电表")]
             Terminal_8 = 0x08
         }
+        public enum TerminalV1CLASS : byte
+        {
+            [Description("断开-无终端类型")]
+            Terminal_0 = 0x00,
+            [Description("台区智能融合终端")]
+            Terminal_1 = 0x01,
+            [Description("13版集中器I型")]
+            Terminal_2 = 0x02,
+            [Description("13版专变III型")]
+            Terminal_3 = 0x03,
+            [Description("22版集中器I型")]
+            Terminal_4 = 0x04,
+            [Description("22版专变III型")]
+            Terminal_5 = 0x05,
+            [Description("22版能源控制器")]
+            Terminal_6 = 0x06,
+            [Description("南网-负荷管理终端")]
+            Terminal_7 = 0x07,
+            [Description("南网-配变监测计量终端")]
+            Terminal_8 = 0x08,
+            [Description("南网-13集中器")]
+            Terminal_9 = 0x09
+        }
         public ModelMain() => InitializeComponent();
         private void ModelMain_Load(object sender, EventArgs e)
         {
@@ -45,6 +68,11 @@ namespace ModelTest
             Control.CheckForIllegalCrossThreadCalls = false;//跨线程
             btn_cilentSocket_Close.Enabled = false;
             btn_cilentSocket.Enabled = true;
+
+            cbxTerminalV1.DataSource = Enum.GetValues(typeof(TerminalV1CLASS)).Cast<TerminalV1CLASS>().Select(x => new
+            {
+                终端类型 = x.GetDescription()
+            }).ToList();
             AddLog("应用程序已启动成功");
         }
         /// <summary>
@@ -154,7 +182,7 @@ namespace ModelTest
             //03 01 数据项
             //0E    校验码
             //AA
-            string MCUAddr = "0" + tbx_addr.Text;
+            MCUAddr = A_GetDescription.BW_Addr(tbx_addr.Text);//地址
             Commande();//命令码
             MCUData_1 = TerminalClass(MCUData_1);
             ModelNumber();
@@ -239,7 +267,44 @@ namespace ModelTest
 
             return MCUData_1;
         }
+        private string TerminalV1Class()
+        {
+            switch (cbxTerminalV1.SelectedIndex)
+            {
+                case 0:
+                    MCUData_1 = "00";
+                    break;
+                case 1:
+                    MCUData_1 = "01";
+                    break;
+                case 2:
+                    MCUData_1 = "02";
+                    break;
+                case 3:
+                    MCUData_1 = "03";
+                    break;
+                case 4:
+                    MCUData_1 = "04";
+                    break;
+                case 5:
+                    MCUData_1 = "05";
+                    break;
+                case 6:
+                    MCUData_1 = "06";
+                    break;
+                case 7:
+                    MCUData_1 = "07";
+                    break;
+                case 8:
+                    MCUData_1 = "08";
+                    break;
+                case 9:
+                    MCUData_1 = "09";
+                    break;
+            }
 
+            return MCUData_1;
+        }
         /// <summary>
         /// 直流下电按钮
         /// </summary>
@@ -247,7 +312,7 @@ namespace ModelTest
         /// <param name="e"></param>
         private async void btnPowerDown_DC_Click(object sender, EventArgs e)
         {
-            MCUAddr = "0" + tbx_addr.Text;
+            MCUAddr = A_GetDescription.BW_Addr(tbx_addr.Text);//地址
             Commande();//命令码
             MCUData_1 = TerminalClass(MCUData_1);
             MCUData_2 = "00"; //下电数据
@@ -265,7 +330,7 @@ namespace ModelTest
         /// <param name="e"></param>
         private async void btnPowerOn_AC_Click(object sender, EventArgs e)
         {
-            MCUAddr = "0" + tbx_addr.Text;//地址
+            MCUAddr = A_GetDescription.BW_Addr(tbx_addr.Text);//地址
             CommandCode = "21";//交流电上电命令
             MCUData_1 = TerminalClass(MCUData_1);//终端类型，表地址
             AC_ABCN();
@@ -322,7 +387,7 @@ namespace ModelTest
         /// <param name="e"></param>
         private async void btnPowerDown_AC_Click(object sender, EventArgs e)
         {
-            MCUAddr = "0" + tbx_addr.Text;//地址
+            MCUAddr = A_GetDescription.BW_Addr(tbx_addr.Text);//地址
             CommandCode = "21";//交流电上电命令
             MCUData_1 = TerminalClass(MCUData_1);//终端类型，表地址
             MCUData_2 = "00"; //下电数据
@@ -599,7 +664,7 @@ namespace ModelTest
         {
             await SeedMethod(label19.Text);
         }
-        string cco_DataLength = "0700";
+        string A0700_DataLength = "0700";
         /// <summary>
         /// CCO直流上电
         /// </summary>
@@ -608,10 +673,10 @@ namespace ModelTest
         private async void CCODCOn_Click(object sender, EventArgs e)
         {
             //55 07 00 addr MCUCtrl 01&31  01模组1  02模组2 check AA
-            MCUAddr = "0" + tbx_addr.Text;//地址
+            MCUAddr = A_GetDescription.BW_Addr(tbx_addr.Text);//地址
             Commande();//命令码
             ModelNumber();//得到模块地址01 02  
-            var CCODCOn = cco_DataLength + MCUAddr + MCUCtrl + CommandCode + MCUData_2;//07 00 01 00 01 01
+            var CCODCOn = A0700_DataLength + MCUAddr + MCUCtrl + CommandCode + MCUData_2;//07 00 01 00 01 01
             var check = A_GetDescription.CalculateChecksum(CCODCOn);
             string CCODCOn_55AA = "55" + CCODCOn + check + "AA";
             await SeedMethod(CCODCOn_55AA);
@@ -625,22 +690,190 @@ namespace ModelTest
         private async void CCODCDown_Click(object sender, EventArgs e)
         {
             //55 07 00 addr MCUCtrl 01&31  01模组1  02模组2 check AA
-            MCUAddr = "0" + tbx_addr.Text;//地址
+            MCUAddr = A_GetDescription.BW_Addr(tbx_addr.Text);//地址
             Commande();//命令码
-            var CCODCDown = cco_DataLength + MCUAddr + MCUCtrl + CommandCode + "00";//07 00 01 00 01 00
+            var CCODCDown = A0700_DataLength + MCUAddr + MCUCtrl + CommandCode + "00";//07 00 01 00 01 00
             var check = A_GetDescription.CalculateChecksum(CCODCDown);
             string CCODCDown_55AA = "55" + CCODCDown + check + "AA";
             await SeedMethod(CCODCDown_55AA);
         }
-
-        private void CCOACOn_Click(object sender, EventArgs e)
+        string ccoCd_AC = "02";
+        private async void CCOACOn_Click(object sender, EventArgs e)
         {
-
+            MCUAddr = A_GetDescription.BW_Addr(tbx_addr.Text);//地址
+            AC_ABCN();
+            var CCOACOn = A0700_DataLength + MCUAddr + MCUCtrl + ccoCd_AC + MCUData_2;
+            var check = A_GetDescription.CalculateChecksum(CCOACOn);
+            string CCOACOn_55AA = "55" + CCOACOn + check + "AA";
+            await SeedMethod(CCOACOn_55AA);
         }
 
-        private void CCOACDown_Click(object sender, EventArgs e)
+        private async void CCOACDown_Click(object sender, EventArgs e)
         {
+            MCUAddr = A_GetDescription.BW_Addr(tbx_addr.Text);//地址
+            AC_ABCN();
+            var CCOACDown = A0700_DataLength + MCUAddr + MCUCtrl + ccoCd_AC + "00";
+            var check = A_GetDescription.CalculateChecksum(CCOACDown);
+            string CCOACDown_55AA = "55" + CCOACDown + check + "AA";
+            await SeedMethod(CCOACDown_55AA);
+        }
+        /// <summary>
+        /// 终端单元切换终端类型
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private async void btnChangeTerminalClass_Click(object sender, EventArgs e)
+        {
+            //命令字2d
+            var CMD_2d = "2D";
+            MCUAddr = A_GetDescription.BW_Addr(tbxTerminalAdds.Text);//地址
+            MCUData_1 = TerminalV1Class();
+            var ChangeTerminalCls = A0700_DataLength + MCUAddr + MCUCtrl + CMD_2d + MCUData_1;// 07 00 01 00 2d 00
+            var check = A_GetDescription.CalculateChecksum(ChangeTerminalCls);
+            string ChangeTerminalCls_55AA = "55" + ChangeTerminalCls + check + "AA";
+            await SeedMethod(ChangeTerminalCls_55AA);
+        }
+        /// <summary>
+        /// 双击清空日志
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void textBoxlog_MouseDoubleClick(object sender, MouseEventArgs e)
+        {
+            textBoxlog.Text = "";
+        }
 
+        string CMD_21 = "21";
+        string CMD_22 = "22";
+        string UABC = string.Empty;
+        string IABCN = string.Empty;
+        public void TerminalV1_UABC()
+        {
+            if (cbx_TerminalV1_UA.Checked && cbx_TerminalV1_UB.Checked && cbx_TerminalV1_UC.Checked)
+            {
+                UABC = "07";
+            }
+            else if (!cbx_TerminalV1_UA.Checked && cbx_TerminalV1_UB.Checked && cbx_TerminalV1_UC.Checked)
+            {
+                UABC = "06";
+            }
+            else if (cbx_TerminalV1_UA.Checked && !cbx_TerminalV1_UB.Checked && cbx_TerminalV1_UC.Checked)
+            {
+                UABC = "05";
+            }
+            else if (!cbx_TerminalV1_UA.Checked && !cbx_TerminalV1_UB.Checked && cbx_TerminalV1_UC.Checked)
+            {
+                UABC = "04";
+            }
+            else if (cbx_TerminalV1_UA.Checked && cbx_TerminalV1_UB.Checked && !cbx_TerminalV1_UC.Checked)
+            {
+                UABC = "03";
+            }
+            else if (!cbx_TerminalV1_UA.Checked && cbx_TerminalV1_UB.Checked && !cbx_TerminalV1_UC.Checked)
+            {
+                UABC = "02";
+            }
+            else if (cbx_TerminalV1_UA.Checked && !cbx_TerminalV1_UB.Checked && !cbx_TerminalV1_UC.Checked)
+            {
+                UABC = "01";
+            }
+            else if (!cbx_TerminalV1_UA.Checked && !cbx_TerminalV1_UB.Checked && !cbx_TerminalV1_UC.Checked)
+            {
+                UABC = "00";
+            }
+            else
+            {
+                UABC = "00";
+            }
+        }
+        public void TerminalV1_IABC()
+        {
+            if (cbx_TerminalV1_IA.Checked && cbx_TerminalV1_IB.Checked && cbx_TerminalV1_IC.Checked)
+            {
+                IABCN = "07";
+            }
+            else if (!cbx_TerminalV1_IA.Checked && cbx_TerminalV1_IB.Checked && cbx_TerminalV1_IC.Checked)
+            {
+                IABCN = "06";
+            }
+            else if (cbx_TerminalV1_IA.Checked && !cbx_TerminalV1_IB.Checked && cbx_TerminalV1_IC.Checked)
+            {
+                IABCN = "05";
+            }
+            else if (!cbx_TerminalV1_IA.Checked && !cbx_TerminalV1_IB.Checked && cbx_TerminalV1_IC.Checked)
+            {
+                IABCN = "04";
+            }
+            else if (cbx_TerminalV1_IA.Checked && cbx_TerminalV1_IB.Checked && !cbx_TerminalV1_IC.Checked)
+            {
+                IABCN = "03";
+            }
+            else if (!cbx_TerminalV1_IA.Checked && cbx_TerminalV1_IB.Checked && !cbx_TerminalV1_IC.Checked)
+            {
+                IABCN = "02";
+            }
+            else if (cbx_TerminalV1_IA.Checked && !cbx_TerminalV1_IB.Checked && !cbx_TerminalV1_IC.Checked)
+            {
+                IABCN = "01";
+            }
+            else if (!cbx_TerminalV1_IA.Checked && !cbx_TerminalV1_IB.Checked && !cbx_TerminalV1_IC.Checked)
+            {
+                IABCN = "00";
+            }
+        }
+        /// <summary>
+        /// 接入电压 21
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private async void btnTerminalBW_VOn_Click(object sender, EventArgs e)
+        {
+            MCUAddr = A_GetDescription.BW_Addr(tbxTerminalAdds.Text);//地址
+            TerminalV1_UABC();
+            var Terminal_PowerOn_V = A0700_DataLength + MCUAddr + MCUCtrl + CMD_21 + UABC;//07 00 01 21 00
+            var check = A_GetDescription.CalculateChecksum(Terminal_PowerOn_V);
+            string Terminal_PowerOn_V_55AA = "55" + Terminal_PowerOn_V + check + "AA";
+            await SeedMethod(Terminal_PowerOn_V_55AA);
+        }
+        /// <summary>
+        /// 断开电压21
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private async void btnTerminalBW_VDown_Click(object sender, EventArgs e)
+        {
+            MCUAddr = A_GetDescription.BW_Addr(tbxTerminalAdds.Text);//地址
+            var Terminal_PowerDown_V = A0700_DataLength + MCUAddr + MCUCtrl + CMD_21 + "00";//07 00 01 21 00
+            var check = A_GetDescription.CalculateChecksum(Terminal_PowerDown_V);
+            string Terminal_PowerDwon_V_55AA = "55" + Terminal_PowerDown_V + check + "AA";
+            await SeedMethod(Terminal_PowerDwon_V_55AA);
+        }
+        /// <summary>
+        /// 接入电流22
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private async void btnTerminalBW_AOn_Click(object sender, EventArgs e)
+        {
+            MCUAddr = A_GetDescription.BW_Addr(tbxTerminalAdds.Text);//地址
+            TerminalV1_IABC();
+            var Terminal_PowerOn_A = A0700_DataLength + MCUAddr + MCUCtrl + CMD_22 + IABCN;
+            var check = A_GetDescription.CalculateChecksum(Terminal_PowerOn_A);
+            string Terminal_PowerOn_A_55AA = "55" + Terminal_PowerOn_A + check + "AA";
+            await SeedMethod(Terminal_PowerOn_A_55AA);
+        }
+        /// <summary>
+        /// 断开电流22
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private async void btnTerminalBW_ADown_Click(object sender, EventArgs e)
+        {
+            MCUAddr = A_GetDescription.BW_Addr(tbxTerminalAdds.Text);//地址
+            var Terminal_PowerDown_A = A0700_DataLength + MCUAddr + MCUCtrl + CMD_22 + "00";
+            var check = A_GetDescription.CalculateChecksum(Terminal_PowerDown_A);
+            string Terminal_PowerDwon_A_55AA = "55" + Terminal_PowerDown_A + check + "AA";
+            await SeedMethod(Terminal_PowerDwon_A_55AA);
         }
     }
     public static class A_GetDescription
@@ -695,6 +928,117 @@ namespace ModelTest
 
             // 返回两位16进制字符串
             return checksum.ToString("X2");
+        }
+
+        public static string BW_Addr(string BWTest)
+        {
+            if (!string.IsNullOrEmpty(BWTest))
+            {
+                switch (BWTest)
+                {
+                    case "AA":
+                        return "AA";
+                    case "1":
+                        return "01";
+                    case "2":
+                        return "02";
+                    case "3":
+                        return "03";
+                    case "4":
+                        return "04";
+                    case "5":
+                        return "05";
+                    case "6":
+                        return "06";
+                    case "7":
+                        return "07";
+                    case "8":
+                        return "08";
+                    case "9":
+                        return "09";
+                    case "10":
+                        return "0A";
+                    case "11":
+                        return "0B";
+                    case "12":
+                        return "0C";
+                    case "13":
+                        return "0D";
+                    case "14":
+                        return "0E";
+                    case "15":
+                        return "0F";
+                    case "16":
+                        return "10";
+                    case "17":
+                        return "11";
+                    case "18":
+                        return "12";
+                    case "19":
+                        return "13";
+                    case "20":
+                        return "14";
+                    case "21":
+                        return "15";
+                    case "22":
+                        return "16";
+                    case "23":
+                        return "17";
+                    case "24":
+                        return "18";
+                    case "25":
+                        return "19";
+                    case "26":
+                        return "1A";
+                    case "27":
+                        return "1B";
+                    case "28":
+                        return "1C";
+                    case "29":
+                        return "1D";
+                    case "30":
+                        return "1E";
+                    case "31":
+                        return "1F";
+                    case "32":
+                        return "20";
+                    case "33":
+                        return "21";
+                    case "34":
+                        return "22";
+                    case "35":
+                        return "23";
+                    case "36":
+                        return "27";
+                    case "37":
+                        return "25";
+                    case "38":
+                        return "26";
+                    case "39":
+                        return "27";
+                    case "40":
+                        return "28";
+                    case "41":
+                        return "29";
+                    case "42":
+                        return "2A";
+                    case "43":
+                        return "2B";
+                    case "44":
+                        return "2C";
+                    case "45":
+                        return "2D";
+                    case "46":
+                        return "2E";
+                    case "47":
+                        return "2F";
+                    case "48":
+                        return "30";
+                    default:
+                        break;
+                }
+            }
+            return default;
         }
 
     }
