@@ -54,6 +54,13 @@ namespace ModelTest
             [Description("南网-13集中器")]
             Terminal_9 = 0x09
         }
+        string CMD_2D = "2D";
+        string CMD_21 = "21";
+        string CMD_22 = "22";
+        string CMD_29 = "29";
+        string CMD_2A = "2A";
+        string UABC = string.Empty;
+        string IABCN = string.Empty;
         public ModelMain() => InitializeComponent();
         private void ModelMain_Load(object sender, EventArgs e)
         {
@@ -486,6 +493,7 @@ namespace ModelTest
             AddLog(fullError);
             ConnectionStatusChanged?.Invoke(errorMsg);
         }
+        byte[] CheckMCUData = new byte[1024];
         /// <summary>
         /// 接收16进制数据
         /// </summary>
@@ -504,6 +512,7 @@ namespace ModelTest
                         break;
                     }
                     // message = System.Text.Encoding.UTF8.GetString(buffer, 0, bytesRead);
+                    CheckMCUData = HexStringToByteArray(message);
                     message = ByteArrayToHex(buffer, false);
                     // AddLog($"服务器消息ACSII：{message}");
                     lock (_lock)
@@ -522,7 +531,7 @@ namespace ModelTest
                     AddLog($"接收异常: {ex.GetType().Name} - {ex.Message}");
                     break;
                 }
-                AddLog($"MCU-->PC：{_messageBuffer}\r\n");
+                AddLog($"MCU-->PC：{CheckMCUData}\r\n");
             }
             Disconnect();
         }
@@ -541,7 +550,7 @@ namespace ModelTest
             }
             return new string(result);
         }
-
+        byte[] SendMCUData = new byte[1024];
         public async Task SendHexAsync(string hexString)
         {
             if (client == null || !client.Connected)
@@ -552,9 +561,9 @@ namespace ModelTest
             }
             try
             {
-                byte[] data = HexStringToByteArray(hexString);
-                await stream.WriteAsync(data, 0, data.Length);
-                AddLog($"[PC-->MCU成功] {BitConverter.ToString(data).Replace("-", " ")}");
+                SendMCUData = HexStringToByteArray(hexString);
+                await stream.WriteAsync(SendMCUData, 0, SendMCUData.Length);
+                AddLog($"[PC-->MCU成功] {BitConverter.ToString(SendMCUData).Replace("-", " ")}");
             }
             catch (Exception ex)
             {
@@ -725,13 +734,14 @@ namespace ModelTest
         private async void btnChangeTerminalClass_Click(object sender, EventArgs e)
         {
             //命令字2d
-            var CMD_2d = "2D";
+
             MCUAddr = A_GetDescription.BW_Addr(tbxTerminalAdds.Text);//地址
             MCUData_1 = TerminalV1Class();
-            var ChangeTerminalCls = A0700_DataLength + MCUAddr + MCUCtrl + CMD_2d + MCUData_1;// 07 00 01 00 2d 00
+            var ChangeTerminalCls = A0700_DataLength + MCUAddr + MCUCtrl + CMD_2D + MCUData_1;// 07 00 01 00 2d 00
             var check = A_GetDescription.CalculateChecksum(ChangeTerminalCls);
             string ChangeTerminalCls_55AA = "55" + ChangeTerminalCls + check + "AA";
             await SeedMethod(ChangeTerminalCls_55AA);
+
         }
         /// <summary>
         /// 双击清空日志
@@ -742,11 +752,6 @@ namespace ModelTest
         {
             textBoxlog.Text = "";
         }
-
-        string CMD_21 = "21";
-        string CMD_22 = "22";
-        string UABC = string.Empty;
-        string IABCN = string.Empty;
         public void TerminalV1_UABC()
         {
             if (cbx_TerminalV1_UA.Checked && cbx_TerminalV1_UB.Checked && cbx_TerminalV1_UC.Checked)
@@ -874,6 +879,99 @@ namespace ModelTest
             var check = A_GetDescription.CalculateChecksum(Terminal_PowerDown_A);
             string Terminal_PowerDwon_A_55AA = "55" + Terminal_PowerDown_A + check + "AA";
             await SeedMethod(Terminal_PowerDwon_A_55AA);
+        }
+        /// <summary>
+        /// 电机压接
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private async void btnTerminalV1MotorCrimping_Click(object sender, EventArgs e)
+        {
+            MCUAddr = A_GetDescription.BW_Addr(tbxTerminalAdds.Text);//地址
+            var Terminal_MotorCrimping = A0700_DataLength + MCUAddr + MCUCtrl + CMD_29 + "01";
+            var check = A_GetDescription.CalculateChecksum(Terminal_MotorCrimping);
+            string Terminal_MotorCrimping_55AA = "55" + Terminal_MotorCrimping + check + "AA";
+            await SeedMethod(Terminal_MotorCrimping_55AA);
+        }
+        /// <summary>
+        /// 电机退压接
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private async void btnTerminalV1MotorCrimpingreturn_Click(object sender, EventArgs e)
+        {
+            MCUAddr = A_GetDescription.BW_Addr(tbxTerminalAdds.Text);//地址
+            var Terminal_MotorCrimping = A0700_DataLength + MCUAddr + MCUCtrl + CMD_29 + "00";
+            var check = A_GetDescription.CalculateChecksum(Terminal_MotorCrimping);
+            string Terminal_MotorCrimpingreturn_55AA = "55" + Terminal_MotorCrimping + check + "AA";
+            await SeedMethod(Terminal_MotorCrimpingreturn_55AA);
+        }
+        /// <summary>
+        /// 红灯控制
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private bool REDFlas = false;
+        private async void pictureBoxRed_Click(object sender, EventArgs e)
+        {
+            MCUAddr = A_GetDescription.BW_Addr(tbxTerminalAdds.Text);//地址
+            if (!REDFlas)
+            {
+                var Terminal_RedLoop = A0700_DataLength + MCUAddr + MCUAddr + CMD_2A + "20";
+                var check = A_GetDescription.CalculateChecksum(Terminal_RedLoop);
+                string Terminal_RedLoop_55AA = "55" + Terminal_RedLoop + check + "AA";
+                await SeedMethod(Terminal_RedLoop_55AA);
+                if (Terminal_RedLoop_55AA.Contains(BitConverter.ToString(CheckMCUData)))
+                {
+                    this.pictureBoxRed.Image = Image.FromFile(Application.StartupPath + "\\png\\" + "红灯.png");
+                    REDFlas = true;
+                }
+            }
+            else
+            {
+                var Terminal_RedLoop = A0700_DataLength + MCUAddr + MCUAddr + CMD_2A + "10";
+                var check = A_GetDescription.CalculateChecksum(Terminal_RedLoop);
+                string Terminal_RedLoop_55AA = "55" + Terminal_RedLoop + check + "AA";
+                await SeedMethod(Terminal_RedLoop_55AA);
+                if(Terminal_RedLoop_55AA.Contains(BitConverter.ToString(CheckMCUData)))
+                {
+                    this.pictureBoxRed.Image = Image.FromFile(Application.StartupPath + "\\png\\" + "灰灯.png");
+                    REDFlas = false;
+                }
+            }
+
+        }
+        /// <summary>
+        /// 绿灯控制
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private bool GreenFlas = false;
+        private async void pictureBoxGreen_Click(object sender, EventArgs e)
+        {
+            MCUAddr = A_GetDescription.BW_Addr(tbxTerminalAdds.Text);//地址
+            if (!REDFlas)
+            {
+                var Terminal_GreenLoop = A0700_DataLength + MCUAddr + MCUAddr + CMD_2A + "40";
+                var check = A_GetDescription.CalculateChecksum(Terminal_GreenLoop);
+                string Terminal_GreenLoop_55AA = "55" + Terminal_GreenLoop + check + "AA";
+                await SeedMethod(Terminal_GreenLoop_55AA);
+
+                this.pictureBoxRed.Image = Image.FromFile(Application.StartupPath + "\\png\\" + "绿灯.png");
+                REDFlas = true;
+            }
+            else
+            {
+                var Terminal_GreenLoop = A0700_DataLength + MCUAddr + MCUAddr + CMD_2A + "10";
+                var check = A_GetDescription.CalculateChecksum(Terminal_GreenLoop);
+                string Terminal_GreenLoop_55AA = "55" + Terminal_GreenLoop + check + "AA";
+                await SeedMethod(Terminal_GreenLoop_55AA);
+
+                this.pictureBoxRed.Image = Image.FromFile(Application.StartupPath + "\\png\\" + "灰灯.png");
+                REDFlas = true;
+            }
+
+
         }
     }
     public static class A_GetDescription
