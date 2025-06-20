@@ -59,6 +59,7 @@ namespace ModelTest
         string CMD_22 = "22";
         string CMD_29 = "29";
         string CMD_2A = "2A";
+        string CMD_2C = "2C";
         string UABC = string.Empty;
         string IABCN = string.Empty;
         public ModelMain() => InitializeComponent();
@@ -493,7 +494,7 @@ namespace ModelTest
             AddLog(fullError);
             ConnectionStatusChanged?.Invoke(errorMsg);
         }
-        byte[] CheckMCUData = new byte[1024];
+        // byte[] CheckMCUData = new byte[1024];
         /// <summary>
         /// 接收16进制数据
         /// </summary>
@@ -512,7 +513,6 @@ namespace ModelTest
                         break;
                     }
                     // message = System.Text.Encoding.UTF8.GetString(buffer, 0, bytesRead);
-                    CheckMCUData = HexStringToByteArray(message);
                     message = ByteArrayToHex(buffer, false);
                     // AddLog($"服务器消息ACSII：{message}");
                     lock (_lock)
@@ -531,7 +531,7 @@ namespace ModelTest
                     AddLog($"接收异常: {ex.GetType().Name} - {ex.Message}");
                     break;
                 }
-                AddLog($"MCU-->PC：{CheckMCUData}\r\n");
+                AddLog($"MCU-->PC：{_messageBuffer.Replace("-", " ")}\r\n");
             }
             Disconnect();
         }
@@ -743,15 +743,6 @@ namespace ModelTest
             await SeedMethod(ChangeTerminalCls_55AA);
 
         }
-        /// <summary>
-        /// 双击清空日志
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private void textBoxlog_MouseDoubleClick(object sender, MouseEventArgs e)
-        {
-            textBoxlog.Text = "";
-        }
         public void TerminalV1_UABC()
         {
             if (cbx_TerminalV1_UA.Checked && cbx_TerminalV1_UB.Checked && cbx_TerminalV1_UC.Checked)
@@ -921,7 +912,7 @@ namespace ModelTest
                 var check = A_GetDescription.CalculateChecksum(Terminal_RedLoop);
                 string Terminal_RedLoop_55AA = "55" + Terminal_RedLoop + check + "AA";
                 await SeedMethod(Terminal_RedLoop_55AA);
-                if (Terminal_RedLoop_55AA.Contains(BitConverter.ToString(CheckMCUData)))
+                if (Terminal_RedLoop_55AA.Contains(BitConverter.ToString(buffer)))
                 {
                     this.pictureBoxRed.Image = Image.FromFile(Application.StartupPath + "\\png\\" + "红灯.png");
                     REDFlas = true;
@@ -933,7 +924,7 @@ namespace ModelTest
                 var check = A_GetDescription.CalculateChecksum(Terminal_RedLoop);
                 string Terminal_RedLoop_55AA = "55" + Terminal_RedLoop + check + "AA";
                 await SeedMethod(Terminal_RedLoop_55AA);
-                if(Terminal_RedLoop_55AA.Contains(BitConverter.ToString(CheckMCUData)))
+                if (Terminal_RedLoop_55AA.Contains(BitConverter.ToString(buffer)))
                 {
                     this.pictureBoxRed.Image = Image.FromFile(Application.StartupPath + "\\png\\" + "灰灯.png");
                     REDFlas = false;
@@ -950,15 +941,18 @@ namespace ModelTest
         private async void pictureBoxGreen_Click(object sender, EventArgs e)
         {
             MCUAddr = A_GetDescription.BW_Addr(tbxTerminalAdds.Text);//地址
-            if (!REDFlas)
+            if (!GreenFlas)
             {
                 var Terminal_GreenLoop = A0700_DataLength + MCUAddr + MCUAddr + CMD_2A + "40";
                 var check = A_GetDescription.CalculateChecksum(Terminal_GreenLoop);
                 string Terminal_GreenLoop_55AA = "55" + Terminal_GreenLoop + check + "AA";
                 await SeedMethod(Terminal_GreenLoop_55AA);
+                if (Terminal_GreenLoop_55AA.Contains(BitConverter.ToString(buffer)))
+                {
+                    this.pictureBoxRed.Image = Image.FromFile(Application.StartupPath + "\\png\\" + "绿灯.png");
+                    GreenFlas = true;
+                }
 
-                this.pictureBoxRed.Image = Image.FromFile(Application.StartupPath + "\\png\\" + "绿灯.png");
-                REDFlas = true;
             }
             else
             {
@@ -966,11 +960,74 @@ namespace ModelTest
                 var check = A_GetDescription.CalculateChecksum(Terminal_GreenLoop);
                 string Terminal_GreenLoop_55AA = "55" + Terminal_GreenLoop + check + "AA";
                 await SeedMethod(Terminal_GreenLoop_55AA);
+                if (Terminal_GreenLoop_55AA.Contains(BitConverter.ToString(buffer)))
+                {
+                    this.pictureBoxRed.Image = Image.FromFile(Application.StartupPath + "\\png\\" + "灰灯.png");
+                    GreenFlas = false;
+                }
 
-                this.pictureBoxRed.Image = Image.FromFile(Application.StartupPath + "\\png\\" + "灰灯.png");
-                REDFlas = true;
             }
 
+
+        }
+        /// <summary>
+        /// 清空日志
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void 清空ToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            textBoxlog.Text = "";
+        }
+        /// <summary>
+        /// 切换背景色
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void 切换背景色ToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            textBoxlog.ForeColor = Color.Black;
+            textBoxlog.BackColor = Color.White;
+        }
+        /// <summary>
+        /// 复制日志内容
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void 复制ToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            string strCopy = textBoxlog.SelectedText;
+            Clipboard.SetDataObject(strCopy);
+        }
+        /// <summary>
+        /// 台体运行指示灯红
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void pBTaiti_Red_Click(object sender, EventArgs e)
+        {
+            MCUAddr = A_GetDescription.BW_Addr(tbxTerminalAdds.Text);//地址
+        }
+
+        private bool TaiTiRed = false;
+        private bool TaiTiGreen = false;
+        private bool TaiTiYellow = false;
+        /// <summary>
+        /// 台体运行指示绿灯
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void pBTaiti_Green_Click(object sender, EventArgs e)
+        {
+
+        }
+        /// <summary>
+        /// 台体运行指示黄灯
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void pBTaiti_yellow_Click(object sender, EventArgs e)
+        {
 
         }
     }
