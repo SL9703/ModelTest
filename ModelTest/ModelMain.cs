@@ -7,7 +7,7 @@ using System.Net.Http;
 using System.ComponentModel;
 using System.Reflection;
 using static System.Windows.Forms.VisualStyles.VisualStyleElement.ProgressBar;
-
+using System.IO.Ports;
 namespace ModelTest
 {
     public partial class ModelMain : Form
@@ -658,12 +658,25 @@ namespace ModelTest
         {
             await SeedMethod(label13.Text);
         }
-
+        
+        /// <summary>
+        /// 打开串口
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void buttonOpen_Click(object sender, EventArgs e)
         {
 
         }
+        /// <summary>
+        /// 关闭串口
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void buttonClose_Click(object sender, EventArgs e)
+        {
 
+        }
         private async void buttonKZHLStatus_Click(object sender, EventArgs e)
         {
             await SeedMethod(label18.Text);
@@ -1030,6 +1043,8 @@ namespace ModelTest
         {
 
         }
+
+
     }
     public static class A_GetDescription
     {

@@ -1326,6 +1326,7 @@ namespace ModelTest
             buttonClose.TabIndex = 17;
             buttonClose.Text = "CLOSE";
             buttonClose.UseVisualStyleBackColor = true;
+            buttonClose.Click += buttonClose_Click;
             // 
             // comboBoxparity
             // 
