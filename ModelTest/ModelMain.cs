@@ -94,6 +94,7 @@ namespace ModelTest
             textBoxdatabit.SelectedIndex = 0;
             buttonOpen.BackColor = Color.YellowGreen;
             comboBoxCOM.Items.AddRange(SerialPort.GetPortNames());
+            MainSerialPort.DataReceived += new SerialDataReceivedEventHandler(MainSerialPort_DataReceived);
         }
 
         /// <summary>
