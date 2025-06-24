@@ -70,8 +70,8 @@ namespace ModelTest
             {
                 终端类型 = x.GetDescription()
             }).ToList();
-            comboBoxBaute.SelectedIndex = 6;
-            comboBoxparity.SelectedIndex = 1;
+            SerialPortinitialization();
+
             // 例如：初始化数据、配置控件等
             Control.CheckForIllegalCrossThreadCalls = false;//跨线程
             btn_cilentSocket_Close.Enabled = false;
@@ -83,6 +83,19 @@ namespace ModelTest
             }).ToList();
             AddLog("应用程序已启动成功");
         }
+        /// <summary>
+        /// initialization port
+        /// </summary>
+        private void SerialPortinitialization()
+        {
+            comboBoxBaute.SelectedIndex = 6;
+            comboBoxparity.SelectedIndex = 1;
+            textBoxstopbit.SelectedIndex = 0;
+            textBoxdatabit.SelectedIndex = 0;
+            buttonOpen.BackColor = Color.YellowGreen;
+            comboBoxCOM.Items.AddRange(SerialPort.GetPortNames());
+        }
+
         /// <summary>
         /// 连接client
         /// </summary>
@@ -658,7 +671,7 @@ namespace ModelTest
         {
             await SeedMethod(label13.Text);
         }
-        
+        private SerialPort MainSerialPort;
         /// <summary>
         /// 打开串口
         /// </summary>
@@ -666,17 +679,92 @@ namespace ModelTest
         /// <param name="e"></param>
         private void buttonOpen_Click(object sender, EventArgs e)
         {
+            MainSerialPort = new SerialPort();//初始化串口
+            try
+            {
+                if (MainSerialPort.IsOpen)
+                {
+                    //串口是打开的状态
+                    MainSerialPort.Close();
+                    buttonOpen.Text = "OPEN";
+                    buttonOpen.BackColor = Color.YellowGreen;
+                    comboBoxCOM.Enabled = true;
+                    comboBoxBaute.Enabled = true;
+                    textBoxdatabit.Enabled = true;
+                    textBoxstopbit.Enabled = true;
+                    comboBoxparity.Enabled = true;
+                    AddLog("串口已关闭");
+                }
+                else
+                {
+                    //串口已经关闭状态，需要设置好属性后打开
+                    comboBoxCOM.Enabled = false;
+                    comboBoxBaute.Enabled = false;
+                    textBoxdatabit.Enabled = false;
+                    textBoxstopbit.Enabled = false;
+                    comboBoxparity.Enabled = false;
+                    AddLog("串口已打开");
+                    MainSerialPort.PortName = comboBoxCOM.Text;//串口号
+                    MainSerialPort.BaudRate = Convert.ToInt32(comboBoxBaute.Text); //波特率
+                    MainSerialPort.DataBits = Convert.ToInt32(textBoxdatabit.Text);//数据位
+                    //校验位
+                    if (comboBoxparity.Text.Equals("NONE"))
+                        MainSerialPort.Parity = Parity.None;
+                    if (comboBoxparity.Text.Equals("ODD"))
+                        MainSerialPort.Parity = Parity.Odd;
+                    if (comboBoxparity.Text.Equals("EVEN"))
+                        MainSerialPort.Parity = Parity.Even;
+                    if (comboBoxparity.Text.Equals("MARK"))
+                        MainSerialPort.Parity = Parity.Mark;
+                    if (comboBoxparity.Text.Equals("SPACE"))
+                        MainSerialPort.Parity = Parity.Space;
+                    //停止位
+                    if (textBoxstopbit.Text.Equals("1"))
+                        MainSerialPort.StopBits = StopBits.One;
+                    if (textBoxstopbit.Text.Equals("1.5"))
+                        MainSerialPort.StopBits = StopBits.OnePointFive;
+                    if (textBoxstopbit.Text.Equals("2"))
+                        MainSerialPort.StopBits = StopBits.Two;
+
+                    MainSerialPort.Open();
+                    buttonOpen.Text = "CLOSE";
+                    buttonOpen.BackColor = Color.IndianRed;
+                }
+            }
+            catch (Exception ex_prot)
+            {
+                //AddLog(ex_prot.ToString());
+                SerialPortException(ex_prot);
+            }
 
         }
+
+        private void SerialPortException(object ex)
+        {
+            MainSerialPort = new SerialPort();
+            comboBoxCOM.Items.Clear();
+            comboBoxCOM.Items.AddRange(SerialPort.GetPortNames());
+            //响铃并显示异常展示给客户
+            System.Media.SystemSounds.Beep.Play();
+            buttonOpen.Text = "OPEN";
+            buttonOpen.BackColor = Color.YellowGreen;
+            AddLog(ex.ToString());
+            comboBoxCOM.Enabled = true;
+            comboBoxBaute.Enabled = true;
+            textBoxdatabit.Enabled = true;
+            textBoxstopbit.Enabled = true;
+            comboBoxparity.Enabled = true;
+        }
         /// <summary>
-        /// 关闭串口
+        /// 刷新串口
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-        private void buttonClose_Click(object sender, EventArgs e)
+        private void btnflushPort_Click(object sender, EventArgs e)
         {
-
+            comboBoxCOM.Items.AddRange(SerialPort.GetPortNames());
         }
+
         private async void buttonKZHLStatus_Click(object sender, EventArgs e)
         {
             await SeedMethod(label18.Text);
@@ -1043,8 +1131,6 @@ namespace ModelTest
         {
 
         }
-
-
     }
     public static class A_GetDescription
     {
