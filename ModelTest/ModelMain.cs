@@ -764,6 +764,69 @@ namespace ModelTest
         {
             comboBoxCOM.Items.AddRange(SerialPort.GetPortNames());
         }
+        /// <summary>
+        /// 串口发送 acsii数据
+        /// </summary>
+        /// <param name="data"></param>
+        public void SerialPortSendACSIIData(string data)
+        {
+            try
+            {
+                if (data.Length != 0 && MainSerialPort.IsOpen)
+                {
+                    MainSerialPort.Write(data);
+                }
+
+            }
+            catch (Exception ex)
+            {
+                AddLog(ex.ToString());
+            }
+        }
+        private long receive_count = 0;//接收字节数，全局变量
+        private StringBuilder SerialSB = new StringBuilder();//
+        /// <summary>
+        /// 接收串口消息
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        public void MainSerialPort_DataReceived(object sender, SerialDataReceivedEventArgs e)
+        {
+            try
+            {
+                int series_x = 0;
+                int num = MainSerialPort.BytesToRead;//获取缓冲区的字节
+                byte[] reviced_buf = new byte[num];
+                receive_count += num;//接收字节变量
+                MainSerialPort.Read(reviced_buf, 0, num);//读取缓冲期num字节存到字节数组中
+                SerialSB.Clear();
+                if (checkBoxISNOHEX.Checked)//hex
+                {
+                    foreach (var item in reviced_buf)
+                    {
+                        SerialSB.Append(item.ToString("X2" + " "));//将byte数组转换成16进制数据，空格隔开
+                    }
+                }
+                else
+                {
+                    SerialSB.Append(Encoding.ASCII.GetString(reviced_buf));//将数组转换成ascii数组
+                }
+                AddLog(SerialSB.ToString());
+
+            }
+            catch (Exception ex)
+            {
+                System.Media.SystemSounds.Beep.Play();
+                AddLog(ex.ToString());
+            }
+        }
+
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
 
         private async void buttonKZHLStatus_Click(object sender, EventArgs e)
         {
@@ -1130,6 +1193,12 @@ namespace ModelTest
         private void pBTaiti_yellow_Click(object sender, EventArgs e)
         {
 
+        }
+
+        private void buttonXY_x0E_Click(object sender, EventArgs e)
+        {
+            string x0E = "x0E";
+            SerialPortSendACSIIData(x0E);
         }
     }
     public static class A_GetDescription
