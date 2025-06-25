@@ -8,10 +8,12 @@ using System.ComponentModel;
 using System.Reflection;
 using static System.Windows.Forms.VisualStyles.VisualStyleElement.ProgressBar;
 using System.IO.Ports;
+using System.Runtime.InteropServices;
 namespace ModelTest
 {
     public partial class ModelMain : Form
     {
+        
         public enum TerminalCLASS : byte
         {
             [Description("专变III")]
@@ -63,6 +65,7 @@ namespace ModelTest
         string UABC = string.Empty;
         string IABCN = string.Empty;
         public ModelMain() => InitializeComponent();
+        private SerialPort MainSerialPort = new SerialPort();//初始化串口
         private void ModelMain_Load(object sender, EventArgs e)
         {
             // 窗体加载时需要执行的初始化代码
@@ -88,13 +91,14 @@ namespace ModelTest
         /// </summary>
         private void SerialPortinitialization()
         {
+
             comboBoxBaute.SelectedIndex = 6;
             comboBoxparity.SelectedIndex = 1;
             textBoxstopbit.SelectedIndex = 0;
             textBoxdatabit.SelectedIndex = 0;
             buttonOpen.BackColor = Color.YellowGreen;
             comboBoxCOM.Items.AddRange(SerialPort.GetPortNames());
-            MainSerialPort.DataReceived += new SerialDataReceivedEventHandler(MainSerialPort_DataReceived);
+            this.MainSerialPort.DataReceived += new System.IO.Ports.SerialDataReceivedEventHandler(this.MainSerialPort_DataReceived);
         }
 
         /// <summary>
@@ -672,7 +676,7 @@ namespace ModelTest
         {
             await SeedMethod(label13.Text);
         }
-        private SerialPort MainSerialPort;
+
         /// <summary>
         /// 打开串口
         /// </summary>
@@ -680,7 +684,6 @@ namespace ModelTest
         /// <param name="e"></param>
         private void buttonOpen_Click(object sender, EventArgs e)
         {
-            MainSerialPort = new SerialPort();//初始化串口
             try
             {
                 if (MainSerialPort.IsOpen)
@@ -1195,12 +1198,30 @@ namespace ModelTest
         {
 
         }
+        #region 控源XY
 
         private void buttonXY_x0E_Click(object sender, EventArgs e)
         {
             string x0E = "x0E";
             SerialPortSendACSIIData(x0E);
         }
+        [DllImport("xyctr.dll")]
+        public static extern int ReadStandMeter(string StandModel, byte[] iStandValue);
+        private void btn_ReadStandMeter_Click(object sender, EventArgs e)
+        {
+            byte[] sStandValue = new byte[255];
+            int ReadStandMeter_data = ReadStandMeter("SYS320", sStandValue);
+            if (ReadStandMeter_data==0)
+            {
+                AddLog("标准表数据返回成功");
+            }
+            else
+            {
+                AddLog("标准表数据返回失败");
+            }
+            AddLog("标准表数据：" + System.Text.Encoding.Default.GetString(sStandValue));
+        } 
+        #endregion
     }
     public static class A_GetDescription
     {

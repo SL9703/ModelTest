@@ -121,6 +121,57 @@ namespace ModelTest
             tabPage5 = new TabPage();
             tabPage6 = new TabPage();
             tabPage7 = new TabPage();
+            btn_ReadStandMeter = new Button();
+            groupBox6 = new GroupBox();
+            textBox24 = new TextBox();
+            textBox25 = new TextBox();
+            textBox26 = new TextBox();
+            textBox21 = new TextBox();
+            textBox22 = new TextBox();
+            textBox23 = new TextBox();
+            textBox18 = new TextBox();
+            textBox19 = new TextBox();
+            textBox20 = new TextBox();
+            textBox15 = new TextBox();
+            textBox16 = new TextBox();
+            textBox17 = new TextBox();
+            textBox12 = new TextBox();
+            textBox13 = new TextBox();
+            textBox14 = new TextBox();
+            textBox9 = new TextBox();
+            textBox10 = new TextBox();
+            textBox11 = new TextBox();
+            textBox6 = new TextBox();
+            textBox7 = new TextBox();
+            textBox8 = new TextBox();
+            textBox5 = new TextBox();
+            textBox4 = new TextBox();
+            textBox3 = new TextBox();
+            label52 = new Label();
+            label53 = new Label();
+            label54 = new Label();
+            label49 = new Label();
+            label50 = new Label();
+            label51 = new Label();
+            label46 = new Label();
+            label47 = new Label();
+            label48 = new Label();
+            label43 = new Label();
+            label44 = new Label();
+            label45 = new Label();
+            label40 = new Label();
+            label41 = new Label();
+            label42 = new Label();
+            label37 = new Label();
+            label38 = new Label();
+            label39 = new Label();
+            label34 = new Label();
+            label35 = new Label();
+            label36 = new Label();
+            label33 = new Label();
+            label32 = new Label();
+            label31 = new Label();
+            checkBoxISNOHEX = new CheckBox();
             buttonXY_x0E = new Button();
             tabPage8 = new TabPage();
             LogUnit = new GroupBox();
@@ -154,7 +205,6 @@ namespace ModelTest
             panel1 = new Panel();
             panel2 = new Panel();
             panel3 = new Panel();
-            checkBoxISNOHEX = new CheckBox();
             tabControl1.SuspendLayout();
             tabPage1.SuspendLayout();
             TestUnit.SuspendLayout();
@@ -176,6 +226,7 @@ namespace ModelTest
             groupBox3.SuspendLayout();
             tabPage10.SuspendLayout();
             tabPage7.SuspendLayout();
+            groupBox6.SuspendLayout();
             LogUnit.SuspendLayout();
             panellog.SuspendLayout();
             contextMenuStrip1.SuspendLayout();
@@ -1187,6 +1238,8 @@ namespace ModelTest
             // 
             // tabPage7
             // 
+            tabPage7.Controls.Add(btn_ReadStandMeter);
+            tabPage7.Controls.Add(groupBox6);
             tabPage7.Controls.Add(checkBoxISNOHEX);
             tabPage7.Controls.Add(buttonXY_x0E);
             tabPage7.Location = new Point(4, 33);
@@ -1196,6 +1249,590 @@ namespace ModelTest
             tabPage7.TabIndex = 6;
             tabPage7.Text = "新跃控源参数";
             tabPage7.UseVisualStyleBackColor = true;
+            // 
+            // btn_ReadStandMeter
+            // 
+            btn_ReadStandMeter.Location = new Point(8, 102);
+            btn_ReadStandMeter.Name = "btn_ReadStandMeter";
+            btn_ReadStandMeter.Size = new Size(112, 34);
+            btn_ReadStandMeter.TabIndex = 24;
+            btn_ReadStandMeter.Text = "读取标准表";
+            btn_ReadStandMeter.UseVisualStyleBackColor = true;
+            btn_ReadStandMeter.Click += btn_ReadStandMeter_Click;
+            // 
+            // groupBox6
+            // 
+            groupBox6.BackColor = Color.DarkGray;
+            groupBox6.Controls.Add(textBox24);
+            groupBox6.Controls.Add(textBox25);
+            groupBox6.Controls.Add(textBox26);
+            groupBox6.Controls.Add(textBox21);
+            groupBox6.Controls.Add(textBox22);
+            groupBox6.Controls.Add(textBox23);
+            groupBox6.Controls.Add(textBox18);
+            groupBox6.Controls.Add(textBox19);
+            groupBox6.Controls.Add(textBox20);
+            groupBox6.Controls.Add(textBox15);
+            groupBox6.Controls.Add(textBox16);
+            groupBox6.Controls.Add(textBox17);
+            groupBox6.Controls.Add(textBox12);
+            groupBox6.Controls.Add(textBox13);
+            groupBox6.Controls.Add(textBox14);
+            groupBox6.Controls.Add(textBox9);
+            groupBox6.Controls.Add(textBox10);
+            groupBox6.Controls.Add(textBox11);
+            groupBox6.Controls.Add(textBox6);
+            groupBox6.Controls.Add(textBox7);
+            groupBox6.Controls.Add(textBox8);
+            groupBox6.Controls.Add(textBox5);
+            groupBox6.Controls.Add(textBox4);
+            groupBox6.Controls.Add(textBox3);
+            groupBox6.Controls.Add(label52);
+            groupBox6.Controls.Add(label53);
+            groupBox6.Controls.Add(label54);
+            groupBox6.Controls.Add(label49);
+            groupBox6.Controls.Add(label50);
+            groupBox6.Controls.Add(label51);
+            groupBox6.Controls.Add(label46);
+            groupBox6.Controls.Add(label47);
+            groupBox6.Controls.Add(label48);
+            groupBox6.Controls.Add(label43);
+            groupBox6.Controls.Add(label44);
+            groupBox6.Controls.Add(label45);
+            groupBox6.Controls.Add(label40);
+            groupBox6.Controls.Add(label41);
+            groupBox6.Controls.Add(label42);
+            groupBox6.Controls.Add(label37);
+            groupBox6.Controls.Add(label38);
+            groupBox6.Controls.Add(label39);
+            groupBox6.Controls.Add(label34);
+            groupBox6.Controls.Add(label35);
+            groupBox6.Controls.Add(label36);
+            groupBox6.Controls.Add(label33);
+            groupBox6.Controls.Add(label32);
+            groupBox6.Controls.Add(label31);
+            groupBox6.Dock = DockStyle.Bottom;
+            groupBox6.ForeColor = Color.Gray;
+            groupBox6.Location = new Point(3, 370);
+            groupBox6.Name = "groupBox6";
+            groupBox6.Size = new Size(1885, 171);
+            groupBox6.TabIndex = 23;
+            groupBox6.TabStop = false;
+            groupBox6.Text = "仪表台";
+            // 
+            // textBox24
+            // 
+            textBox24.BorderStyle = BorderStyle.None;
+            textBox24.Location = new Point(1375, 131);
+            textBox24.Name = "textBox24";
+            textBox24.ReadOnly = true;
+            textBox24.Size = new Size(100, 23);
+            textBox24.TabIndex = 47;
+            textBox24.Text = "000.000";
+            // 
+            // textBox25
+            // 
+            textBox25.BorderStyle = BorderStyle.None;
+            textBox25.Location = new Point(1375, 83);
+            textBox25.Name = "textBox25";
+            textBox25.ReadOnly = true;
+            textBox25.Size = new Size(100, 23);
+            textBox25.TabIndex = 46;
+            textBox25.Text = "000.000";
+            // 
+            // textBox26
+            // 
+            textBox26.BorderStyle = BorderStyle.None;
+            textBox26.Location = new Point(1375, 35);
+            textBox26.Name = "textBox26";
+            textBox26.ReadOnly = true;
+            textBox26.Size = new Size(100, 23);
+            textBox26.TabIndex = 45;
+            textBox26.Text = "000.000";
+            // 
+            // textBox21
+            // 
+            textBox21.BorderStyle = BorderStyle.None;
+            textBox21.Location = new Point(1191, 131);
+            textBox21.Name = "textBox21";
+            textBox21.ReadOnly = true;
+            textBox21.Size = new Size(100, 23);
+            textBox21.TabIndex = 44;
+            textBox21.Text = "000.000";
+            // 
+            // textBox22
+            // 
+            textBox22.BorderStyle = BorderStyle.None;
+            textBox22.Location = new Point(1191, 83);
+            textBox22.Name = "textBox22";
+            textBox22.ReadOnly = true;
+            textBox22.Size = new Size(100, 23);
+            textBox22.TabIndex = 43;
+            textBox22.Text = "000.000";
+            // 
+            // textBox23
+            // 
+            textBox23.BorderStyle = BorderStyle.None;
+            textBox23.Location = new Point(1191, 35);
+            textBox23.Name = "textBox23";
+            textBox23.ReadOnly = true;
+            textBox23.Size = new Size(100, 23);
+            textBox23.TabIndex = 42;
+            textBox23.Text = "000.000";
+            // 
+            // textBox18
+            // 
+            textBox18.BorderStyle = BorderStyle.None;
+            textBox18.Location = new Point(1019, 131);
+            textBox18.Name = "textBox18";
+            textBox18.ReadOnly = true;
+            textBox18.Size = new Size(100, 23);
+            textBox18.TabIndex = 41;
+            textBox18.Text = "000.000";
+            // 
+            // textBox19
+            // 
+            textBox19.BorderStyle = BorderStyle.None;
+            textBox19.Location = new Point(1019, 83);
+            textBox19.Name = "textBox19";
+            textBox19.ReadOnly = true;
+            textBox19.Size = new Size(100, 23);
+            textBox19.TabIndex = 40;
+            textBox19.Text = "000.000";
+            // 
+            // textBox20
+            // 
+            textBox20.BorderStyle = BorderStyle.None;
+            textBox20.Location = new Point(1019, 35);
+            textBox20.Name = "textBox20";
+            textBox20.ReadOnly = true;
+            textBox20.Size = new Size(100, 23);
+            textBox20.TabIndex = 39;
+            textBox20.Text = "000.000";
+            // 
+            // textBox15
+            // 
+            textBox15.BorderStyle = BorderStyle.None;
+            textBox15.Location = new Point(834, 131);
+            textBox15.Name = "textBox15";
+            textBox15.ReadOnly = true;
+            textBox15.Size = new Size(100, 23);
+            textBox15.TabIndex = 38;
+            textBox15.Text = "000.000";
+            // 
+            // textBox16
+            // 
+            textBox16.BorderStyle = BorderStyle.None;
+            textBox16.Location = new Point(834, 83);
+            textBox16.Name = "textBox16";
+            textBox16.ReadOnly = true;
+            textBox16.Size = new Size(100, 23);
+            textBox16.TabIndex = 37;
+            textBox16.Text = "000.000";
+            // 
+            // textBox17
+            // 
+            textBox17.BorderStyle = BorderStyle.None;
+            textBox17.Location = new Point(834, 35);
+            textBox17.Name = "textBox17";
+            textBox17.ReadOnly = true;
+            textBox17.Size = new Size(100, 23);
+            textBox17.TabIndex = 36;
+            textBox17.Text = "000.000";
+            // 
+            // textBox12
+            // 
+            textBox12.BorderStyle = BorderStyle.None;
+            textBox12.Location = new Point(661, 131);
+            textBox12.Name = "textBox12";
+            textBox12.ReadOnly = true;
+            textBox12.Size = new Size(100, 23);
+            textBox12.TabIndex = 35;
+            textBox12.Text = "000.000";
+            // 
+            // textBox13
+            // 
+            textBox13.BorderStyle = BorderStyle.None;
+            textBox13.Location = new Point(661, 83);
+            textBox13.Name = "textBox13";
+            textBox13.ReadOnly = true;
+            textBox13.Size = new Size(100, 23);
+            textBox13.TabIndex = 34;
+            textBox13.Text = "000.000";
+            // 
+            // textBox14
+            // 
+            textBox14.BorderStyle = BorderStyle.None;
+            textBox14.Location = new Point(661, 35);
+            textBox14.Name = "textBox14";
+            textBox14.ReadOnly = true;
+            textBox14.Size = new Size(100, 23);
+            textBox14.TabIndex = 33;
+            textBox14.Text = "000.000";
+            // 
+            // textBox9
+            // 
+            textBox9.BorderStyle = BorderStyle.None;
+            textBox9.Location = new Point(488, 131);
+            textBox9.Name = "textBox9";
+            textBox9.ReadOnly = true;
+            textBox9.Size = new Size(100, 23);
+            textBox9.TabIndex = 32;
+            textBox9.Text = "000.000";
+            // 
+            // textBox10
+            // 
+            textBox10.BorderStyle = BorderStyle.None;
+            textBox10.Location = new Point(488, 83);
+            textBox10.Name = "textBox10";
+            textBox10.ReadOnly = true;
+            textBox10.Size = new Size(100, 23);
+            textBox10.TabIndex = 31;
+            textBox10.Text = "000.000";
+            // 
+            // textBox11
+            // 
+            textBox11.BorderStyle = BorderStyle.None;
+            textBox11.Location = new Point(488, 35);
+            textBox11.Name = "textBox11";
+            textBox11.ReadOnly = true;
+            textBox11.Size = new Size(100, 23);
+            textBox11.TabIndex = 30;
+            textBox11.Text = "000.000";
+            // 
+            // textBox6
+            // 
+            textBox6.BorderStyle = BorderStyle.None;
+            textBox6.Location = new Point(315, 131);
+            textBox6.Name = "textBox6";
+            textBox6.ReadOnly = true;
+            textBox6.Size = new Size(100, 23);
+            textBox6.TabIndex = 29;
+            textBox6.Text = "000.000";
+            // 
+            // textBox7
+            // 
+            textBox7.BorderStyle = BorderStyle.None;
+            textBox7.Location = new Point(315, 83);
+            textBox7.Name = "textBox7";
+            textBox7.ReadOnly = true;
+            textBox7.Size = new Size(100, 23);
+            textBox7.TabIndex = 28;
+            textBox7.Text = "000.000";
+            // 
+            // textBox8
+            // 
+            textBox8.BorderStyle = BorderStyle.None;
+            textBox8.Location = new Point(315, 35);
+            textBox8.Name = "textBox8";
+            textBox8.ReadOnly = true;
+            textBox8.Size = new Size(100, 23);
+            textBox8.TabIndex = 27;
+            textBox8.Text = "000.000";
+            // 
+            // textBox5
+            // 
+            textBox5.BorderStyle = BorderStyle.None;
+            textBox5.Location = new Point(142, 131);
+            textBox5.Name = "textBox5";
+            textBox5.ReadOnly = true;
+            textBox5.Size = new Size(100, 23);
+            textBox5.TabIndex = 26;
+            textBox5.Text = "000.000";
+            // 
+            // textBox4
+            // 
+            textBox4.BorderStyle = BorderStyle.None;
+            textBox4.Location = new Point(142, 83);
+            textBox4.Name = "textBox4";
+            textBox4.ReadOnly = true;
+            textBox4.Size = new Size(100, 23);
+            textBox4.TabIndex = 25;
+            textBox4.Text = "000.000";
+            // 
+            // textBox3
+            // 
+            textBox3.BorderStyle = BorderStyle.None;
+            textBox3.Location = new Point(142, 35);
+            textBox3.Name = "textBox3";
+            textBox3.ReadOnly = true;
+            textBox3.Size = new Size(100, 23);
+            textBox3.TabIndex = 24;
+            textBox3.Text = "000.000";
+            // 
+            // label52
+            // 
+            label52.AutoSize = true;
+            label52.Font = new Font("黑体", 10.5F, FontStyle.Bold);
+            label52.ForeColor = Color.Red;
+            label52.Location = new Point(1299, 140);
+            label52.Name = "label52";
+            label52.Size = new Size(68, 21);
+            label52.TabIndex = 23;
+            label52.Text = "ΣQ：";
+            // 
+            // label53
+            // 
+            label53.AutoSize = true;
+            label53.Font = new Font("黑体", 10.5F, FontStyle.Bold);
+            label53.ForeColor = Color.Green;
+            label53.Location = new Point(1299, 92);
+            label53.Name = "label53";
+            label53.Size = new Size(68, 21);
+            label53.TabIndex = 22;
+            label53.Text = "ΣP：";
+            // 
+            // label54
+            // 
+            label54.AutoSize = true;
+            label54.Font = new Font("黑体", 10.5F, FontStyle.Bold);
+            label54.ForeColor = Color.Yellow;
+            label54.Location = new Point(1299, 44);
+            label54.Name = "label54";
+            label54.Size = new Size(68, 21);
+            label54.TabIndex = 21;
+            label54.Text = "ΣS：";
+            // 
+            // label49
+            // 
+            label49.AutoSize = true;
+            label49.Font = new Font("黑体", 10.5F, FontStyle.Bold);
+            label49.ForeColor = Color.Red;
+            label49.Location = new Point(1127, 140);
+            label49.Name = "label49";
+            label49.Size = new Size(56, 21);
+            label49.TabIndex = 20;
+            label49.Text = "Φ：";
+            // 
+            // label50
+            // 
+            label50.AutoSize = true;
+            label50.Font = new Font("黑体", 10.5F, FontStyle.Bold);
+            label50.ForeColor = Color.Green;
+            label50.Location = new Point(1127, 92);
+            label50.Name = "label50";
+            label50.Size = new Size(56, 21);
+            label50.TabIndex = 19;
+            label50.Text = "Φ：";
+            // 
+            // label51
+            // 
+            label51.AutoSize = true;
+            label51.Font = new Font("黑体", 10.5F, FontStyle.Bold);
+            label51.ForeColor = Color.Yellow;
+            label51.Location = new Point(1127, 44);
+            label51.Name = "label51";
+            label51.Size = new Size(56, 21);
+            label51.TabIndex = 18;
+            label51.Text = "Φ：";
+            // 
+            // label46
+            // 
+            label46.AutoSize = true;
+            label46.Font = new Font("黑体", 10.5F, FontStyle.Bold);
+            label46.ForeColor = Color.Red;
+            label46.Location = new Point(942, 140);
+            label46.Name = "label46";
+            label46.Size = new Size(69, 21);
+            label46.TabIndex = 17;
+            label46.Text = "Pfc：";
+            // 
+            // label47
+            // 
+            label47.AutoSize = true;
+            label47.Font = new Font("黑体", 10.5F, FontStyle.Bold);
+            label47.ForeColor = Color.Green;
+            label47.Location = new Point(942, 92);
+            label47.Name = "label47";
+            label47.Size = new Size(69, 21);
+            label47.TabIndex = 16;
+            label47.Text = "Pfb：";
+            // 
+            // label48
+            // 
+            label48.AutoSize = true;
+            label48.Font = new Font("黑体", 10.5F, FontStyle.Bold);
+            label48.ForeColor = Color.Yellow;
+            label48.Location = new Point(942, 44);
+            label48.Name = "label48";
+            label48.Size = new Size(69, 21);
+            label48.TabIndex = 15;
+            label48.Text = "Pfa：";
+            // 
+            // label43
+            // 
+            label43.AutoSize = true;
+            label43.Font = new Font("黑体", 10.5F, FontStyle.Bold);
+            label43.ForeColor = Color.Red;
+            label43.Location = new Point(769, 140);
+            label43.Name = "label43";
+            label43.Size = new Size(57, 21);
+            label43.TabIndex = 14;
+            label43.Text = "Sc：";
+            // 
+            // label44
+            // 
+            label44.AutoSize = true;
+            label44.Font = new Font("黑体", 10.5F, FontStyle.Bold);
+            label44.ForeColor = Color.Green;
+            label44.Location = new Point(769, 92);
+            label44.Name = "label44";
+            label44.Size = new Size(57, 21);
+            label44.TabIndex = 13;
+            label44.Text = "Sb：";
+            // 
+            // label45
+            // 
+            label45.AutoSize = true;
+            label45.Font = new Font("黑体", 10.5F, FontStyle.Bold);
+            label45.ForeColor = Color.Yellow;
+            label45.Location = new Point(769, 44);
+            label45.Name = "label45";
+            label45.Size = new Size(57, 21);
+            label45.TabIndex = 12;
+            label45.Text = "Sa：";
+            // 
+            // label40
+            // 
+            label40.AutoSize = true;
+            label40.Font = new Font("黑体", 10.5F, FontStyle.Bold);
+            label40.ForeColor = Color.Red;
+            label40.Location = new Point(596, 140);
+            label40.Name = "label40";
+            label40.Size = new Size(57, 21);
+            label40.TabIndex = 11;
+            label40.Text = "Qc：";
+            // 
+            // label41
+            // 
+            label41.AutoSize = true;
+            label41.Font = new Font("黑体", 10.5F, FontStyle.Bold);
+            label41.ForeColor = Color.Green;
+            label41.Location = new Point(596, 92);
+            label41.Name = "label41";
+            label41.Size = new Size(57, 21);
+            label41.TabIndex = 10;
+            label41.Text = "Qb：";
+            // 
+            // label42
+            // 
+            label42.AutoSize = true;
+            label42.Font = new Font("黑体", 10.5F, FontStyle.Bold);
+            label42.ForeColor = Color.Yellow;
+            label42.Location = new Point(596, 44);
+            label42.Name = "label42";
+            label42.Size = new Size(57, 21);
+            label42.TabIndex = 9;
+            label42.Text = "Qa：";
+            // 
+            // label37
+            // 
+            label37.AutoSize = true;
+            label37.Font = new Font("黑体", 10.5F, FontStyle.Bold);
+            label37.ForeColor = Color.Red;
+            label37.Location = new Point(423, 140);
+            label37.Name = "label37";
+            label37.Size = new Size(57, 21);
+            label37.TabIndex = 8;
+            label37.Text = "Pc：";
+            // 
+            // label38
+            // 
+            label38.AutoSize = true;
+            label38.Font = new Font("黑体", 10.5F, FontStyle.Bold);
+            label38.ForeColor = Color.Green;
+            label38.Location = new Point(423, 92);
+            label38.Name = "label38";
+            label38.Size = new Size(57, 21);
+            label38.TabIndex = 7;
+            label38.Text = "Pb：";
+            // 
+            // label39
+            // 
+            label39.AutoSize = true;
+            label39.Font = new Font("黑体", 10.5F, FontStyle.Bold);
+            label39.ForeColor = Color.Yellow;
+            label39.Location = new Point(423, 44);
+            label39.Name = "label39";
+            label39.Size = new Size(57, 21);
+            label39.TabIndex = 6;
+            label39.Text = "Pa：";
+            // 
+            // label34
+            // 
+            label34.AutoSize = true;
+            label34.Font = new Font("黑体", 10.5F, FontStyle.Bold);
+            label34.ForeColor = Color.Red;
+            label34.Location = new Point(250, 140);
+            label34.Name = "label34";
+            label34.Size = new Size(57, 21);
+            label34.TabIndex = 5;
+            label34.Text = "Ic：";
+            // 
+            // label35
+            // 
+            label35.AutoSize = true;
+            label35.Font = new Font("黑体", 10.5F, FontStyle.Bold);
+            label35.ForeColor = Color.Green;
+            label35.Location = new Point(250, 92);
+            label35.Name = "label35";
+            label35.Size = new Size(57, 21);
+            label35.TabIndex = 4;
+            label35.Text = "Ib：";
+            // 
+            // label36
+            // 
+            label36.AutoSize = true;
+            label36.Font = new Font("黑体", 10.5F, FontStyle.Bold);
+            label36.ForeColor = Color.Yellow;
+            label36.Location = new Point(250, 44);
+            label36.Name = "label36";
+            label36.Size = new Size(57, 21);
+            label36.TabIndex = 3;
+            label36.Text = "Ia：";
+            // 
+            // label33
+            // 
+            label33.AutoSize = true;
+            label33.Font = new Font("黑体", 10.5F, FontStyle.Bold);
+            label33.ForeColor = Color.Red;
+            label33.Location = new Point(77, 140);
+            label33.Name = "label33";
+            label33.Size = new Size(57, 21);
+            label33.TabIndex = 2;
+            label33.Text = "Uc：";
+            // 
+            // label32
+            // 
+            label32.AutoSize = true;
+            label32.Font = new Font("黑体", 10.5F, FontStyle.Bold);
+            label32.ForeColor = Color.Green;
+            label32.Location = new Point(77, 92);
+            label32.Name = "label32";
+            label32.Size = new Size(57, 21);
+            label32.TabIndex = 1;
+            label32.Text = "Ub：";
+            // 
+            // label31
+            // 
+            label31.AutoSize = true;
+            label31.Font = new Font("黑体", 10.5F, FontStyle.Bold);
+            label31.ForeColor = Color.Yellow;
+            label31.Location = new Point(77, 44);
+            label31.Name = "label31";
+            label31.Size = new Size(57, 21);
+            label31.TabIndex = 0;
+            label31.Text = "Ua：";
+            // 
+            // checkBoxISNOHEX
+            // 
+            checkBoxISNOHEX.AutoSize = true;
+            checkBoxISNOHEX.Location = new Point(6, 6);
+            checkBoxISNOHEX.Name = "checkBoxISNOHEX";
+            checkBoxISNOHEX.Size = new Size(216, 28);
+            checkBoxISNOHEX.TabIndex = 22;
+            checkBoxISNOHEX.Text = "是否HEX发送或者显示";
+            checkBoxISNOHEX.UseVisualStyleBackColor = true;
             // 
             // buttonXY_x0E
             // 
@@ -1538,16 +2175,6 @@ namespace ModelTest
             panel3.Size = new Size(1899, 251);
             panel3.TabIndex = 5;
             // 
-            // checkBoxISNOHEX
-            // 
-            checkBoxISNOHEX.AutoSize = true;
-            checkBoxISNOHEX.Location = new Point(6, 6);
-            checkBoxISNOHEX.Name = "checkBoxISNOHEX";
-            checkBoxISNOHEX.Size = new Size(216, 28);
-            checkBoxISNOHEX.TabIndex = 22;
-            checkBoxISNOHEX.Text = "是否HEX发送或者显示";
-            checkBoxISNOHEX.UseVisualStyleBackColor = true;
-            // 
             // ModelMain
             // 
             AutoScaleDimensions = new SizeF(11F, 24F);
@@ -1590,6 +2217,8 @@ namespace ModelTest
             tabPage10.PerformLayout();
             tabPage7.ResumeLayout(false);
             tabPage7.PerformLayout();
+            groupBox6.ResumeLayout(false);
+            groupBox6.PerformLayout();
             LogUnit.ResumeLayout(false);
             panellog.ResumeLayout(false);
             panellog.PerformLayout();
@@ -1730,5 +2359,55 @@ namespace ModelTest
         private Button btnflushPort;
         private Button buttonXY_x0E;
         private CheckBox checkBoxISNOHEX;
+        private GroupBox groupBox6;
+        private Label label31;
+        private Label label46;
+        private Label label47;
+        private Label label48;
+        private Label label43;
+        private Label label44;
+        private Label label45;
+        private Label label40;
+        private Label label41;
+        private Label label42;
+        private Label label37;
+        private Label label38;
+        private Label label39;
+        private Label label34;
+        private Label label35;
+        private Label label36;
+        private Label label33;
+        private Label label32;
+        private Label label49;
+        private Label label50;
+        private Label label51;
+        private Label label52;
+        private Label label53;
+        private Label label54;
+        private TextBox textBox3;
+        private TextBox textBox24;
+        private TextBox textBox25;
+        private TextBox textBox26;
+        private TextBox textBox21;
+        private TextBox textBox22;
+        private TextBox textBox23;
+        private TextBox textBox18;
+        private TextBox textBox19;
+        private TextBox textBox20;
+        private TextBox textBox15;
+        private TextBox textBox16;
+        private TextBox textBox17;
+        private TextBox textBox12;
+        private TextBox textBox13;
+        private TextBox textBox14;
+        private TextBox textBox9;
+        private TextBox textBox10;
+        private TextBox textBox11;
+        private TextBox textBox6;
+        private TextBox textBox7;
+        private TextBox textBox8;
+        private TextBox textBox5;
+        private TextBox textBox4;
+        private Button btn_ReadStandMeter;
     }
 }
