@@ -1206,21 +1206,39 @@ namespace ModelTest
             SerialPortSendACSIIData(x0E);
         }
         [DllImport("xyctr.dll")]
-        public static extern int ReadStandMeter(string StandModel, byte[] iStandValue);
+        private static extern int ReadStandValue(string StandModel, byte[] iStandValue);
         private void btn_ReadStandMeter_Click(object sender, EventArgs e)
         {
             byte[] sStandValue = new byte[255];
-            int ReadStandMeter_data = ReadStandMeter("SYS320", sStandValue);
-            if (ReadStandMeter_data==0)
+            try
             {
-                AddLog("标准表数据返回成功");
+                int ReadStandMeter_data = ReadStandValue("XYD", sStandValue);
+                if (ReadStandMeter_data == 0)
+                {
+                    AddLog("标准表数据返回成功");
+                }
+                else
+                {
+                    AddLog("标准表数据返回失败");
+                }
+                AddLog("标准表数据：" + System.Text.Encoding.Default.GetString(sStandValue));
             }
-            else
+            catch (Exception ex)
             {
-                AddLog("标准表数据返回失败");
+                AddLog("调用失败:"+ex.ToString());
             }
-            AddLog("标准表数据：" + System.Text.Encoding.Default.GetString(sStandValue));
-        } 
+           
+        }
+        [DllImport("xyctr.dll")]
+        public static extern int ReadTestData(int ReadType, int iPosition, byte[] sResultData);
+       private void CmdReadMeterData_Click(object sender, EventArgs e)
+        {
+            byte[] sResultData;
+            sResultData = new byte[255];
+            //int iMeterPosition = Convert.ToInt16(this.CmbMeterPosition.Text);
+            int iResult = ReadTestData(0, 0, sResultData);
+            AddLog( System.Text.Encoding.Default.GetString(sResultData));
+        }
         #endregion
     }
     public static class A_GetDescription
