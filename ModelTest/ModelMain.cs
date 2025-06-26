@@ -13,7 +13,7 @@ namespace ModelTest
 {
     public partial class ModelMain : Form
     {
-        
+
         public enum TerminalCLASS : byte
         {
             [Description("专变III")]
@@ -1222,22 +1222,63 @@ namespace ModelTest
                     AddLog("标准表数据返回失败");
                 }
                 AddLog("标准表数据：" + System.Text.Encoding.Default.GetString(sStandValue));
+                string sv = System.Text.Encoding.Default.GetString(sStandValue);
+                ShowTextReadStandValue(sv);
             }
             catch (Exception ex)
             {
-                AddLog("调用失败:"+ex.ToString());
+                AddLog("调用失败:" + ex.ToString());
             }
-           
+
         }
+        /// <summary>
+        /// 显示标准表的数据
+        /// </summary>
+        /// <exception cref="NotImplementedException"></exception>
+        private void ShowTextReadStandValue(string iStandValue)
+        {
+            try
+            {
+                tb_UA.Text = iStandValue.Substring(1, 7);
+                tb_UB.Text = "";
+                tb_UC.Text = "";
+                tb_IA.Text = "";
+                tb_IB.Text = "";
+                tb_IC.Text = "";
+                tb_PA.Text = "";
+                tb_PB.Text = "";
+                tb_PC.Text = "";
+                tb_QA.Text = "";
+                tb_QB.Text = "";
+                tb_QC.Text = "";
+                tb_SA.Text = "";
+                tb_SB.Text = "";
+                tb_SC.Text = "";
+                tb_PFA.Text = "";
+                tb_PFB.Text = "";
+                tb_PFC.Text = "";
+                tb_XA.Text = "";
+                tb_XB.Text = "";
+                tb_XC.Text = "";
+                tb_EP.Text = "";
+                tb_EQ.Text = "";
+                tb_ES.Text = "";
+            }
+            catch (Exception ex)
+            {
+                AddLog("显示标准表信息异常:" + ex.ToString());
+            }
+        }
+
         [DllImport("xyctr.dll")]
         public static extern int ReadTestData(int ReadType, int iPosition, byte[] sResultData);
-       private void CmdReadMeterData_Click(object sender, EventArgs e)
+        private void CmdReadMeterData_Click(object sender, EventArgs e)
         {
             byte[] sResultData;
             sResultData = new byte[255];
             //int iMeterPosition = Convert.ToInt16(this.CmbMeterPosition.Text);
             int iResult = ReadTestData(0, 0, sResultData);
-            AddLog( System.Text.Encoding.Default.GetString(sResultData));
+            AddLog(System.Text.Encoding.Default.GetString(sResultData));
         }
         #endregion
     }
