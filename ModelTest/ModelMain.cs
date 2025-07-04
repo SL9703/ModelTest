@@ -1,14 +1,11 @@
-using System.Net.Sockets;
-using System.Net;
-using System.Windows.Forms;
-using Microsoft.VisualBasic.Devices;
-using System.Text;
-using System.Net.Http;
 using System.ComponentModel;
-using System.Reflection;
-using static System.Windows.Forms.VisualStyles.VisualStyleElement.ProgressBar;
 using System.IO.Ports;
+using System.Net;
+using System.Net.Sockets;
+using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Text;
+using System.Linq;
 namespace ModelTest
 {
     public partial class ModelMain : Form
@@ -79,7 +76,13 @@ namespace ModelTest
             Control.CheckForIllegalCrossThreadCalls = false;//跨线程
             btn_cilentSocket_Close.Enabled = false;
             btn_cilentSocket.Enabled = true;
-
+            //初始化新跃电压电流选择信息
+            comboBoxVA.SelectedIndex = 2;
+            comboBoxVB.SelectedIndex = 2;
+            comboBoxVC.SelectedIndex = 2;
+            comboBoxIA.SelectedIndex = 0;
+            comboBoxIB.SelectedIndex = 0;
+            comboBoxIC.SelectedIndex = 0;
             cbxTerminalV1.DataSource = Enum.GetValues(typeof(TerminalV1CLASS)).Cast<TerminalV1CLASS>().Select(x => new
             {
                 终端类型 = x.GetDescription()
@@ -161,7 +164,14 @@ namespace ModelTest
                     {
                         if (mCU != null)
                         {
-                            await SendHexAsync(mCU);
+                            if (!cbxIsNoPortSeed.Checked)
+                            {
+                                await SendHexAsync(mCU);
+                            }
+                            else
+                            {
+                                SerialPortSendACSIIData(mCU);
+                            }
                         }
                     }
                     else
@@ -427,6 +437,13 @@ namespace ModelTest
         {
             textBoxlog.AppendText($"[{DateTime.Now:HH:mm:ss.fff}] {Message}\r\n");
             textBoxlog.ScrollToCaret();
+            //是否是标准表值
+            if (Message.ElementAt(0) == 'B' && Message.ElementAt(Message.Length - 1) == 'E')
+            {
+                ModelXYStandValue = Message;
+                ShowTextReadStandValue(ModelXYStandValue);
+            }
+
         }
 
         #region tcpclient 代码
@@ -1212,7 +1229,7 @@ namespace ModelTest
             byte[] sStandValue = new byte[255];
             try
             {
-                int ReadStandMeter_data = ReadStandValue("XYD", sStandValue);
+                int ReadStandMeter_data = ReadStandValue("model1", sStandValue);
                 if (ReadStandMeter_data == 0)
                 {
                     AddLog("标准表数据返回成功");
@@ -1223,7 +1240,7 @@ namespace ModelTest
                 }
                 AddLog("标准表数据：" + System.Text.Encoding.Default.GetString(sStandValue));
                 string sv = System.Text.Encoding.Default.GetString(sStandValue);
-                ShowTextReadStandValue(sv);
+
             }
             catch (Exception ex)
             {
@@ -1235,34 +1252,45 @@ namespace ModelTest
         /// 显示标准表的数据
         /// </summary>
         /// <exception cref="NotImplementedException"></exception>
+        string ModelXYStandValue;
         private void ShowTextReadStandValue(string iStandValue)
         {
             try
             {
-                tb_UA.Text = iStandValue.Substring(1, 7);
-                tb_UB.Text = "";
-                tb_UC.Text = "";
-                tb_IA.Text = "";
-                tb_IB.Text = "";
-                tb_IC.Text = "";
-                tb_PA.Text = "";
-                tb_PB.Text = "";
-                tb_PC.Text = "";
-                tb_QA.Text = "";
-                tb_QB.Text = "";
-                tb_QC.Text = "";
-                tb_SA.Text = "";
-                tb_SB.Text = "";
-                tb_SC.Text = "";
-                tb_PFA.Text = "";
-                tb_PFB.Text = "";
-                tb_PFC.Text = "";
-                tb_XA.Text = "";
-                tb_XB.Text = "";
-                tb_XC.Text = "";
-                tb_EP.Text = "";
-                tb_EQ.Text = "";
-                tb_ES.Text = "";
+                //电压
+                tb_UA.Text = ModelXYStandValue.Substring(1, 6);
+                tb_UB.Text = ModelXYStandValue.Substring(20, 6);
+                tb_UC.Text = ModelXYStandValue.Substring(39, 6);
+                //电流
+                tb_IA.Text = ModelXYStandValue.Substring(7, 6);
+                tb_IB.Text = ModelXYStandValue.Substring(26, 6);
+                tb_IC.Text = ModelXYStandValue.Substring(45, 6);
+                //相位角
+                tb_XA.Text = ModelXYStandValue.Substring(14, 6);
+                tb_XB.Text = ModelXYStandValue.Substring(33, 6);
+                tb_XC.Text = ModelXYStandValue.Substring(52, 6);
+                //频率
+                tb_HZ.Text = ModelXYStandValue.Substring(58, 6);
+                //有功
+                tb_PA.Text = ModelXYStandValue.Substring(76, 7);
+                tb_PB.Text = ModelXYStandValue.Substring(104, 7);
+                tb_PC.Text = ModelXYStandValue.Substring(132, 7);
+                //无功
+                tb_QA.Text = ModelXYStandValue.Substring(83, 7);
+                tb_QB.Text = ModelXYStandValue.Substring(111, 7);
+                tb_QC.Text = ModelXYStandValue.Substring(139, 7);
+                //
+                tb_SA.Text = ModelXYStandValue.Substring(90, 7);
+                tb_SB.Text = ModelXYStandValue.Substring(118, 7);
+                tb_SC.Text = ModelXYStandValue.Substring(146, 7);
+                //
+                tb_PFA.Text = ModelXYStandValue.Substring(97, 7);
+                tb_PFB.Text = ModelXYStandValue.Substring(125, 7);
+                tb_PFC.Text = ModelXYStandValue.Substring(153, 7);
+
+                tb_EP.Text = ModelXYStandValue.Substring(171, 6);
+                tb_EQ.Text = ModelXYStandValue.Substring(177, 6);
+                tb_ES.Text = ModelXYStandValue.Substring(183, 6);
             }
             catch (Exception ex)
             {
@@ -1281,6 +1309,11 @@ namespace ModelTest
             AddLog(System.Text.Encoding.Default.GetString(sResultData));
         }
         #endregion
+
+        private void buttonCtrlUI_Click(object sender, EventArgs e)
+        {
+
+        }
     }
     public static class A_GetDescription
     {

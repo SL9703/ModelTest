@@ -121,9 +121,32 @@ namespace ModelTest
             tabPage5 = new TabPage();
             tabPage6 = new TabPage();
             tabPage7 = new TabPage();
+            groupBox7 = new GroupBox();
+            label65 = new Label();
+            label66 = new Label();
+            label67 = new Label();
+            label62 = new Label();
+            label63 = new Label();
+            label64 = new Label();
+            comboBoxIC = new ComboBox();
+            comboBoxIB = new ComboBox();
+            comboBoxIA = new ComboBox();
+            comboBoxVC = new ComboBox();
+            comboBoxVB = new ComboBox();
+            comboBoxVA = new ComboBox();
+            label59 = new Label();
+            label56 = new Label();
+            label60 = new Label();
+            buttonCtrlUI = new Button();
+            label61 = new Label();
+            label57 = new Label();
+            buttonXY_x0E = new Button();
+            label58 = new Label();
             buttonCmdReadMeterData = new Button();
             btn_ReadStandMeter = new Button();
             groupBox6 = new GroupBox();
+            tb_HZ = new TextBox();
+            label55 = new Label();
             tb_EQ = new TextBox();
             tb_EP = new TextBox();
             tb_ES = new TextBox();
@@ -173,7 +196,6 @@ namespace ModelTest
             label32 = new Label();
             label31 = new Label();
             checkBoxISNOHEX = new CheckBox();
-            buttonXY_x0E = new Button();
             tabPage8 = new TabPage();
             LogUnit = new GroupBox();
             panellog = new Panel();
@@ -185,6 +207,7 @@ namespace ModelTest
             statusStrip1 = new StatusStrip();
             lblconnectStatus = new ToolStripStatusLabel();
             socketUnit = new GroupBox();
+            cbxIsNoPortSeed = new CheckBox();
             btnflushPort = new Button();
             textBoxdatabit = new ComboBox();
             textBoxstopbit = new ComboBox();
@@ -227,6 +250,7 @@ namespace ModelTest
             groupBox3.SuspendLayout();
             tabPage10.SuspendLayout();
             tabPage7.SuspendLayout();
+            groupBox7.SuspendLayout();
             groupBox6.SuspendLayout();
             LogUnit.SuspendLayout();
             panellog.SuspendLayout();
@@ -710,7 +734,7 @@ namespace ModelTest
             tabPage3.Controls.Add(tabControl2);
             tabPage3.Location = new Point(4, 33);
             tabPage3.Name = "tabPage3";
-            tabPage3.Padding = new Padding(3, 3, 3, 3);
+            tabPage3.Padding = new Padding(3);
             tabPage3.Size = new Size(1891, 544);
             tabPage3.TabIndex = 2;
             tabPage3.Text = "终端测试单元：V1";
@@ -732,7 +756,7 @@ namespace ModelTest
             tabPage9.Controls.Add(panel4);
             tabPage9.Location = new Point(4, 33);
             tabPage9.Name = "tabPage9";
-            tabPage9.Padding = new Padding(3, 3, 3, 3);
+            tabPage9.Padding = new Padding(3);
             tabPage9.Size = new Size(1877, 501);
             tabPage9.TabIndex = 0;
             tabPage9.Text = "主控";
@@ -1143,8 +1167,8 @@ namespace ModelTest
             tabPage10.Controls.Add(label22);
             tabPage10.Location = new Point(4, 33);
             tabPage10.Name = "tabPage10";
-            tabPage10.Padding = new Padding(3, 3, 3, 3);
-            tabPage10.Size = new Size(1877, 502);
+            tabPage10.Padding = new Padding(3);
+            tabPage10.Size = new Size(1877, 501);
             tabPage10.TabIndex = 1;
             tabPage10.Text = "遥信";
             tabPage10.UseVisualStyleBackColor = true;
@@ -1211,7 +1235,7 @@ namespace ModelTest
             // 
             tabPage4.Location = new Point(4, 33);
             tabPage4.Name = "tabPage4";
-            tabPage4.Padding = new Padding(3, 3, 3, 3);
+            tabPage4.Padding = new Padding(3);
             tabPage4.Size = new Size(1891, 544);
             tabPage4.TabIndex = 3;
             tabPage4.Text = "电表测试单元：V1";
@@ -1221,7 +1245,7 @@ namespace ModelTest
             // 
             tabPage5.Location = new Point(4, 33);
             tabPage5.Name = "tabPage5";
-            tabPage5.Padding = new Padding(3, 3, 3, 3);
+            tabPage5.Padding = new Padding(3);
             tabPage5.Size = new Size(1891, 544);
             tabPage5.TabIndex = 4;
             tabPage5.Text = "终端V2";
@@ -1231,7 +1255,7 @@ namespace ModelTest
             // 
             tabPage6.Location = new Point(4, 33);
             tabPage6.Name = "tabPage6";
-            tabPage6.Padding = new Padding(3, 3, 3, 3);
+            tabPage6.Padding = new Padding(3);
             tabPage6.Size = new Size(1891, 544);
             tabPage6.TabIndex = 5;
             tabPage6.Text = "终端V2";
@@ -1239,22 +1263,259 @@ namespace ModelTest
             // 
             // tabPage7
             // 
+            tabPage7.Controls.Add(groupBox7);
             tabPage7.Controls.Add(buttonCmdReadMeterData);
             tabPage7.Controls.Add(btn_ReadStandMeter);
             tabPage7.Controls.Add(groupBox6);
             tabPage7.Controls.Add(checkBoxISNOHEX);
-            tabPage7.Controls.Add(buttonXY_x0E);
             tabPage7.Location = new Point(4, 33);
             tabPage7.Name = "tabPage7";
-            tabPage7.Padding = new Padding(3, 3, 3, 3);
+            tabPage7.Padding = new Padding(3);
             tabPage7.Size = new Size(1891, 544);
             tabPage7.TabIndex = 6;
             tabPage7.Text = "新跃控源参数";
             tabPage7.UseVisualStyleBackColor = true;
             // 
+            // groupBox7
+            // 
+            groupBox7.BackColor = Color.Transparent;
+            groupBox7.Controls.Add(label65);
+            groupBox7.Controls.Add(label66);
+            groupBox7.Controls.Add(label67);
+            groupBox7.Controls.Add(label62);
+            groupBox7.Controls.Add(label63);
+            groupBox7.Controls.Add(label64);
+            groupBox7.Controls.Add(comboBoxIC);
+            groupBox7.Controls.Add(comboBoxIB);
+            groupBox7.Controls.Add(comboBoxIA);
+            groupBox7.Controls.Add(comboBoxVC);
+            groupBox7.Controls.Add(comboBoxVB);
+            groupBox7.Controls.Add(comboBoxVA);
+            groupBox7.Controls.Add(label59);
+            groupBox7.Controls.Add(label56);
+            groupBox7.Controls.Add(label60);
+            groupBox7.Controls.Add(buttonCtrlUI);
+            groupBox7.Controls.Add(label61);
+            groupBox7.Controls.Add(label57);
+            groupBox7.Controls.Add(buttonXY_x0E);
+            groupBox7.Controls.Add(label58);
+            groupBox7.Dock = DockStyle.Bottom;
+            groupBox7.Location = new Point(3, 204);
+            groupBox7.Name = "groupBox7";
+            groupBox7.Size = new Size(1885, 166);
+            groupBox7.TabIndex = 27;
+            groupBox7.TabStop = false;
+            groupBox7.Text = "任意控制命令";
+            // 
+            // label65
+            // 
+            label65.AutoSize = true;
+            label65.Font = new Font("黑体", 10.5F);
+            label65.ForeColor = SystemColors.ActiveCaptionText;
+            label65.Location = new Point(502, 131);
+            label65.Name = "label65";
+            label65.Size = new Size(32, 21);
+            label65.TabIndex = 63;
+            label65.Text = "mA";
+            // 
+            // label66
+            // 
+            label66.AutoSize = true;
+            label66.Font = new Font("黑体", 10.5F);
+            label66.ForeColor = SystemColors.ActiveCaptionText;
+            label66.Location = new Point(502, 83);
+            label66.Name = "label66";
+            label66.Size = new Size(32, 21);
+            label66.TabIndex = 62;
+            label66.Text = "mA";
+            // 
+            // label67
+            // 
+            label67.AutoSize = true;
+            label67.Font = new Font("黑体", 10.5F);
+            label67.ForeColor = SystemColors.ActiveCaptionText;
+            label67.Location = new Point(502, 35);
+            label67.Name = "label67";
+            label67.Size = new Size(32, 21);
+            label67.TabIndex = 61;
+            label67.Text = "mA";
+            // 
+            // label62
+            // 
+            label62.AutoSize = true;
+            label62.Font = new Font("黑体", 10.5F);
+            label62.ForeColor = SystemColors.ActiveCaptionText;
+            label62.Location = new Point(250, 131);
+            label62.Name = "label62";
+            label62.Size = new Size(21, 21);
+            label62.TabIndex = 60;
+            label62.Text = "V";
+            // 
+            // label63
+            // 
+            label63.AutoSize = true;
+            label63.Font = new Font("黑体", 10.5F);
+            label63.ForeColor = SystemColors.ActiveCaptionText;
+            label63.Location = new Point(250, 83);
+            label63.Name = "label63";
+            label63.Size = new Size(21, 21);
+            label63.TabIndex = 59;
+            label63.Text = "V";
+            // 
+            // label64
+            // 
+            label64.AutoSize = true;
+            label64.Font = new Font("黑体", 10.5F);
+            label64.ForeColor = SystemColors.ActiveCaptionText;
+            label64.Location = new Point(250, 35);
+            label64.Name = "label64";
+            label64.Size = new Size(21, 21);
+            label64.TabIndex = 58;
+            label64.Text = "V";
+            // 
+            // comboBoxIC
+            // 
+            comboBoxIC.FormattingEnabled = true;
+            comboBoxIC.Items.AddRange(new object[] { "5000", "1000", "750", "150" });
+            comboBoxIC.Location = new Point(383, 127);
+            comboBoxIC.Name = "comboBoxIC";
+            comboBoxIC.Size = new Size(97, 32);
+            comboBoxIC.TabIndex = 57;
+            // 
+            // comboBoxIB
+            // 
+            comboBoxIB.FormattingEnabled = true;
+            comboBoxIB.Items.AddRange(new object[] { "5000", "1000", "750", "150" });
+            comboBoxIB.Location = new Point(383, 79);
+            comboBoxIB.Name = "comboBoxIB";
+            comboBoxIB.Size = new Size(97, 32);
+            comboBoxIB.TabIndex = 56;
+            // 
+            // comboBoxIA
+            // 
+            comboBoxIA.FormattingEnabled = true;
+            comboBoxIA.Items.AddRange(new object[] { "5000", "1000", "750", "150" });
+            comboBoxIA.Location = new Point(383, 31);
+            comboBoxIA.Name = "comboBoxIA";
+            comboBoxIA.Size = new Size(97, 32);
+            comboBoxIA.TabIndex = 55;
+            // 
+            // comboBoxVC
+            // 
+            comboBoxVC.FormattingEnabled = true;
+            comboBoxVC.Items.AddRange(new object[] { "57.7", "100", "220", "240", "380" });
+            comboBoxVC.Location = new Point(140, 127);
+            comboBoxVC.Name = "comboBoxVC";
+            comboBoxVC.Size = new Size(97, 32);
+            comboBoxVC.TabIndex = 54;
+            // 
+            // comboBoxVB
+            // 
+            comboBoxVB.FormattingEnabled = true;
+            comboBoxVB.Items.AddRange(new object[] { "57.7", "100", "220", "240", "380" });
+            comboBoxVB.Location = new Point(140, 79);
+            comboBoxVB.Name = "comboBoxVB";
+            comboBoxVB.Size = new Size(97, 32);
+            comboBoxVB.TabIndex = 53;
+            // 
+            // comboBoxVA
+            // 
+            comboBoxVA.FormattingEnabled = true;
+            comboBoxVA.Items.AddRange(new object[] { "57.7", "100", "220", "240", "380" });
+            comboBoxVA.Location = new Point(140, 31);
+            comboBoxVA.Name = "comboBoxVA";
+            comboBoxVA.Size = new Size(97, 32);
+            comboBoxVA.TabIndex = 21;
+            // 
+            // label59
+            // 
+            label59.AutoSize = true;
+            label59.Font = new Font("黑体", 10.5F, FontStyle.Bold | FontStyle.Italic);
+            label59.ForeColor = SystemColors.ActiveCaptionText;
+            label59.Location = new Point(313, 131);
+            label59.Name = "label59";
+            label59.Size = new Size(57, 21);
+            label59.TabIndex = 52;
+            label59.Text = "Ic：";
+            // 
+            // label56
+            // 
+            label56.AutoSize = true;
+            label56.Font = new Font("黑体", 10.5F, FontStyle.Bold | FontStyle.Italic);
+            label56.ForeColor = SystemColors.ActiveCaptionText;
+            label56.Location = new Point(77, 131);
+            label56.Name = "label56";
+            label56.Size = new Size(57, 21);
+            label56.TabIndex = 52;
+            label56.Text = "Uc：";
+            // 
+            // label60
+            // 
+            label60.AutoSize = true;
+            label60.Font = new Font("黑体", 10.5F, FontStyle.Bold | FontStyle.Italic);
+            label60.ForeColor = SystemColors.ActiveCaptionText;
+            label60.Location = new Point(313, 83);
+            label60.Name = "label60";
+            label60.Size = new Size(57, 21);
+            label60.TabIndex = 51;
+            label60.Text = "Ib：";
+            // 
+            // buttonCtrlUI
+            // 
+            buttonCtrlUI.Location = new Point(969, 29);
+            buttonCtrlUI.Name = "buttonCtrlUI";
+            buttonCtrlUI.Size = new Size(112, 34);
+            buttonCtrlUI.TabIndex = 26;
+            buttonCtrlUI.Text = "升源";
+            buttonCtrlUI.UseVisualStyleBackColor = true;
+            buttonCtrlUI.Click += buttonCtrlUI_Click;
+            // 
+            // label61
+            // 
+            label61.AutoSize = true;
+            label61.Font = new Font("黑体", 10.5F, FontStyle.Bold | FontStyle.Italic);
+            label61.ForeColor = SystemColors.ActiveCaptionText;
+            label61.Location = new Point(313, 35);
+            label61.Name = "label61";
+            label61.Size = new Size(57, 21);
+            label61.TabIndex = 50;
+            label61.Text = "Ia：";
+            // 
+            // label57
+            // 
+            label57.AutoSize = true;
+            label57.Font = new Font("黑体", 10.5F, FontStyle.Bold | FontStyle.Italic);
+            label57.ForeColor = SystemColors.ActiveCaptionText;
+            label57.Location = new Point(77, 83);
+            label57.Name = "label57";
+            label57.Size = new Size(57, 21);
+            label57.TabIndex = 51;
+            label57.Text = "Ub：";
+            // 
+            // buttonXY_x0E
+            // 
+            buttonXY_x0E.Location = new Point(969, 78);
+            buttonXY_x0E.Name = "buttonXY_x0E";
+            buttonXY_x0E.Size = new Size(112, 34);
+            buttonXY_x0E.TabIndex = 0;
+            buttonXY_x0E.Text = "降源x0E";
+            buttonXY_x0E.UseVisualStyleBackColor = true;
+            buttonXY_x0E.Click += buttonXY_x0E_Click;
+            // 
+            // label58
+            // 
+            label58.AutoSize = true;
+            label58.Font = new Font("黑体", 10.5F, FontStyle.Bold | FontStyle.Italic);
+            label58.ForeColor = SystemColors.ActiveCaptionText;
+            label58.Location = new Point(77, 35);
+            label58.Name = "label58";
+            label58.Size = new Size(57, 21);
+            label58.TabIndex = 50;
+            label58.Text = "Ua：";
+            // 
             // buttonCmdReadMeterData
             // 
-            buttonCmdReadMeterData.Location = new Point(166, 49);
+            buttonCmdReadMeterData.Location = new Point(3, 51);
             buttonCmdReadMeterData.Name = "buttonCmdReadMeterData";
             buttonCmdReadMeterData.Size = new Size(112, 34);
             buttonCmdReadMeterData.TabIndex = 25;
@@ -1264,7 +1525,7 @@ namespace ModelTest
             // 
             // btn_ReadStandMeter
             // 
-            btn_ReadStandMeter.Location = new Point(8, 102);
+            btn_ReadStandMeter.Location = new Point(133, 51);
             btn_ReadStandMeter.Name = "btn_ReadStandMeter";
             btn_ReadStandMeter.Size = new Size(112, 34);
             btn_ReadStandMeter.TabIndex = 24;
@@ -1275,6 +1536,8 @@ namespace ModelTest
             // groupBox6
             // 
             groupBox6.BackColor = Color.DarkGray;
+            groupBox6.Controls.Add(tb_HZ);
+            groupBox6.Controls.Add(label55);
             groupBox6.Controls.Add(tb_EQ);
             groupBox6.Controls.Add(tb_EP);
             groupBox6.Controls.Add(tb_ES);
@@ -1332,6 +1595,26 @@ namespace ModelTest
             groupBox6.TabStop = false;
             groupBox6.Text = "仪表台";
             // 
+            // tb_HZ
+            // 
+            tb_HZ.BorderStyle = BorderStyle.None;
+            tb_HZ.Location = new Point(1566, 35);
+            tb_HZ.Name = "tb_HZ";
+            tb_HZ.ReadOnly = true;
+            tb_HZ.Size = new Size(100, 23);
+            tb_HZ.TabIndex = 49;
+            // 
+            // label55
+            // 
+            label55.AutoSize = true;
+            label55.Font = new Font("黑体", 10.5F, FontStyle.Bold);
+            label55.ForeColor = Color.Yellow;
+            label55.Location = new Point(1514, 44);
+            label55.Name = "label55";
+            label55.Size = new Size(57, 21);
+            label55.TabIndex = 48;
+            label55.Text = "HZ：";
+            // 
             // tb_EQ
             // 
             tb_EQ.BorderStyle = BorderStyle.None;
@@ -1340,7 +1623,6 @@ namespace ModelTest
             tb_EQ.ReadOnly = true;
             tb_EQ.Size = new Size(100, 23);
             tb_EQ.TabIndex = 47;
-            tb_EQ.Text = "000.000";
             // 
             // tb_EP
             // 
@@ -1350,7 +1632,6 @@ namespace ModelTest
             tb_EP.ReadOnly = true;
             tb_EP.Size = new Size(100, 23);
             tb_EP.TabIndex = 46;
-            tb_EP.Text = "000.000";
             // 
             // tb_ES
             // 
@@ -1360,7 +1641,6 @@ namespace ModelTest
             tb_ES.ReadOnly = true;
             tb_ES.Size = new Size(100, 23);
             tb_ES.TabIndex = 45;
-            tb_ES.Text = "000.000";
             // 
             // tb_XC
             // 
@@ -1370,7 +1650,6 @@ namespace ModelTest
             tb_XC.ReadOnly = true;
             tb_XC.Size = new Size(100, 23);
             tb_XC.TabIndex = 44;
-            tb_XC.Text = "000.000";
             // 
             // tb_XB
             // 
@@ -1380,7 +1659,6 @@ namespace ModelTest
             tb_XB.ReadOnly = true;
             tb_XB.Size = new Size(100, 23);
             tb_XB.TabIndex = 43;
-            tb_XB.Text = "000.000";
             // 
             // tb_XA
             // 
@@ -1390,7 +1668,6 @@ namespace ModelTest
             tb_XA.ReadOnly = true;
             tb_XA.Size = new Size(100, 23);
             tb_XA.TabIndex = 42;
-            tb_XA.Text = "000.000";
             // 
             // tb_PFC
             // 
@@ -1400,7 +1677,6 @@ namespace ModelTest
             tb_PFC.ReadOnly = true;
             tb_PFC.Size = new Size(100, 23);
             tb_PFC.TabIndex = 41;
-            tb_PFC.Text = "000.000";
             // 
             // tb_PFB
             // 
@@ -1410,7 +1686,6 @@ namespace ModelTest
             tb_PFB.ReadOnly = true;
             tb_PFB.Size = new Size(100, 23);
             tb_PFB.TabIndex = 40;
-            tb_PFB.Text = "000.000";
             // 
             // tb_PFA
             // 
@@ -1420,7 +1695,6 @@ namespace ModelTest
             tb_PFA.ReadOnly = true;
             tb_PFA.Size = new Size(100, 23);
             tb_PFA.TabIndex = 39;
-            tb_PFA.Text = "000.000";
             // 
             // tb_SC
             // 
@@ -1430,7 +1704,6 @@ namespace ModelTest
             tb_SC.ReadOnly = true;
             tb_SC.Size = new Size(100, 23);
             tb_SC.TabIndex = 38;
-            tb_SC.Text = "000.000";
             // 
             // tb_SB
             // 
@@ -1440,7 +1713,6 @@ namespace ModelTest
             tb_SB.ReadOnly = true;
             tb_SB.Size = new Size(100, 23);
             tb_SB.TabIndex = 37;
-            tb_SB.Text = "000.000";
             // 
             // tb_SA
             // 
@@ -1450,7 +1722,6 @@ namespace ModelTest
             tb_SA.ReadOnly = true;
             tb_SA.Size = new Size(100, 23);
             tb_SA.TabIndex = 36;
-            tb_SA.Text = "000.000";
             // 
             // tb_QC
             // 
@@ -1460,7 +1731,6 @@ namespace ModelTest
             tb_QC.ReadOnly = true;
             tb_QC.Size = new Size(100, 23);
             tb_QC.TabIndex = 35;
-            tb_QC.Text = "000.000";
             // 
             // tb_QB
             // 
@@ -1470,7 +1740,6 @@ namespace ModelTest
             tb_QB.ReadOnly = true;
             tb_QB.Size = new Size(100, 23);
             tb_QB.TabIndex = 34;
-            tb_QB.Text = "000.000";
             // 
             // tb_QA
             // 
@@ -1480,7 +1749,6 @@ namespace ModelTest
             tb_QA.ReadOnly = true;
             tb_QA.Size = new Size(100, 23);
             tb_QA.TabIndex = 33;
-            tb_QA.Text = "000.000";
             // 
             // tb_PC
             // 
@@ -1490,7 +1758,6 @@ namespace ModelTest
             tb_PC.ReadOnly = true;
             tb_PC.Size = new Size(100, 23);
             tb_PC.TabIndex = 32;
-            tb_PC.Text = "000.000";
             // 
             // tb_PB
             // 
@@ -1500,7 +1767,6 @@ namespace ModelTest
             tb_PB.ReadOnly = true;
             tb_PB.Size = new Size(100, 23);
             tb_PB.TabIndex = 31;
-            tb_PB.Text = "000.000";
             // 
             // tb_PA
             // 
@@ -1510,7 +1776,6 @@ namespace ModelTest
             tb_PA.ReadOnly = true;
             tb_PA.Size = new Size(100, 23);
             tb_PA.TabIndex = 30;
-            tb_PA.Text = "000.000";
             // 
             // tb_IC
             // 
@@ -1520,7 +1785,6 @@ namespace ModelTest
             tb_IC.ReadOnly = true;
             tb_IC.Size = new Size(100, 23);
             tb_IC.TabIndex = 29;
-            tb_IC.Text = "000.000";
             // 
             // tb_IB
             // 
@@ -1530,7 +1794,6 @@ namespace ModelTest
             tb_IB.ReadOnly = true;
             tb_IB.Size = new Size(100, 23);
             tb_IB.TabIndex = 28;
-            tb_IB.Text = "000.000";
             // 
             // tb_IA
             // 
@@ -1540,7 +1803,6 @@ namespace ModelTest
             tb_IA.ReadOnly = true;
             tb_IA.Size = new Size(100, 23);
             tb_IA.TabIndex = 27;
-            tb_IA.Text = "000.000";
             // 
             // tb_UC
             // 
@@ -1550,7 +1812,6 @@ namespace ModelTest
             tb_UC.ReadOnly = true;
             tb_UC.Size = new Size(100, 23);
             tb_UC.TabIndex = 26;
-            tb_UC.Text = "000.000";
             // 
             // tb_UB
             // 
@@ -1560,7 +1821,6 @@ namespace ModelTest
             tb_UB.ReadOnly = true;
             tb_UB.Size = new Size(100, 23);
             tb_UB.TabIndex = 25;
-            tb_UB.Text = "000.000";
             // 
             // tb_UA
             // 
@@ -1570,7 +1830,6 @@ namespace ModelTest
             tb_UA.ReadOnly = true;
             tb_UA.Size = new Size(100, 23);
             tb_UA.TabIndex = 24;
-            tb_UA.Text = "000.000";
             // 
             // label52
             // 
@@ -1846,21 +2105,11 @@ namespace ModelTest
             checkBoxISNOHEX.Text = "是否HEX发送或者显示";
             checkBoxISNOHEX.UseVisualStyleBackColor = true;
             // 
-            // buttonXY_x0E
-            // 
-            buttonXY_x0E.Location = new Point(8, 49);
-            buttonXY_x0E.Name = "buttonXY_x0E";
-            buttonXY_x0E.Size = new Size(112, 34);
-            buttonXY_x0E.TabIndex = 0;
-            buttonXY_x0E.Text = "降源x0E";
-            buttonXY_x0E.UseVisualStyleBackColor = true;
-            buttonXY_x0E.Click += buttonXY_x0E_Click;
-            // 
             // tabPage8
             // 
             tabPage8.Location = new Point(4, 33);
             tabPage8.Name = "tabPage8";
-            tabPage8.Padding = new Padding(3, 3, 3, 3);
+            tabPage8.Padding = new Padding(3);
             tabPage8.Size = new Size(1891, 544);
             tabPage8.TabIndex = 7;
             tabPage8.Text = "tabPage8";
@@ -1955,6 +2204,7 @@ namespace ModelTest
             // 
             // socketUnit
             // 
+            socketUnit.Controls.Add(cbxIsNoPortSeed);
             socketUnit.Controls.Add(btnflushPort);
             socketUnit.Controls.Add(textBoxdatabit);
             socketUnit.Controls.Add(textBoxstopbit);
@@ -1982,6 +2232,16 @@ namespace ModelTest
             socketUnit.TabIndex = 0;
             socketUnit.TabStop = false;
             socketUnit.Text = "通信单元";
+            // 
+            // cbxIsNoPortSeed
+            // 
+            cbxIsNoPortSeed.AutoSize = true;
+            cbxIsNoPortSeed.Location = new Point(1301, 98);
+            cbxIsNoPortSeed.Name = "cbxIsNoPortSeed";
+            cbxIsNoPortSeed.Size = new Size(144, 28);
+            cbxIsNoPortSeed.TabIndex = 20;
+            cbxIsNoPortSeed.Text = "是否串口发送";
+            cbxIsNoPortSeed.UseVisualStyleBackColor = true;
             // 
             // btnflushPort
             // 
@@ -2229,6 +2489,8 @@ namespace ModelTest
             tabPage10.PerformLayout();
             tabPage7.ResumeLayout(false);
             tabPage7.PerformLayout();
+            groupBox7.ResumeLayout(false);
+            groupBox7.PerformLayout();
             groupBox6.ResumeLayout(false);
             groupBox6.PerformLayout();
             LogUnit.ResumeLayout(false);
@@ -2422,5 +2684,28 @@ namespace ModelTest
         private TextBox tb_UB;
         private Button btn_ReadStandMeter;
         private Button buttonCmdReadMeterData;
+        private Label label55;
+        private TextBox tb_HZ;
+        private CheckBox cbxIsNoPortSeed;
+        private Button buttonCtrlUI;
+        private GroupBox groupBox7;
+        private Label label59;
+        private Label label56;
+        private Label label60;
+        private Label label61;
+        private Label label57;
+        private Label label58;
+        private ComboBox comboBoxIC;
+        private ComboBox comboBoxIB;
+        private ComboBox comboBoxIA;
+        private ComboBox comboBoxVC;
+        private ComboBox comboBoxVB;
+        private ComboBox comboBoxVA;
+        private Label label62;
+        private Label label63;
+        private Label label64;
+        private Label label65;
+        private Label label66;
+        private Label label67;
     }
 }
