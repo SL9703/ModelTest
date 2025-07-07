@@ -443,7 +443,11 @@ namespace ModelTest
                 ModelXYStandValue = Message;
                 ShowTextReadStandValue(ModelXYStandValue);
             }
-
+            //是否是脉冲常数
+            if (Message.ElementAt(0) == 'C' && Message.ElementAt(Message.Length - 1) == 'E')
+            {
+                tb_contans.Text = Message;
+            }
         }
 
         #region tcpclient 代码
@@ -1308,12 +1312,27 @@ namespace ModelTest
             int iResult = ReadTestData(0, 0, sResultData);
             AddLog(System.Text.Encoding.Default.GetString(sResultData));
         }
-        #endregion
-
+        /// <summary>
+        /// 控源
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void buttonCtrlUI_Click(object sender, EventArgs e)
         {
 
         }
+        /// <summary>
+        /// 读取常数
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void btn_ReadContans_Click(object sender, EventArgs e)
+        {
+            string RC00E = "RC00E";//读取常数
+            SerialPortSendACSIIData(RC00E);
+
+        }
+        #endregion
     }
     public static class A_GetDescription
     {
