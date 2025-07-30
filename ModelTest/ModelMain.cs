@@ -6,6 +6,8 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Linq;
+using System.Threading.Tasks;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 namespace ModelTest
 {
     public partial class ModelMain : Form
@@ -63,6 +65,7 @@ namespace ModelTest
         string IABCN = string.Empty;
         public ModelMain() => InitializeComponent();
         private SerialPort MainSerialPort = new SerialPort();//初始化串口
+        private SerialPort SourceSerialPort = new SerialPort();//初始化源串口
         private void ModelMain_Load(object sender, EventArgs e)
         {
             // 窗体加载时需要执行的初始化代码
@@ -83,6 +86,9 @@ namespace ModelTest
             comboBoxIA.SelectedIndex = 0;
             comboBoxIB.SelectedIndex = 0;
             comboBoxIC.SelectedIndex = 0;
+            cbxIAJ.SelectedIndex = 0;
+            cbxIBJ.SelectedIndex = 0;
+            cbxICJ.SelectedIndex = 0;
             cbxTerminalV1.DataSource = Enum.GetValues(typeof(TerminalV1CLASS)).Cast<TerminalV1CLASS>().Select(x => new
             {
                 终端类型 = x.GetDescription()
@@ -433,21 +439,21 @@ namespace ModelTest
             await SeedMethod(MCUACDown_55AA);
         }
 
-        private void AddLog(String Message)
+        private void AddLog(string Message)
         {
             textBoxlog.AppendText($"[{DateTime.Now:HH:mm:ss.fff}] {Message}\r\n");
             textBoxlog.ScrollToCaret();
-            //是否是标准表值
-            if (Message.ElementAt(0) == 'B' && Message.ElementAt(Message.Length - 1) == 'E')
-            {
-                ModelXYStandValue = Message;
-                ShowTextReadStandValue(ModelXYStandValue);
-            }
-            //是否是脉冲常数
-            if (Message.ElementAt(0) == 'C' && Message.ElementAt(Message.Length - 1) == 'E')
-            {
-                tb_contans.Text = Message;
-            }
+            ////是否是标准表值
+            //if (Message.ElementAt(0) == 'B' && Message.ElementAt(Message.Length - 1) == 'E')
+            //{
+            //    ModelXYStandValue = Message;
+            //    ShowTextReadStandValue(ModelXYStandValue);
+            //}
+            ////是否是脉冲常数
+            //if (Message.ElementAt(0) == 'C' && Message.ElementAt(Message.Length - 1) == 'E')
+            //{
+            //    tb_contans.Text = Message;
+            //}
         }
 
         #region tcpclient 代码
@@ -1220,6 +1226,7 @@ namespace ModelTest
 
         }
         #region 控源XY
+        string XYModel = "model1";
 
         private void buttonXY_x0E_Click(object sender, EventArgs e)
         {
@@ -1227,74 +1234,152 @@ namespace ModelTest
             SerialPortSendACSIIData(x0E);
         }
         [DllImport("xyctr.dll")]
-        private static extern int ReadStandValue(string StandModel, byte[] iStandValue);
-        private void btn_ReadStandMeter_Click(object sender, EventArgs e)
+        private static extern int OpenComm(int Port);
+        [DllImport("xyctr.dll")]
+        private static extern int CloseComm();
+        /// <summary>
+        /// 初始化源的串口
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        int OpenComm_data = 0;
+        private void btn_SourcePort_Click(object sender, EventArgs e)
         {
-            byte[] sStandValue = new byte[255];
             try
             {
-                int ReadStandMeter_data = ReadStandValue("model1", sStandValue);
-                if (ReadStandMeter_data == 0)
+                if (OpenComm_data == 1)
                 {
-                    AddLog("标准表数据返回成功");
+                    //串口是打开的状态
+                    //SourceSerialPort.Close();
+                    CloseComm();
+                    btn_SourcePort.Text = "OPEN";
+                    btn_SourcePort.BackColor = Color.YellowGreen;
+                    AddLog("源串口已关闭");
+                    OpenComm_data = 0;
                 }
                 else
                 {
-                    AddLog("标准表数据返回失败");
+                    //串口已经关闭状态，需要设置好属性后打开
+                    AddLog("源串口已打开");
+                    btn_SourcePort.Text = "CLOSE";
+                    btn_SourcePort.BackColor = Color.IndianRed;
+                    //初始化源串口
+                    OpenComm_data = OpenComm(int.Parse(tbx_sourcePort.Text));
+                    if (OpenComm_data == 1)
+                    {
+                        AddLog("源串口打开成功");
+                    }
+                    else
+                    {
+                        AddLog("源串口打开失败，错误代码：" + OpenComm_data);
+                    }
                 }
-                AddLog("标准表数据：" + System.Text.Encoding.Default.GetString(sStandValue));
-                string sv = System.Text.Encoding.Default.GetString(sStandValue);
-
             }
-            catch (Exception ex)
+            catch (Exception ex_prot)
             {
-                AddLog("调用失败:" + ex.ToString());
+                //AddLog(ex_prot.ToString());
+                SerialPortException(ex_prot);
             }
-
+        }
+        int ReadStandMeter_data;
+        static byte[] sStandValue = new byte[1024];
+        [DllImport("xyctr.dll")]
+        private static extern int ReadStandValue([In, Out] string StandModel, [Out] byte[] sStandValue);
+        private void btn_ReadStandMeter_Click(object sender, EventArgs e)
+        {
+            object lockObject = new object();
+            lock (lockObject)
+            {
+                Thread thread = new Thread(() =>
+                {
+                    try
+                    {
+                        ReadStandMeter_data = ReadStandValue(XYModel, sStandValue);
+                        if (ReadStandMeter_data == 1)
+                        {
+                            AddLog("标准表数据返回成功");
+                            AddLog("新跃源标准表数据：" + System.Text.Encoding.Default.GetString(sStandValue));
+                            ShowTextReadStandValue(System.Text.Encoding.Default.GetString(sStandValue));
+                        }
+                        else
+                        {
+                            AddLog("标准表数据返回失败，错误代码：" + ReadStandMeter_data);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        AddLog("调用标准表接口异常" + ex.ToString());
+                    }
+                });
+                thread.IsBackground = true;
+                thread.Start();
+            }
         }
         /// <summary>
         /// 显示标准表的数据
         /// </summary>
         /// <exception cref="NotImplementedException"></exception>
-        string ModelXYStandValue;
+      //  string ModelXYStandValue;
         private void ShowTextReadStandValue(string iStandValue)
         {
+            // 分割字符串并移除空条目
+            string[] parts = iStandValue.Split(new char[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
+            // 处理特殊值：将 "None" 转换为 null，数值保持原样
+            var processedParts = parts.Select(p => p == "None" ? "None" : p).ToArray();
+            // 打印结果（带索引）
+            AddLog($"分割结果（共 {processedParts.Length} 项）:");
+            for (int i = 0; i < processedParts.Length; i++)
+            {
+                AddLog($"[{i}] {processedParts[i] ?? "null"}");
+            }
             try
             {
                 //电压
-                tb_UA.Text = ModelXYStandValue.Substring(1, 6);
-                tb_UB.Text = ModelXYStandValue.Substring(20, 6);
-                tb_UC.Text = ModelXYStandValue.Substring(39, 6);
-                //电流
-                tb_IA.Text = ModelXYStandValue.Substring(7, 6);
-                tb_IB.Text = ModelXYStandValue.Substring(26, 6);
-                tb_IC.Text = ModelXYStandValue.Substring(45, 6);
-                //相位角
-                tb_XA.Text = ModelXYStandValue.Substring(14, 6);
-                tb_XB.Text = ModelXYStandValue.Substring(33, 6);
-                tb_XC.Text = ModelXYStandValue.Substring(52, 6);
-                //频率
-                tb_HZ.Text = ModelXYStandValue.Substring(58, 6);
-                //有功
-                tb_PA.Text = ModelXYStandValue.Substring(76, 7);
-                tb_PB.Text = ModelXYStandValue.Substring(104, 7);
-                tb_PC.Text = ModelXYStandValue.Substring(132, 7);
-                //无功
-                tb_QA.Text = ModelXYStandValue.Substring(83, 7);
-                tb_QB.Text = ModelXYStandValue.Substring(111, 7);
-                tb_QC.Text = ModelXYStandValue.Substring(139, 7);
+                tb_UA.Text = processedParts[0];
+                tb_UB.Text = processedParts[1];
+                tb_UC.Text = processedParts[2];
+                //电流       
+                tb_IA.Text = processedParts[3];
+                tb_IB.Text = processedParts[4];
+                tb_IC.Text = processedParts[5];
+                //相位角     
+                tb_XA.Text = processedParts[6];
+                tb_XB.Text = processedParts[7];
+                tb_XC.Text = processedParts[8];
+                //有功       
+                tb_PA.Text = processedParts[9];
+                tb_PB.Text = processedParts[10];
+                tb_PC.Text = processedParts[11];
+                //无功       
+                tb_QA.Text = processedParts[12];
+                tb_QB.Text = processedParts[13];
+                tb_QC.Text = processedParts[14];
+                //频率       
+                tb_HZ.Text = processedParts[15];
+                //报警
+                tb_Alarm.Text = processedParts[16];
+                //uba
+                tb_Uba.Text = processedParts[17];
+                //uca
+                tb_Uca.Text = processedParts[18];
+                //相线
+                tb_xx.Text = processedParts[19];
+                //电压量程
+                tb_V_LC.Text = processedParts[20];
+                //电流量程
+                tb_A_LC.Text = processedParts[21];
                 //
-                tb_SA.Text = ModelXYStandValue.Substring(90, 7);
-                tb_SB.Text = ModelXYStandValue.Substring(118, 7);
-                tb_SC.Text = ModelXYStandValue.Substring(146, 7);
-                //
-                tb_PFA.Text = ModelXYStandValue.Substring(97, 7);
-                tb_PFB.Text = ModelXYStandValue.Substring(125, 7);
-                tb_PFC.Text = ModelXYStandValue.Substring(153, 7);
+                //tb_SA.Text = processedParts[0];
+                //tb_SB.Text = processedParts[0];
+                //tb_SC.Text = processedParts[0];
 
-                tb_EP.Text = ModelXYStandValue.Substring(171, 6);
-                tb_EQ.Text = ModelXYStandValue.Substring(177, 6);
-                tb_ES.Text = ModelXYStandValue.Substring(183, 6);
+                //tb_PFA.Text = processedParts[0];
+                //tb_PFB.Text = processedParts[0];
+                //tb_PFC.Text = processedParts[0];
+
+                //tb_EP.Text = processedParts[0];
+                //tb_EQ.Text = processedParts[0];
+                //tb_ES.Text = processedParts[0];
             }
             catch (Exception ex)
             {
@@ -1303,23 +1388,66 @@ namespace ModelTest
         }
 
         [DllImport("xyctr.dll")]
-        public static extern int ReadTestData(int ReadType, int iPosition, byte[] sResultData);
+        public static extern int ReadTestData([In, Out] int ReadType, int iPosition, [Out] byte[] sResultData);
         private void CmdReadMeterData_Click(object sender, EventArgs e)
         {
             byte[] sResultData;
             sResultData = new byte[255];
             //int iMeterPosition = Convert.ToInt16(this.CmbMeterPosition.Text);
             int iResult = ReadTestData(0, 0, sResultData);
-            AddLog(System.Text.Encoding.Default.GetString(sResultData));
+            if (iResult == 1)
+            {
+                AddLog("读取装置信息成功：" + System.Text.Encoding.Default.GetString(sResultData));
+            }
+            else
+            {
+                AddLog("读取装置信息失败，错误代码：" + iResult);
+            }
+
         }
         /// <summary>
-        /// 控源
+        /// AnyUIOutput  电压电流输出
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
+        [DllImport("xyctr.dll")]
+        private static extern int AnyUIOutput(byte[] StrUICommand, int iPulse);
+        public void CallAnyUIOutput(byte[] StrUICommand, int iPulse)
+        {
+            Thread thread = new Thread(() =>
+            {
+                try
+                {
+                    AnyUIOutput(StrUICommand, iPulse);
+                }
+                catch (Exception ex)
+                {
+                    AddLog("调用控源接口异常" + ex.ToString());
+                }
+            });
+            thread.IsBackground = true;
+            thread.Start();
+        }
         private void buttonCtrlUI_Click(object sender, EventArgs e)
         {
-
+            //源参数;电压电流 电压电流夹脚， uab uac夹脚
+            byte[] U_I_F_Uab_Uac = new byte[1024];
+            string ui = comboBoxVA.Text + ";" +
+            comboBoxVB.Text + ";" +
+            comboBoxVC.Text + ";" +
+            comboBoxIA.Text + ";" +
+            comboBoxIB.Text + ";" +
+            comboBoxIC.Text + ";" +
+            cbxIAJ.Text + ";" +
+            cbxIBJ.Text + ";" +
+            cbxICJ.Text + ";" +
+            cbxUab.Text + ";" +
+            cbxUac.Text;
+            //合并数组
+            AddLog("输出给源电压电流参数："+ ui);
+            //是否进行误差仪计算
+            //int iPulse = int.Parse(tbxiPulse.Text);
+            //CallAnyUIOutput(U_I_F_Uab_Uac, iPulse);
         }
         /// <summary>
         /// 读取常数
@@ -1333,6 +1461,7 @@ namespace ModelTest
 
         }
         #endregion
+
     }
     public static class A_GetDescription
     {
