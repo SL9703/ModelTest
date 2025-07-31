@@ -260,6 +260,7 @@ namespace ModelTest
             panel1 = new Panel();
             panel2 = new Panel();
             panel3 = new Panel();
+            cbxShutdownUI0 = new CheckBox();
             tabControl1.SuspendLayout();
             tabPage1.SuspendLayout();
             TestUnit.SuspendLayout();
@@ -1365,6 +1366,7 @@ namespace ModelTest
             // groupBox7
             // 
             groupBox7.BackColor = Color.Transparent;
+            groupBox7.Controls.Add(cbxShutdownUI0);
             groupBox7.Controls.Add(tbxiPulse);
             groupBox7.Controls.Add(label82);
             groupBox7.Controls.Add(cbxUac);
@@ -2821,6 +2823,18 @@ namespace ModelTest
             panel3.Size = new Size(1899, 251);
             panel3.TabIndex = 5;
             // 
+            // cbxShutdownUI0
+            // 
+            cbxShutdownUI0.AutoSize = true;
+            cbxShutdownUI0.Checked = true;
+            cbxShutdownUI0.CheckState = CheckState.Checked;
+            cbxShutdownUI0.Location = new Point(869, 117);
+            cbxShutdownUI0.Name = "cbxShutdownUI0";
+            cbxShutdownUI0.Size = new Size(245, 28);
+            cbxShutdownUI0.TabIndex = 75;
+            cbxShutdownUI0.Text = "0电压、电流同时停止输出";
+            cbxShutdownUI0.UseVisualStyleBackColor = true;
+            // 
             // ModelMain
             // 
             AutoScaleDimensions = new SizeF(11F, 24F);
@@ -3112,5 +3126,6 @@ namespace ModelTest
         private ComboBox cbxUab;
         private Label label82;
         private TextBox tbxiPulse;
+        private CheckBox cbxShutdownUI0;
     }
 }

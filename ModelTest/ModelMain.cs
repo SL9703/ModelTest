@@ -1227,11 +1227,50 @@ namespace ModelTest
         }
         #region 控源XY
         string XYModel = "model1";
-
+        /// <summary>
+        /// 降源接口
+        /// 0-----电压、电流同时停止输出1-----电压停止输出 2-----电流停止输出
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        [DllImport("xyctr.dll")]
+        private static extern int ShutPowerSource([In] int ShutPowerSource);
+        public void CallShutPowerSource(int shutPowerSource)
+        {
+            Thread thread = new Thread(() =>
+            {
+                try
+                {
+                    int PowerSource = ShutPowerSource(shutPowerSource);
+                    if (PowerSource == 1)
+                    {
+                        AddLog("降源正常" + PowerSource);
+                    }
+                    else
+                    {
+                        AddLog("调用降源接口异常" + PowerSource);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    AddLog("调用降源接口异常" + ex.ToString());
+                }
+            });
+            thread.IsBackground = true;
+            thread.Start();
+        }
         private void buttonXY_x0E_Click(object sender, EventArgs e)
         {
-            string x0E = "x0E";
-            SerialPortSendACSIIData(x0E);
+            //string x0E = "x0E";
+            //SerialPortSendACSIIData(x0E);
+            if (cbxShutdownUI0.Checked)
+            {
+                int ShutDownUI= 0;
+                AddLog("输出给源电压电流参数：" + ShutDownUI);
+                CallShutPowerSource(ShutDownUI);
+            }
+            //AddLog("输出给源电压电流参数：" + ShutDownUI);
+            //CallShutPowerSource(ShutDownUI);
         }
         [DllImport("xyctr.dll")]
         private static extern int OpenComm(int Port);
@@ -1411,14 +1450,22 @@ namespace ModelTest
         /// <param name="sender"></param>
         /// <param name="e"></param>
         [DllImport("xyctr.dll")]
-        private static extern int AnyUIOutput(byte[] StrUICommand, int iPulse);
-        public void CallAnyUIOutput(byte[] StrUICommand, int iPulse)
+        private static extern int AnyUIOutput(string StrUICommand, int iPulse);
+        public void CallAnyUIOutput(string StrUICommand, int iPulse)
         {
             Thread thread = new Thread(() =>
             {
                 try
                 {
-                    AnyUIOutput(StrUICommand, iPulse);
+                    int callAnyUI = AnyUIOutput(StrUICommand, iPulse);
+                    if (callAnyUI == 1)
+                    {
+                        AddLog("控源正常" + callAnyUI);
+                    }
+                    else
+                    {
+                        AddLog("调用控源接口异常" + callAnyUI);
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -1432,22 +1479,22 @@ namespace ModelTest
         {
             //源参数;电压电流 电压电流夹脚， uab uac夹脚
             byte[] U_I_F_Uab_Uac = new byte[1024];
-            string ui = comboBoxVA.Text + ";" +
-            comboBoxVB.Text + ";" +
-            comboBoxVC.Text + ";" +
-            comboBoxIA.Text + ";" +
-            comboBoxIB.Text + ";" +
-            comboBoxIC.Text + ";" +
-            cbxIAJ.Text + ";" +
-            cbxIBJ.Text + ";" +
-            cbxICJ.Text + ";" +
-            cbxUab.Text + ";" +
+            string ui = comboBoxVA.Text + "_" +
+            comboBoxVB.Text + "_" +
+            comboBoxVC.Text + "_" +
+            comboBoxIA.Text + "_" +
+            comboBoxIB.Text + "_" +
+            comboBoxIC.Text + "_" +
+            cbxIAJ.Text + "_" +
+            cbxIBJ.Text + "_" +
+            cbxICJ.Text + "_" +
+            cbxUab.Text + "_" +
             cbxUac.Text;
             //合并数组
-            AddLog("输出给源电压电流参数："+ ui);
+            AddLog("输出给源电压电流参数：" + ui);
             //是否进行误差仪计算
-            //int iPulse = int.Parse(tbxiPulse.Text);
-            //CallAnyUIOutput(U_I_F_Uab_Uac, iPulse);
+            int iPulse = int.Parse(tbxiPulse.Text);
+            CallAnyUIOutput(ui, iPulse);
         }
         /// <summary>
         /// 读取常数
