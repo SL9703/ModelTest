@@ -89,6 +89,12 @@ namespace ModelTest
             cbxIAJ.SelectedIndex = 0;
             cbxIBJ.SelectedIndex = 0;
             cbxICJ.SelectedIndex = 0;
+            cbx_Connection.SelectedIndex = 1;
+            cbx_ratedcurrent.SelectedIndex = 1;
+            cbx_ratedvoltage.SelectedIndex = 2;
+            cbx_meterconstant.SelectedIndex = 3;
+            cbx_HABC.SelectedIndex = 0;
+            cbx_LC.SelectedIndex = 3;
             cbxTerminalV1.DataSource = Enum.GetValues(typeof(TerminalV1CLASS)).Cast<TerminalV1CLASS>().Select(x => new
             {
                 终端类型 = x.GetDescription()
@@ -1265,7 +1271,7 @@ namespace ModelTest
             //SerialPortSendACSIIData(x0E);
             if (cbxShutdownUI0.Checked)
             {
-                int ShutDownUI= 0;
+                int ShutDownUI = 0;
                 AddLog("输出给源电压电流参数：" + ShutDownUI);
                 CallShutPowerSource(ShutDownUI);
             }
@@ -1478,7 +1484,7 @@ namespace ModelTest
         private void buttonCtrlUI_Click(object sender, EventArgs e)
         {
             //源参数;电压电流 电压电流夹脚， uab uac夹脚
-            byte[] U_I_F_Uab_Uac = new byte[1024];
+            //byte[] U_I_F_Uab_Uac = new byte[1024];
             string ui = comboBoxVA.Text + "_" +
             comboBoxVB.Text + "_" +
             comboBoxVC.Text + "_" +
@@ -1501,11 +1507,205 @@ namespace ModelTest
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
+
         private void btn_ReadContans_Click(object sender, EventArgs e)
         {
             string RC00E = "RC00E";//读取常数
             SerialPortSendACSIIData(RC00E);
 
+        }
+        /// <summary>
+        /// 初始化电表参数
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        [DllImport("xyctr.dll")]
+        private static extern int SendCommand(string Cmd, bool AdjTags);
+        public void CallSendCommand(string cmd, bool AdjTags)
+        {
+            Thread thread = new Thread(() =>
+            {
+                try
+                {
+                    int callcmd = SendCommand(cmd, AdjTags);
+                    if (callcmd == 1)
+                    {
+                        AddLog("SendCommand接口正常" + callcmd);
+                    }
+                    else
+                    {
+                        AddLog("调用SendCommand接口异常" + callcmd);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    AddLog("调用SendCommand接口异常" + ex.ToString());
+                }
+            });
+            thread.IsBackground = true;
+            thread.Start();
+        }
+        string MeterConnection;
+        string MeterV;
+        string LC;
+        private void btn_Init_Click(object sender, EventArgs e)
+        {
+            string MeterInit = string.Empty;
+            Init_meterConnection();
+            Init_meterV();
+            MeterInit = $"Ini_{MeterConnection}_{MeterV}_{cbx_ratedcurrent.Text}_{cbx_meterconstant.Text}_E";
+            AddLog("初始化电表参数" + MeterInit);
+            CallSendCommand(MeterInit, true);
+        }
+        /// <summary>
+        /// adj 升源接口
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+
+        private void btn_XY_ADJ_Click(object sender, EventArgs e)
+        {
+            string AdjCMD = string.Empty;
+            ADJLC_CHANGE();
+            AdjCMD = $"Adj_{tbx_V_5.Text}_{tbx_A_5.Text}_{cbx_HABC.Text}_{LC}_{tbxiPulse.Text}_E";
+            AddLog("ADJ升源接口指令" + AdjCMD);
+            CallSendCommand(AdjCMD, true);
+        }
+
+        private void ADJLC_CHANGE()
+        {
+            //            0.25L
+            //0.5L
+            //0.8L
+            //1.0
+            //0.8C
+            //0.5C
+            //0.25C
+            //0C
+            //0.25L - 反向
+            //0.5L - 反向
+            //0.8L - 反向
+            //1.0 - 反向
+            //0.8C - 反向
+            //0.5C - 反向
+            //0.25C - 反向
+            //0L - 反向
+            if (cbx_LC.Text.Equals("0.25L"))
+                LC = "0";
+            if (cbx_LC.Text.Equals("0.5L"))
+                LC = "1";
+            if (cbx_LC.Text.Equals("0.8L"))
+                LC = "2";
+            if (cbx_LC.Text.Equals("1.0"))
+                LC = "3";
+            if (cbx_LC.Text.Equals("0.8C"))
+                LC = "4";
+            if (cbx_LC.Text.Equals("0.5C"))
+                LC = "5";
+            if (cbx_LC.Text.Equals("0.25C"))
+                LC = "6";
+            if (cbx_LC.Text.Equals("0C"))
+                LC = "7";
+            if (cbx_LC.Text.Equals("0.25L-反向"))
+                LC = "8";
+            if (cbx_LC.Text.Equals("0.5L-反向"))
+                LC = "9";
+            if (cbx_LC.Text.Equals("0.8L-反向"))
+                LC = "A";
+            if (cbx_LC.Text.Equals("1.0-反向"))
+                LC = "B";
+            if (cbx_LC.Text.Equals("0.8C-反向"))
+                LC = "C";
+            if (cbx_LC.Text.Equals("0.5C-反向"))
+                LC = "D";
+            if (cbx_LC.Text.Equals("0.25C-反向"))
+                LC = "E";
+            if (cbx_LC.Text.Equals("0L-反向"))
+                LC = "F";
+        }
+
+        private void Init_meterV()
+        {
+            // 额定电压57.7
+            //100
+            //220
+            //380
+            //110
+            //120
+            if (cbx_ratedvoltage.Text.Equals("57.7"))
+                MeterV = "0";
+            if (cbx_ratedvoltage.Text.Equals("100"))
+                MeterV = "1";
+            if (cbx_ratedvoltage.Text.Equals("220"))
+                MeterV = "2";
+            if (cbx_ratedvoltage.Text.Equals("380"))
+                MeterV = "3";
+            if (cbx_ratedvoltage.Text.Equals("110"))
+                MeterV = "4";
+            if (cbx_ratedvoltage.Text.Equals("120"))
+                MeterV = "5";
+        }
+
+        private void Init_meterConnection()
+        {
+            //电表常数
+            //单相有功
+            //三相四线有功
+            //三相三线有功
+            //90°无功
+            //60°无功
+            //四线正弦无功
+            //三线正弦无功
+            //三相四线视在
+            //三相三线视在
+            //二相三线有功(AC相)
+            //单相无功
+            //单相三线(AC相)
+            //单相三线(BC相)
+            //单相三线(AB相)
+            //二相三线有功(BC相)
+            //二相三线有功(AB相)
+            //二相三线无功（AB相）
+            //二相三线无功（AC相）
+            //二相三线无功（BC相）
+            if (cbx_Connection.Text.Equals("单相有功"))
+                MeterConnection = "0";
+            if (cbx_Connection.Text.Equals("三相四线有功"))
+                MeterConnection = "1";
+            if (cbx_Connection.Text.Equals("三相三线有功"))
+                MeterConnection = "2";
+            if (cbx_Connection.Text.Equals("90°无功"))
+                MeterConnection = "3";
+            if (cbx_Connection.Text.Equals("60°无功"))
+                MeterConnection = "4";
+            if (cbx_Connection.Text.Equals("四线正弦无功"))
+                MeterConnection = "5";
+            if (cbx_Connection.Text.Equals("三线正弦无功"))
+                MeterConnection = "6";
+            if (cbx_Connection.Text.Equals("三相四线视在"))
+                MeterConnection = "7";
+            if (cbx_Connection.Text.Equals("三相三线视在"))
+                MeterConnection = "8";
+            if (cbx_Connection.Text.Equals("二相三线有功(AC相)"))
+                MeterConnection = "9";
+            if (cbx_Connection.Text.Equals("单相无功"))
+                MeterConnection = "10";
+            if (cbx_Connection.Text.Equals("单相三线(AC相)"))
+                MeterConnection = "11";
+            if (cbx_Connection.Text.Equals("单相三线(BC相)"))
+                MeterConnection = "12";
+            if (cbx_Connection.Text.Equals("单相三线(AB相)"))
+                MeterConnection = "13";
+            if (cbx_Connection.Text.Equals("二相三线有功(BC相)"))
+                MeterConnection = "14";
+            if (cbx_Connection.Text.Equals("二相三线有功(AB相)"))
+                MeterConnection = "15";
+            if (cbx_Connection.Text.Equals("二相三线无功（AB相）"))
+                MeterConnection = "16";
+            if (cbx_Connection.Text.Equals("二相三线无功（AC相）"))
+                MeterConnection = "17";
+            if (cbx_Connection.Text.Equals("二相三线无功（BC相）"))
+                MeterConnection = "18";
         }
         #endregion
 

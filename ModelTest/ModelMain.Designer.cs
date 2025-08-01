@@ -121,12 +121,37 @@ namespace ModelTest
             tabPage5 = new TabPage();
             tabPage6 = new TabPage();
             tabPage7 = new TabPage();
+            groupBox9 = new GroupBox();
+            cbx_HABC = new ComboBox();
+            cbx_LC = new ComboBox();
+            label94 = new Label();
+            label93 = new Label();
+            label92 = new Label();
+            label91 = new Label();
+            label90 = new Label();
+            tbx_A_5 = new TextBox();
+            tbx_V_5 = new TextBox();
+            btn_XY_ADJ = new Button();
+            groupBox8 = new GroupBox();
+            label89 = new Label();
+            label88 = new Label();
+            label87 = new Label();
+            cbx_meterconstant = new ComboBox();
+            cbx_ratedcurrent = new ComboBox();
+            cbx_ratedvoltage = new ComboBox();
+            cbx_Connection = new ComboBox();
+            label86 = new Label();
+            label85 = new Label();
+            label84 = new Label();
+            label83 = new Label();
+            btn_Initmeter = new Button();
             label70 = new Label();
             btn_SourcePort = new Button();
             tbx_sourcePort = new TextBox();
             label69 = new Label();
             btn_ReadContans = new Button();
             groupBox7 = new GroupBox();
+            cbxShutdownUI0 = new CheckBox();
             tbxiPulse = new TextBox();
             label82 = new Label();
             cbxUac = new ComboBox();
@@ -260,7 +285,6 @@ namespace ModelTest
             panel1 = new Panel();
             panel2 = new Panel();
             panel3 = new Panel();
-            cbxShutdownUI0 = new CheckBox();
             tabControl1.SuspendLayout();
             tabPage1.SuspendLayout();
             TestUnit.SuspendLayout();
@@ -282,6 +306,8 @@ namespace ModelTest
             groupBox3.SuspendLayout();
             tabPage10.SuspendLayout();
             tabPage7.SuspendLayout();
+            groupBox9.SuspendLayout();
+            groupBox8.SuspendLayout();
             groupBox7.SuspendLayout();
             groupBox6.SuspendLayout();
             LogUnit.SuspendLayout();
@@ -1295,6 +1321,8 @@ namespace ModelTest
             // 
             // tabPage7
             // 
+            tabPage7.Controls.Add(groupBox9);
+            tabPage7.Controls.Add(groupBox8);
             tabPage7.Controls.Add(label70);
             tabPage7.Controls.Add(btn_SourcePort);
             tabPage7.Controls.Add(tbx_sourcePort);
@@ -1312,6 +1340,268 @@ namespace ModelTest
             tabPage7.TabIndex = 6;
             tabPage7.Text = "新跃控源参数";
             tabPage7.UseVisualStyleBackColor = true;
+            // 
+            // groupBox9
+            // 
+            groupBox9.Controls.Add(cbx_HABC);
+            groupBox9.Controls.Add(cbx_LC);
+            groupBox9.Controls.Add(label94);
+            groupBox9.Controls.Add(label93);
+            groupBox9.Controls.Add(label92);
+            groupBox9.Controls.Add(label91);
+            groupBox9.Controls.Add(label90);
+            groupBox9.Controls.Add(tbx_A_5);
+            groupBox9.Controls.Add(tbx_V_5);
+            groupBox9.Controls.Add(btn_XY_ADJ);
+            groupBox9.Dock = DockStyle.Right;
+            groupBox9.Location = new Point(978, 3);
+            groupBox9.Name = "groupBox9";
+            groupBox9.Size = new Size(381, 201);
+            groupBox9.TabIndex = 32;
+            groupBox9.TabStop = false;
+            groupBox9.Text = "百分比接口升源";
+            // 
+            // cbx_HABC
+            // 
+            cbx_HABC.FormattingEnabled = true;
+            cbx_HABC.Items.AddRange(new object[] { "H", "A", "B", "C" });
+            cbx_HABC.Location = new Point(9, 122);
+            cbx_HABC.Name = "cbx_HABC";
+            cbx_HABC.Size = new Size(98, 32);
+            cbx_HABC.TabIndex = 84;
+            // 
+            // cbx_LC
+            // 
+            cbx_LC.FormattingEnabled = true;
+            cbx_LC.Items.AddRange(new object[] { "0.25L", "0.5L", "0.8L", "1.0", "0.8C", "0.5C", "0.25C", "0C", "0.25L-反向", "0.5L-反向", "0.8L-反向", "1.0-反向", "0.8C-反向", "0.5C-反向", "0.25C-反向", "0L-反向" });
+            cbx_LC.Location = new Point(8, 165);
+            cbx_LC.Name = "cbx_LC";
+            cbx_LC.Size = new Size(98, 32);
+            cbx_LC.TabIndex = 79;
+            // 
+            // label94
+            // 
+            label94.AutoSize = true;
+            label94.ForeColor = Color.Red;
+            label94.Location = new Point(219, 121);
+            label94.Margin = new Padding(5, 0, 5, 0);
+            label94.Name = "label94";
+            label94.Size = new Size(172, 24);
+            label94.TabIndex = 83;
+            label94.Text = "圈数（填误差圈数）";
+            // 
+            // label93
+            // 
+            label93.AutoSize = true;
+            label93.ForeColor = Color.Red;
+            label93.Location = new Point(128, 167);
+            label93.Margin = new Padding(5, 0, 5, 0);
+            label93.Name = "label93";
+            label93.Size = new Size(46, 24);
+            label93.TabIndex = 82;
+            label93.Text = "相位";
+            // 
+            // label92
+            // 
+            label92.AutoSize = true;
+            label92.ForeColor = Color.Red;
+            label92.Location = new Point(128, 129);
+            label92.Margin = new Padding(5, 0, 5, 0);
+            label92.Name = "label92";
+            label92.Size = new Size(64, 24);
+            label92.TabIndex = 80;
+            label92.Text = "合分元";
+            // 
+            // label91
+            // 
+            label91.AutoSize = true;
+            label91.ForeColor = Color.Red;
+            label91.Location = new Point(128, 85);
+            label91.Margin = new Padding(5, 0, 5, 0);
+            label91.Name = "label91";
+            label91.Size = new Size(100, 24);
+            label91.TabIndex = 78;
+            label91.Text = "电流百分比";
+            // 
+            // label90
+            // 
+            label90.AutoSize = true;
+            label90.ForeColor = Color.Red;
+            label90.Location = new Point(128, 40);
+            label90.Margin = new Padding(5, 0, 5, 0);
+            label90.Name = "label90";
+            label90.Size = new Size(100, 24);
+            label90.TabIndex = 33;
+            label90.Text = "电压百分比";
+            // 
+            // tbx_A_5
+            // 
+            tbx_A_5.Location = new Point(9, 81);
+            tbx_A_5.Margin = new Padding(5, 4, 5, 4);
+            tbx_A_5.Name = "tbx_A_5";
+            tbx_A_5.Size = new Size(97, 30);
+            tbx_A_5.TabIndex = 77;
+            tbx_A_5.Text = "0";
+            // 
+            // tbx_V_5
+            // 
+            tbx_V_5.Location = new Point(9, 40);
+            tbx_V_5.Margin = new Padding(5, 4, 5, 4);
+            tbx_V_5.Name = "tbx_V_5";
+            tbx_V_5.Size = new Size(97, 30);
+            tbx_V_5.TabIndex = 33;
+            tbx_V_5.Text = "100";
+            // 
+            // btn_XY_ADJ
+            // 
+            btn_XY_ADJ.Location = new Point(263, 157);
+            btn_XY_ADJ.Name = "btn_XY_ADJ";
+            btn_XY_ADJ.Size = new Size(112, 34);
+            btn_XY_ADJ.TabIndex = 76;
+            btn_XY_ADJ.Text = "升源ADJ";
+            btn_XY_ADJ.UseVisualStyleBackColor = true;
+            btn_XY_ADJ.Click += btn_XY_ADJ_Click;
+            // 
+            // groupBox8
+            // 
+            groupBox8.Controls.Add(label89);
+            groupBox8.Controls.Add(label88);
+            groupBox8.Controls.Add(label87);
+            groupBox8.Controls.Add(cbx_meterconstant);
+            groupBox8.Controls.Add(cbx_ratedcurrent);
+            groupBox8.Controls.Add(cbx_ratedvoltage);
+            groupBox8.Controls.Add(cbx_Connection);
+            groupBox8.Controls.Add(label86);
+            groupBox8.Controls.Add(label85);
+            groupBox8.Controls.Add(label84);
+            groupBox8.Controls.Add(label83);
+            groupBox8.Controls.Add(btn_Initmeter);
+            groupBox8.Dock = DockStyle.Right;
+            groupBox8.Location = new Point(1359, 3);
+            groupBox8.Name = "groupBox8";
+            groupBox8.Size = new Size(529, 201);
+            groupBox8.TabIndex = 31;
+            groupBox8.TabStop = false;
+            groupBox8.Text = "初始化电表";
+            // 
+            // label89
+            // 
+            label89.AutoSize = true;
+            label89.Font = new Font("黑体", 10.5F);
+            label89.ForeColor = SystemColors.ActiveCaptionText;
+            label89.Location = new Point(283, 163);
+            label89.Name = "label89";
+            label89.Size = new Size(87, 21);
+            label89.TabIndex = 78;
+            label89.Text = "imp/kwh";
+            // 
+            // label88
+            // 
+            label88.AutoSize = true;
+            label88.Font = new Font("黑体", 10.5F);
+            label88.ForeColor = SystemColors.ActiveCaptionText;
+            label88.Location = new Point(283, 87);
+            label88.Name = "label88";
+            label88.Size = new Size(21, 21);
+            label88.TabIndex = 77;
+            label88.Text = "V";
+            // 
+            // label87
+            // 
+            label87.AutoSize = true;
+            label87.Font = new Font("黑体", 10.5F);
+            label87.ForeColor = SystemColors.ActiveCaptionText;
+            label87.Location = new Point(283, 127);
+            label87.Name = "label87";
+            label87.Size = new Size(21, 21);
+            label87.TabIndex = 76;
+            label87.Text = "A";
+            // 
+            // cbx_meterconstant
+            // 
+            cbx_meterconstant.FormattingEnabled = true;
+            cbx_meterconstant.Items.AddRange(new object[] { "400", "600", "800", "1000", "1200", "6400", "10000" });
+            cbx_meterconstant.Location = new Point(140, 159);
+            cbx_meterconstant.Name = "cbx_meterconstant";
+            cbx_meterconstant.Size = new Size(112, 32);
+            cbx_meterconstant.TabIndex = 37;
+            // 
+            // cbx_ratedcurrent
+            // 
+            cbx_ratedcurrent.FormattingEnabled = true;
+            cbx_ratedcurrent.Items.AddRange(new object[] { "1.5", "5", "10", "20" });
+            cbx_ratedcurrent.Location = new Point(140, 121);
+            cbx_ratedcurrent.Name = "cbx_ratedcurrent";
+            cbx_ratedcurrent.Size = new Size(112, 32);
+            cbx_ratedcurrent.TabIndex = 36;
+            // 
+            // cbx_ratedvoltage
+            // 
+            cbx_ratedvoltage.FormattingEnabled = true;
+            cbx_ratedvoltage.Items.AddRange(new object[] { "57.7", "100", "220", "380", "110", "120" });
+            cbx_ratedvoltage.Location = new Point(140, 83);
+            cbx_ratedvoltage.Name = "cbx_ratedvoltage";
+            cbx_ratedvoltage.Size = new Size(112, 32);
+            cbx_ratedvoltage.TabIndex = 35;
+            // 
+            // cbx_Connection
+            // 
+            cbx_Connection.FormattingEnabled = true;
+            cbx_Connection.Items.AddRange(new object[] { "单相有功", "三相四线有功", "三相三线有功", "90°无功", "60°无功", "四线正弦无功", "三线正弦无功", "三相四线视在", "三相三线视在", "二相三线有功 (AC相)", "单相无功", "单相三线 (AC相)", "单相三线 (BC相) ", "单相三线 (AB相)", "二相三线有功 (BC相)", "二相三线有功 (AB相)", "二相三线无功（AB相）", "二相三线无功（AC相）", "二相三线无功（BC相）" });
+            cbx_Connection.Location = new Point(140, 45);
+            cbx_Connection.Name = "cbx_Connection";
+            cbx_Connection.Size = new Size(281, 32);
+            cbx_Connection.TabIndex = 21;
+            // 
+            // label86
+            // 
+            label86.AutoSize = true;
+            label86.Location = new Point(32, 165);
+            label86.Margin = new Padding(5, 0, 5, 0);
+            label86.Name = "label86";
+            label86.Size = new Size(86, 24);
+            label86.TabIndex = 34;
+            label86.Text = "电表常数:";
+            // 
+            // label85
+            // 
+            label85.AutoSize = true;
+            label85.Location = new Point(32, 126);
+            label85.Margin = new Padding(5, 0, 5, 0);
+            label85.Name = "label85";
+            label85.Size = new Size(86, 24);
+            label85.TabIndex = 33;
+            label85.Text = "额定电流:";
+            // 
+            // label84
+            // 
+            label84.AutoSize = true;
+            label84.Location = new Point(32, 87);
+            label84.Margin = new Padding(5, 0, 5, 0);
+            label84.Name = "label84";
+            label84.Size = new Size(86, 24);
+            label84.TabIndex = 32;
+            label84.Text = "额定电压:";
+            // 
+            // label83
+            // 
+            label83.AutoSize = true;
+            label83.Location = new Point(32, 48);
+            label83.Margin = new Padding(5, 0, 5, 0);
+            label83.Name = "label83";
+            label83.Size = new Size(86, 24);
+            label83.TabIndex = 31;
+            label83.Text = "接线方式:";
+            // 
+            // btn_Initmeter
+            // 
+            btn_Initmeter.Location = new Point(411, 161);
+            btn_Initmeter.Name = "btn_Initmeter";
+            btn_Initmeter.Size = new Size(112, 34);
+            btn_Initmeter.TabIndex = 30;
+            btn_Initmeter.Text = "初始化电表";
+            btn_Initmeter.UseVisualStyleBackColor = true;
+            btn_Initmeter.Click += btn_Init_Click;
             // 
             // label70
             // 
@@ -1406,6 +1696,18 @@ namespace ModelTest
             groupBox7.TabIndex = 27;
             groupBox7.TabStop = false;
             groupBox7.Text = "任意控制命令";
+            // 
+            // cbxShutdownUI0
+            // 
+            cbxShutdownUI0.AutoSize = true;
+            cbxShutdownUI0.Checked = true;
+            cbxShutdownUI0.CheckState = CheckState.Checked;
+            cbxShutdownUI0.Location = new Point(869, 117);
+            cbxShutdownUI0.Name = "cbxShutdownUI0";
+            cbxShutdownUI0.Size = new Size(245, 28);
+            cbxShutdownUI0.TabIndex = 75;
+            cbxShutdownUI0.Text = "0电压、电流同时停止输出";
+            cbxShutdownUI0.UseVisualStyleBackColor = true;
             // 
             // tbxiPulse
             // 
@@ -2823,18 +3125,6 @@ namespace ModelTest
             panel3.Size = new Size(1899, 251);
             panel3.TabIndex = 5;
             // 
-            // cbxShutdownUI0
-            // 
-            cbxShutdownUI0.AutoSize = true;
-            cbxShutdownUI0.Checked = true;
-            cbxShutdownUI0.CheckState = CheckState.Checked;
-            cbxShutdownUI0.Location = new Point(869, 117);
-            cbxShutdownUI0.Name = "cbxShutdownUI0";
-            cbxShutdownUI0.Size = new Size(245, 28);
-            cbxShutdownUI0.TabIndex = 75;
-            cbxShutdownUI0.Text = "0电压、电流同时停止输出";
-            cbxShutdownUI0.UseVisualStyleBackColor = true;
-            // 
             // ModelMain
             // 
             AutoScaleDimensions = new SizeF(11F, 24F);
@@ -2877,6 +3167,10 @@ namespace ModelTest
             tabPage10.PerformLayout();
             tabPage7.ResumeLayout(false);
             tabPage7.PerformLayout();
+            groupBox9.ResumeLayout(false);
+            groupBox9.PerformLayout();
+            groupBox8.ResumeLayout(false);
+            groupBox8.PerformLayout();
             groupBox7.ResumeLayout(false);
             groupBox7.PerformLayout();
             groupBox6.ResumeLayout(false);
@@ -3127,5 +3421,29 @@ namespace ModelTest
         private Label label82;
         private TextBox tbxiPulse;
         private CheckBox cbxShutdownUI0;
+        private Button btn_Initmeter;
+        private GroupBox groupBox8;
+        private Label label83;
+        private Label label84;
+        private Label label85;
+        private Label label86;
+        private ComboBox cbx_Connection;
+        private ComboBox cbx_meterconstant;
+        private ComboBox cbx_ratedcurrent;
+        private ComboBox cbx_ratedvoltage;
+        private Label label89;
+        private Label label88;
+        private Label label87;
+        private GroupBox groupBox9;
+        private Button btn_XY_ADJ;
+        private Label label90;
+        private TextBox tbx_A_5;
+        private TextBox tbx_V_5;
+        private Label label91;
+        private Label label93;
+        private Label label92;
+        private Label label94;
+        private ComboBox cbx_HABC;
+        private ComboBox cbx_LC;
     }
 }
