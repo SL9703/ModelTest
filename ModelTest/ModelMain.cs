@@ -1626,29 +1626,50 @@ namespace ModelTest
 
         private void Init_meterV()
         {
-            // 额定电压57.7
+            /* 额定电压57.7
             //100
             //220
             //380
             //110
             //120
-            if (cbx_ratedvoltage.Text.Equals("57.7"))
-                MeterV = "0";
-            if (cbx_ratedvoltage.Text.Equals("100"))
-                MeterV = "1";
-            if (cbx_ratedvoltage.Text.Equals("220"))
-                MeterV = "2";
-            if (cbx_ratedvoltage.Text.Equals("380"))
-                MeterV = "3";
-            if (cbx_ratedvoltage.Text.Equals("110"))
-                MeterV = "4";
-            if (cbx_ratedvoltage.Text.Equals("120"))
-                MeterV = "5";
+            //if (cbx_ratedvoltage.Text.Equals("57.7"))
+            //    MeterV = "0";
+            //if (cbx_ratedvoltage.Text.Equals("100"))
+            //    MeterV = "1";
+            //if (cbx_ratedvoltage.Text.Equals("220"))
+            //    MeterV = "2";
+            //if (cbx_ratedvoltage.Text.Equals("380"))
+            //    MeterV = "3";
+            //if (cbx_ratedvoltage.Text.Equals("110"))
+            //    MeterV = "4";
+            //if (cbx_ratedvoltage.Text.Equals("120"))
+            //    MeterV = "5";**/
+            switch (cbx_ratedvoltage.Text)
+            {
+                case "57.7":
+                    MeterV = "0";
+                    break;
+                case "100":
+                    MeterV = "1";
+                    break;
+                case "220":
+                    MeterV = "2";
+                    break;
+                case "380":
+                    MeterV = "3";
+                    break;
+                case "110":
+                    MeterV = "4";
+                    break;
+                case "120":
+                    MeterV = "5";
+                    break;
+            }
         }
 
         private void Init_meterConnection()
         {
-            //电表常数
+            /*电表常数
             //单相有功
             //三相四线有功
             //三相三线有功
@@ -1705,7 +1726,67 @@ namespace ModelTest
             if (cbx_Connection.Text.Equals("二相三线无功（AC相）"))
                 MeterConnection = "17";
             if (cbx_Connection.Text.Equals("二相三线无功（BC相）"))
-                MeterConnection = "18";
+                MeterConnection = "18";**/
+            switch (cbx_Connection.Text)
+            {
+                case "单相有功":
+                    MeterConnection = "0";
+                    break;
+                case "三相四线有功":
+                    MeterConnection = "1";
+                    break;
+                case "三相三线有功":
+                    MeterConnection = "2";
+                    break;
+                case "90°无功":
+                    MeterConnection = "3";
+                    break;
+                case "60°无功":
+                    MeterConnection = "4";
+                    break;
+                case "四线正弦无功":
+                    MeterConnection = "5";
+                    break;
+                case "三线正弦无功":
+                    MeterConnection = "6";
+                    break;
+                case "三相四线视在":
+                    MeterConnection = "7";
+                    break;
+                case "三相三线视在":
+                    MeterConnection = "8";
+                    break;
+                case "二相三线有功(AC相)":
+                    MeterConnection = "9";
+                    break;
+                case "单相无功":
+                    MeterConnection = "10";
+                    break;
+                case "单相三线(AC相)":
+                    MeterConnection = "11";
+                    break;
+                case "单相三线(BC相)":
+                    MeterConnection = "12";
+                    break;
+                case "单相三线(AB相)":
+                    MeterConnection = "13";
+                    break;
+                case "二相三线有功(BC相)":
+                    MeterConnection = "14";
+                    break;
+                case "二相三线有功(AB相)":
+                    MeterConnection = "15";
+                    break;
+                case "二相三线无功（AB相）":
+                    MeterConnection = "16";
+                    break;
+                case "二相三线无功（AC相）":
+                    MeterConnection = "17";
+                    break;
+                case "二相三线无功（BC相）":
+                    MeterConnection = "18";
+                    break;
+            }
         }
         #endregion
 
