@@ -1507,11 +1507,33 @@ namespace ModelTest
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-
+        [DllImport("xyctr.dll")]
+        private static extern int ReadStandConst([Out] byte[] constanst);
         private void btn_ReadContans_Click(object sender, EventArgs e)
         {
-            string RC00E = "RC00E";//读取常数
-            SerialPortSendACSIIData(RC00E);
+           // string RC00E = "RC00E";//读取常数
+            //SerialPortSendACSIIData(RC00E);
+            Thread thread = new Thread(() =>
+            {
+                try
+                {
+                    byte[] constas = new byte[1024];
+                    int readConstans = ReadStandConst(constas);
+                    if (readConstans == 1)
+                    {
+                        AddLog("读取常数接口正常" + readConstans);
+                        tb_contans.Text = System.Text.Encoding.Default.GetString(constas);
+                    }
+                    else
+                    {
+                        AddLog("调用读取常数接口异常" + readConstans);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    AddLog("调用读取常数接口异常" + ex.ToString());
+                }
+            });
 
         }
         /// <summary>
