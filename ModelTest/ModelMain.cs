@@ -95,6 +95,8 @@ namespace ModelTest
             cbx_meterconstant.SelectedIndex = 3;
             cbx_HABC.SelectedIndex = 0;
             cbx_LC.SelectedIndex = 3;
+            cbbx_BlueTooth.SelectedIndex = 0;
+            cbbx_ToosNum.SelectedIndex = 0;
             cbxTerminalV1.DataSource = Enum.GetValues(typeof(TerminalV1CLASS)).Cast<TerminalV1CLASS>().Select(x => new
             {
                 终端类型 = x.GetDescription()
@@ -1511,7 +1513,7 @@ namespace ModelTest
         private static extern int ReadStandConst([Out] byte[] constanst);
         private void btn_ReadContans_Click(object sender, EventArgs e)
         {
-           // string RC00E = "RC00E";//读取常数
+            // string RC00E = "RC00E";//读取常数
             //SerialPortSendACSIIData(RC00E);
             Thread thread = new Thread(() =>
             {
@@ -1592,6 +1594,116 @@ namespace ModelTest
             AdjCMD = $"Adj_{tbx_V_5.Text}_{tbx_A_5.Text}_{cbx_HABC.Text}_{LC}_{tbxiPulse.Text}_E";
             AddLog("ADJ升源接口指令" + AdjCMD);
             CallSendCommand(AdjCMD, true);
+        }
+        int BluetoothMode = 0; //接线模式 0-常规接线 1-蓝牙 2-双光电头
+        int BluetoothChannel = 3; //通道号 3-有功 4-无功 
+        /// <summary>
+        /// 设置蓝牙模式和通道
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        [DllImport("xyctr.dll")]
+        private static extern int Set_BlueTooth_Channel(int IchanngelNo);
+        public void CallSet_BlueTooth_Channel(int IchanngelNo)
+        {
+            Thread thread = new Thread(() =>
+            {
+                try
+                {
+                    int callSet_BlueTooth_Channel = Set_BlueTooth_Channel(IchanngelNo);
+                    if (callSet_BlueTooth_Channel == 1)
+                    {
+                        AddLog("设置Set_BlueTooth_Channel接口正常" + callSet_BlueTooth_Channel);
+                    }
+                    else
+                    {
+                        AddLog("调用设置Set_BlueTooth_Channel接口异常" + callSet_BlueTooth_Channel);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    AddLog("调用设置Set_BlueTooth_Channel接口异常" + ex.ToString());
+                }
+            });
+            thread.IsBackground = true;
+            thread.Start();
+        }
+        bool BoolTooth = true;//模式选择
+        private void bttn_settooth_Click(object sender, EventArgs e)
+        {
+            //先设置模式
+            //常规接线模式
+            //蓝牙模块接线模式
+            //双光电头接线模式
+            if (BoolTooth)
+            {
+                if (cbbx_BlueTooth.Text.Equals("常规接线模式"))
+                {
+                    BluetoothMode = 0;
+                }
+                else if (cbbx_BlueTooth.Text.Equals("蓝牙模块接线模式"))
+                {
+                    BluetoothMode = 1;
+                }
+                else if (cbbx_BlueTooth.Text.Equals("双光电头接线模式"))
+                {
+                    BluetoothMode = 2;
+                }
+                AddLog("设置模式：" + cbbx_BlueTooth.Text);
+                CallSet_BlueTooth_Channel(BluetoothMode);
+                bttn_settooth.Text = "设置通道"; //切换到设置通道
+                BoolTooth = false; //切换到设置通道 
+            }
+            else
+            {
+                //设置通道
+                if (cbbx_ToosNum.Text.Equals("有功通道"))
+                {
+                    BluetoothChannel = 3;
+                }
+                else if (cbbx_ToosNum.Text.Equals("无功通道"))
+                {
+                    BluetoothChannel = 4;
+                }
+                AddLog("设置通道：" + cbbx_ToosNum.Text);
+                CallSet_BlueTooth_Channel(BluetoothChannel);
+                bttn_settooth.Text = "设置模式"; //切换到设置模式
+                BoolTooth = true; //切换到设置模式
+            }
+        }
+        /// <summary>
+        /// 测试时钟误差
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        [DllImport("xyctr.dll")]
+        private static extern int Clock_Start(int iPulse);
+        public void Call_Clock_Start(int iPulse)
+        {
+            Thread thread = new Thread(() =>
+            {
+                try
+                {
+                    int clockStart_stutas = Clock_Start(iPulse);
+                    if (clockStart_stutas==1)
+                    {
+                        AddLog("调用设置Clock_Start接口正常" + clockStart_stutas);
+                    }
+                    else
+                    {
+                        AddLog("调用设置Clock_Start接口异常" + clockStart_stutas);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    AddLog("调用设置Clock_Start接口异常" + ex.ToString());
+                }
+            });
+           
+        }
+        private void bttn_ClockStart_Click(object sender, EventArgs e)
+        {
+
         }
 
         private void ADJLC_CHANGE()
@@ -1812,6 +1924,8 @@ namespace ModelTest
         }
         #endregion
 
+
+        
     }
     public static class A_GetDescription
     {
