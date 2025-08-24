@@ -160,6 +160,13 @@ namespace ModelTest
             label95 = new Label();
             cbbx_BlueTooth = new ComboBox();
             tabPage12 = new TabPage();
+            label101 = new Label();
+            label100 = new Label();
+            tbx_MeterNo = new TextBox();
+            bttn_ClockStart = new Button();
+            label99 = new Label();
+            tbxclockpulse = new TextBox();
+            label98 = new Label();
             cbxShutdownUI0 = new CheckBox();
             tbxiPulse = new TextBox();
             label82 = new Label();
@@ -294,10 +301,6 @@ namespace ModelTest
             panel1 = new Panel();
             panel2 = new Panel();
             panel3 = new Panel();
-            label98 = new Label();
-            tbxclockpulse = new TextBox();
-            label99 = new Label();
-            bttn_ClockStart = new Button();
             tabControl1.SuspendLayout();
             tabPage1.SuspendLayout();
             TestUnit.SuspendLayout();
@@ -1877,6 +1880,9 @@ namespace ModelTest
             // 
             // tabPage12
             // 
+            tabPage12.Controls.Add(label101);
+            tabPage12.Controls.Add(label100);
+            tabPage12.Controls.Add(tbx_MeterNo);
             tabPage12.Controls.Add(bttn_ClockStart);
             tabPage12.Controls.Add(label99);
             tabPage12.Controls.Add(tbxclockpulse);
@@ -1888,6 +1894,75 @@ namespace ModelTest
             tabPage12.TabIndex = 1;
             tabPage12.Text = "时钟误差";
             tabPage12.UseVisualStyleBackColor = true;
+            // 
+            // label101
+            // 
+            label101.AutoSize = true;
+            label101.ForeColor = Color.Red;
+            label101.Location = new Point(268, 3);
+            label101.Margin = new Padding(6, 0, 6, 0);
+            label101.Name = "label101";
+            label101.Size = new Size(323, 28);
+            label101.TabIndex = 89;
+            label101.Text = "表位按照1-N填写，读取误差需要";
+            // 
+            // label100
+            // 
+            label100.AutoSize = true;
+            label100.Location = new Point(258, 38);
+            label100.Name = "label100";
+            label100.Size = new Size(117, 28);
+            label100.TabIndex = 88;
+            label100.Text = "测试表位：";
+            // 
+            // tbx_MeterNo
+            // 
+            tbx_MeterNo.Location = new Point(383, 35);
+            tbx_MeterNo.Margin = new Padding(6, 5, 6, 5);
+            tbx_MeterNo.Name = "tbx_MeterNo";
+            tbx_MeterNo.Size = new Size(114, 34);
+            tbx_MeterNo.TabIndex = 87;
+            tbx_MeterNo.Text = "1-12";
+            // 
+            // bttn_ClockStart
+            // 
+            bttn_ClockStart.Location = new Point(9, 73);
+            bttn_ClockStart.Margin = new Padding(6, 5, 6, 5);
+            bttn_ClockStart.Name = "bttn_ClockStart";
+            bttn_ClockStart.Size = new Size(167, 41);
+            bttn_ClockStart.TabIndex = 33;
+            bttn_ClockStart.Text = "START";
+            bttn_ClockStart.UseVisualStyleBackColor = true;
+            bttn_ClockStart.Click += bttn_ClockStart_Click;
+            // 
+            // label99
+            // 
+            label99.AutoSize = true;
+            label99.Location = new Point(9, 38);
+            label99.Name = "label99";
+            label99.Size = new Size(138, 28);
+            label99.TabIndex = 86;
+            label99.Text = "测试脉冲数：";
+            // 
+            // tbxclockpulse
+            // 
+            tbxclockpulse.Location = new Point(143, 35);
+            tbxclockpulse.Margin = new Padding(6, 5, 6, 5);
+            tbxclockpulse.Name = "tbxclockpulse";
+            tbxclockpulse.Size = new Size(114, 34);
+            tbxclockpulse.TabIndex = 85;
+            tbxclockpulse.Text = "10";
+            // 
+            // label98
+            // 
+            label98.AutoSize = true;
+            label98.ForeColor = Color.Red;
+            label98.Location = new Point(9, 3);
+            label98.Margin = new Padding(6, 0, 6, 0);
+            label98.Name = "label98";
+            label98.Size = new Size(180, 28);
+            label98.TabIndex = 85;
+            label98.Text = "开始测试时钟频率";
             // 
             // cbxShutdownUI0
             // 
@@ -3428,46 +3503,6 @@ namespace ModelTest
             panel3.Size = new Size(2244, 292);
             panel3.TabIndex = 5;
             // 
-            // label98
-            // 
-            label98.AutoSize = true;
-            label98.ForeColor = Color.Red;
-            label98.Location = new Point(9, 3);
-            label98.Margin = new Padding(6, 0, 6, 0);
-            label98.Name = "label98";
-            label98.Size = new Size(180, 28);
-            label98.TabIndex = 85;
-            label98.Text = "开始测试时钟频率";
-            // 
-            // tbxclockpulse
-            // 
-            tbxclockpulse.Location = new Point(135, 35);
-            tbxclockpulse.Margin = new Padding(6, 5, 6, 5);
-            tbxclockpulse.Name = "tbxclockpulse";
-            tbxclockpulse.Size = new Size(114, 34);
-            tbxclockpulse.TabIndex = 85;
-            tbxclockpulse.Text = "10";
-            // 
-            // label99
-            // 
-            label99.AutoSize = true;
-            label99.Location = new Point(9, 38);
-            label99.Name = "label99";
-            label99.Size = new Size(117, 28);
-            label99.TabIndex = 86;
-            label99.Text = "测试脉冲数";
-            // 
-            // bttn_ClockStart
-            // 
-            bttn_ClockStart.Location = new Point(9, 73);
-            bttn_ClockStart.Margin = new Padding(6, 5, 6, 5);
-            bttn_ClockStart.Name = "bttn_ClockStart";
-            bttn_ClockStart.Size = new Size(167, 41);
-            bttn_ClockStart.TabIndex = 33;
-            bttn_ClockStart.Text = "START";
-            bttn_ClockStart.UseVisualStyleBackColor = true;
-            bttn_ClockStart.Click += bttn_ClockStart_Click;
-            // 
             // ModelMain
             // 
             AutoScaleDimensions = new SizeF(13F, 28F);
@@ -3806,5 +3841,8 @@ namespace ModelTest
         private Label label99;
         private TextBox tbxclockpulse;
         private Button bttn_ClockStart;
+        private TextBox tbx_MeterNo;
+        private Label label100;
+        private Label label101;
     }
 }

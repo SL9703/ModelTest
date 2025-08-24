@@ -1678,6 +1678,8 @@ namespace ModelTest
         /// <param name="e"></param>
         [DllImport("xyctr.dll")]
         private static extern int Clock_Start(int iPulse);
+        [DllImport("xyctr.dll")]
+        private static extern int Read_Test([In,Out] int iMeterNo,[Out] byte[] MeterError);
         public void Call_Clock_Start(int iPulse)
         {
             Thread thread = new Thread(() =>
@@ -1699,11 +1701,67 @@ namespace ModelTest
                     AddLog("调用设置Clock_Start接口异常" + ex.ToString());
                 }
             });
-           
+            thread.IsBackground = true;
+            thread.Start();
         }
-        private void bttn_ClockStart_Click(object sender, EventArgs e)
+        public void Call_Read_TestError(int iMeterNo, byte[] MeterError)
         {
+            Thread thread = new Thread(() =>
+            {
+                try
+                {
+                    int readTestError_Status = Read_Test(iMeterNo, MeterError);
+                    if (readTestError_Status == 1)
+                    {
+                        AddLog($"读取{iMeterNo}表位误差数据成功：" + System.Text.Encoding.Default.GetString(MeterError));
+                    }
+                    else
+                    {
+                        AddLog($"读取{iMeterNo}误差数据失败，错误代码：" + readTestError_Status);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    AddLog("调用读取误差数据接口异常" + ex.ToString());
+                }
+            });
+            thread.IsBackground = true;
+            thread.Start();
+        }
+        private async void bttn_ClockStart_Click(object sender, EventArgs e)
+        {
+            bttn_ClockStart.Enabled = false;
+            int iPulse = int.Parse(tbxclockpulse.Text);//时钟误差数
+            AddLog("时钟误差数：" + iPulse);
+            Call_Clock_Start(iPulse);
+            AddLog($"开始测试时钟误差,延迟等待{iPulse+2}秒，等待结束自动读取误差数据。");
+            await Task.Delay(iPulse * 1000 + 2000);//延迟等待
+            //读取误差
+            ReadTestError();
+            bttn_ClockStart.Enabled=true;
 
+        }
+        /// <summary>
+        /// 读取误差
+        /// </summary>
+        /// <exception cref="NotImplementedException"></exception>
+        private void ReadTestError()
+        {
+            byte[] MeterError = new byte[1024];
+            string[] meterNo = tbx_MeterNo.Text.Split('-');//分割字符串
+            if (meterNo.Length == 2 && int.TryParse(meterNo[0],out int firtNo) && int.TryParse(meterNo[1], out int ListNo))
+            {
+                for (int i = firtNo; i < ListNo+1; i++)
+                {
+                    AddLog($"正在读取{i}表位误差数据...");    
+                    Call_Read_TestError(i, MeterError);
+                }
+            }
+            else if (meterNo.Length != 2)
+            {
+                AddLog("电表编号格式错误，请输入正确的格式，如：1-10");
+                return;
+            }
         }
 
         private void ADJLC_CHANGE()
