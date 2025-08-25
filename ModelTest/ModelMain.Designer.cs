@@ -160,6 +160,8 @@ namespace ModelTest
             label95 = new Label();
             cbbx_BlueTooth = new ComboBox();
             tabPage12 = new TabPage();
+            bttn_ClearError = new Button();
+            bttn_StopError = new Button();
             label101 = new Label();
             label100 = new Label();
             tbx_MeterNo = new TextBox();
@@ -167,6 +169,16 @@ namespace ModelTest
             label99 = new Label();
             tbxclockpulse = new TextBox();
             label98 = new Label();
+            tabPage13 = new TabPage();
+            bttn_ErrorStart = new Button();
+            tbx_iPulse = new TextBox();
+            label104 = new Label();
+            tbx_iMeterCount = new TextBox();
+            label103 = new Label();
+            tbx_MeterConstant = new TextBox();
+            label102 = new Label();
+            button3 = new Button();
+            button4 = new Button();
             cbxShutdownUI0 = new CheckBox();
             tbxiPulse = new TextBox();
             label82 = new Label();
@@ -301,6 +313,8 @@ namespace ModelTest
             panel1 = new Panel();
             panel2 = new Panel();
             panel3 = new Panel();
+            label105 = new Label();
+            tbx_TaskDelay = new TextBox();
             tabControl1.SuspendLayout();
             tabPage1.SuspendLayout();
             TestUnit.SuspendLayout();
@@ -328,6 +342,7 @@ namespace ModelTest
             tabControl3.SuspendLayout();
             tabPage11.SuspendLayout();
             tabPage12.SuspendLayout();
+            tabPage13.SuspendLayout();
             groupBox6.SuspendLayout();
             LogUnit.SuspendLayout();
             panellog.SuspendLayout();
@@ -1793,6 +1808,7 @@ namespace ModelTest
             // 
             tabControl3.Controls.Add(tabPage11);
             tabControl3.Controls.Add(tabPage12);
+            tabControl3.Controls.Add(tabPage13);
             tabControl3.Dock = DockStyle.Right;
             tabControl3.Location = new Point(1317, 31);
             tabControl3.Name = "tabControl3";
@@ -1880,6 +1896,8 @@ namespace ModelTest
             // 
             // tabPage12
             // 
+            tabPage12.Controls.Add(bttn_ClearError);
+            tabPage12.Controls.Add(bttn_StopError);
             tabPage12.Controls.Add(label101);
             tabPage12.Controls.Add(label100);
             tabPage12.Controls.Add(tbx_MeterNo);
@@ -1894,6 +1912,28 @@ namespace ModelTest
             tabPage12.TabIndex = 1;
             tabPage12.Text = "时钟误差";
             tabPage12.UseVisualStyleBackColor = true;
+            // 
+            // bttn_ClearError
+            // 
+            bttn_ClearError.Location = new Point(723, 72);
+            bttn_ClearError.Margin = new Padding(6, 5, 6, 5);
+            bttn_ClearError.Name = "bttn_ClearError";
+            bttn_ClearError.Size = new Size(167, 41);
+            bttn_ClearError.TabIndex = 91;
+            bttn_ClearError.Text = "清除误差";
+            bttn_ClearError.UseVisualStyleBackColor = true;
+            bttn_ClearError.Click += bttn_ClearError_Click;
+            // 
+            // bttn_StopError
+            // 
+            bttn_StopError.Location = new Point(541, 72);
+            bttn_StopError.Margin = new Padding(6, 5, 6, 5);
+            bttn_StopError.Name = "bttn_StopError";
+            bttn_StopError.Size = new Size(167, 41);
+            bttn_StopError.TabIndex = 90;
+            bttn_StopError.Text = "停止误差";
+            bttn_StopError.UseVisualStyleBackColor = true;
+            bttn_StopError.Click += bttn_StopError_Click;
             // 
             // label101
             // 
@@ -1929,9 +1969,9 @@ namespace ModelTest
             bttn_ClockStart.Location = new Point(9, 73);
             bttn_ClockStart.Margin = new Padding(6, 5, 6, 5);
             bttn_ClockStart.Name = "bttn_ClockStart";
-            bttn_ClockStart.Size = new Size(167, 41);
+            bttn_ClockStart.Size = new Size(248, 41);
             bttn_ClockStart.TabIndex = 33;
-            bttn_ClockStart.Text = "START";
+            bttn_ClockStart.Text = "开始日记时误差";
             bttn_ClockStart.UseVisualStyleBackColor = true;
             bttn_ClockStart.Click += bttn_ClockStart_Click;
             // 
@@ -1963,6 +2003,114 @@ namespace ModelTest
             label98.Size = new Size(180, 28);
             label98.TabIndex = 85;
             label98.Text = "开始测试时钟频率";
+            // 
+            // tabPage13
+            // 
+            tabPage13.Controls.Add(tbx_TaskDelay);
+            tabPage13.Controls.Add(label105);
+            tabPage13.Controls.Add(bttn_ErrorStart);
+            tabPage13.Controls.Add(tbx_iPulse);
+            tabPage13.Controls.Add(label104);
+            tabPage13.Controls.Add(tbx_iMeterCount);
+            tabPage13.Controls.Add(label103);
+            tabPage13.Controls.Add(tbx_MeterConstant);
+            tabPage13.Controls.Add(label102);
+            tabPage13.Controls.Add(button3);
+            tabPage13.Controls.Add(button4);
+            tabPage13.Location = new Point(4, 37);
+            tabPage13.Name = "tabPage13";
+            tabPage13.Padding = new Padding(3);
+            tabPage13.Size = new Size(899, 118);
+            tabPage13.TabIndex = 2;
+            tabPage13.Text = "基本误差";
+            tabPage13.UseVisualStyleBackColor = true;
+            // 
+            // bttn_ErrorStart
+            // 
+            bttn_ErrorStart.Location = new Point(365, 71);
+            bttn_ErrorStart.Margin = new Padding(6, 5, 6, 5);
+            bttn_ErrorStart.Name = "bttn_ErrorStart";
+            bttn_ErrorStart.Size = new Size(167, 41);
+            bttn_ErrorStart.TabIndex = 100;
+            bttn_ErrorStart.Text = "开始误差";
+            bttn_ErrorStart.UseVisualStyleBackColor = true;
+            bttn_ErrorStart.Click += bttn_ErrorStart_Click;
+            // 
+            // tbx_iPulse
+            // 
+            tbx_iPulse.Location = new Point(200, 81);
+            tbx_iPulse.Margin = new Padding(6, 5, 6, 5);
+            tbx_iPulse.Name = "tbx_iPulse";
+            tbx_iPulse.Size = new Size(114, 34);
+            tbx_iPulse.TabIndex = 99;
+            tbx_iPulse.Text = "4";
+            // 
+            // label104
+            // 
+            label104.AutoSize = true;
+            label104.Location = new Point(6, 84);
+            label104.Name = "label104";
+            label104.Size = new Size(201, 28);
+            label104.TabIndex = 98;
+            label104.Text = "测试圈数或脉冲数：";
+            // 
+            // tbx_iMeterCount
+            // 
+            tbx_iMeterCount.Location = new Point(200, 41);
+            tbx_iMeterCount.Margin = new Padding(6, 5, 6, 5);
+            tbx_iMeterCount.Name = "tbx_iMeterCount";
+            tbx_iMeterCount.Size = new Size(114, 34);
+            tbx_iMeterCount.TabIndex = 97;
+            tbx_iMeterCount.Text = "12";
+            // 
+            // label103
+            // 
+            label103.AutoSize = true;
+            label103.Location = new Point(6, 44);
+            label103.Name = "label103";
+            label103.Size = new Size(159, 28);
+            label103.TabIndex = 96;
+            label103.Text = "装置表位数目：";
+            // 
+            // tbx_MeterConstant
+            // 
+            tbx_MeterConstant.Location = new Point(200, 3);
+            tbx_MeterConstant.Margin = new Padding(6, 5, 6, 5);
+            tbx_MeterConstant.Name = "tbx_MeterConstant";
+            tbx_MeterConstant.Size = new Size(114, 34);
+            tbx_MeterConstant.TabIndex = 95;
+            tbx_MeterConstant.Text = "10000";
+            // 
+            // label102
+            // 
+            label102.AutoSize = true;
+            label102.Location = new Point(3, 3);
+            label102.Name = "label102";
+            label102.Size = new Size(138, 28);
+            label102.TabIndex = 94;
+            label102.Text = "被检表常数：";
+            // 
+            // button3
+            // 
+            button3.Location = new Point(726, 70);
+            button3.Margin = new Padding(6, 5, 6, 5);
+            button3.Name = "button3";
+            button3.Size = new Size(167, 41);
+            button3.TabIndex = 93;
+            button3.Text = "清除误差";
+            button3.UseVisualStyleBackColor = true;
+            button3.Click += bttn_ClearError_Click;
+            // 
+            // button4
+            // 
+            button4.Location = new Point(544, 70);
+            button4.Margin = new Padding(6, 5, 6, 5);
+            button4.Name = "button4";
+            button4.Size = new Size(167, 41);
+            button4.TabIndex = 92;
+            button4.Text = "停止误差";
+            button4.UseVisualStyleBackColor = true;
+            button4.Click += bttn_StopError_Click;
             // 
             // cbxShutdownUI0
             // 
@@ -3503,6 +3651,26 @@ namespace ModelTest
             panel3.Size = new Size(2244, 292);
             panel3.TabIndex = 5;
             // 
+            // label105
+            // 
+            label105.AutoSize = true;
+            label105.ForeColor = Color.Red;
+            label105.Location = new Point(378, 9);
+            label105.Margin = new Padding(6, 0, 6, 0);
+            label105.Name = "label105";
+            label105.Size = new Size(369, 28);
+            label105.TabIndex = 101;
+            label105.Text = "延迟等待多少时间读取误差（单位秒）";
+            // 
+            // tbx_TaskDelay
+            // 
+            tbx_TaskDelay.Location = new Point(746, 9);
+            tbx_TaskDelay.Margin = new Padding(6, 5, 6, 5);
+            tbx_TaskDelay.Name = "tbx_TaskDelay";
+            tbx_TaskDelay.Size = new Size(114, 34);
+            tbx_TaskDelay.TabIndex = 102;
+            tbx_TaskDelay.Text = "12";
+            // 
             // ModelMain
             // 
             AutoScaleDimensions = new SizeF(13F, 28F);
@@ -3556,6 +3724,8 @@ namespace ModelTest
             tabPage11.PerformLayout();
             tabPage12.ResumeLayout(false);
             tabPage12.PerformLayout();
+            tabPage13.ResumeLayout(false);
+            tabPage13.PerformLayout();
             groupBox6.ResumeLayout(false);
             groupBox6.PerformLayout();
             LogUnit.ResumeLayout(false);
@@ -3844,5 +4014,19 @@ namespace ModelTest
         private TextBox tbx_MeterNo;
         private Label label100;
         private Label label101;
+        private TabPage tabPage13;
+        private Button bttn_ClearError;
+        private Button bttn_StopError;
+        private Button button3;
+        private Button button4;
+        private Label label102;
+        private TextBox tbx_MeterConstant;
+        private Label label103;
+        private TextBox tbx_iMeterCount;
+        private Label label104;
+        private TextBox tbx_iPulse;
+        private Button bttn_ErrorStart;
+        private Label label105;
+        private TextBox tbx_TaskDelay;
     }
 }

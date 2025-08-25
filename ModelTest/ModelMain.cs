@@ -8,6 +8,7 @@ using System.Text;
 using System.Linq;
 using System.Threading.Tasks;
 using static System.Runtime.InteropServices.JavaScript.JSType;
+using System.Data;
 namespace ModelTest
 {
     public partial class ModelMain : Form
@@ -1679,7 +1680,7 @@ namespace ModelTest
         [DllImport("xyctr.dll")]
         private static extern int Clock_Start(int iPulse);
         [DllImport("xyctr.dll")]
-        private static extern int Read_Test([In,Out] int iMeterNo,[Out] byte[] MeterError);
+        private static extern int Read_Test([In, Out] int iMeterNo, [Out] byte[] MeterError);
         public void Call_Clock_Start(int iPulse)
         {
             Thread thread = new Thread(() =>
@@ -1687,7 +1688,7 @@ namespace ModelTest
                 try
                 {
                     int clockStart_stutas = Clock_Start(iPulse);
-                    if (clockStart_stutas==1)
+                    if (clockStart_stutas == 1)
                     {
                         AddLog("调用设置Clock_Start接口正常" + clockStart_stutas);
                     }
@@ -1728,42 +1729,185 @@ namespace ModelTest
             thread.IsBackground = true;
             thread.Start();
         }
+        /// <summary>
+        /// 时钟误差
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private async void bttn_ClockStart_Click(object sender, EventArgs e)
         {
             bttn_ClockStart.Enabled = false;
             int iPulse = int.Parse(tbxclockpulse.Text);//时钟误差数
             AddLog("时钟误差数：" + iPulse);
             Call_Clock_Start(iPulse);
-            AddLog($"开始测试时钟误差,延迟等待{iPulse+2}秒，等待结束自动读取误差数据。");
+            AddLog($"开始测试时钟误差,延迟等待{iPulse + 2}秒，等待结束自动读取误差数据。");
             await Task.Delay(iPulse * 1000 + 2000);//延迟等待
             //读取误差
             ReadTestError();
-            bttn_ClockStart.Enabled=true;
+            bttn_ClockStart.Enabled = true;
 
         }
         /// <summary>
-        /// 读取误差
+        /// 读取时钟误差
         /// </summary>
         /// <exception cref="NotImplementedException"></exception>
         private void ReadTestError()
         {
             byte[] MeterError = new byte[1024];
             string[] meterNo = tbx_MeterNo.Text.Split('-');//分割字符串
-            if (meterNo.Length == 2 && int.TryParse(meterNo[0],out int firtNo) && int.TryParse(meterNo[1], out int ListNo))
+            if (meterNo.Length == 2 && int.TryParse(meterNo[0], out int firtNo) && int.TryParse(meterNo[1], out int ListNo))
             {
-                for (int i = firtNo; i < ListNo+1; i++)
+                for (int i = firtNo; i < ListNo + 1; i++)
                 {
-                    AddLog($"正在读取{i}表位误差数据...");    
+                    AddLog($"正在读取{i}表位误差数据...");
                     Call_Read_TestError(i, MeterError);
                 }
             }
             else if (meterNo.Length != 2)
             {
-                AddLog("电表编号格式错误，请输入正确的格式，如：1-10");
+                AddLog("电表编号格式错误，请输入正确的格式，如：1-1,1-12");
                 return;
             }
         }
+        private void ReadTestError_1(int meter)
+        {
+            byte[] MeterError = new byte[1024];
+            //string[] meterNo = tbx_MeterNo.Text.Split('-');//分割字符串
+            for (int i = 1; i <= meter; i++)
+            {
+                AddLog($"正在读取{i}表位误差数据...");
+                Call_Read_TestError(i, MeterError);
+            }
+        }
+        [DllImport("xyctr.dll")]
+        private static extern int Error_Start(string MeterConstant,int iMeterCount,int iPulse);
+        /// <summary>
+        /// 误差试验
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        public void Call_Error_Start(string meterConstant, int iMeterCount, int iPulse)
+        {
+            Thread thread = new Thread(() =>
+            {
+                try
+                {
+                    int errorStart_Status = Error_Start(meterConstant, iMeterCount, iPulse);
+                    if (errorStart_Status == 1)
+                    {
+                        AddLog("调用设置Error_Start(误差试验)接口正常" + errorStart_Status);
+                    }
+                    else
+                    {
+                        AddLog("调用设置Error_Start(误差试验)接口异常" + errorStart_Status);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    AddLog("调用设置Error_Start(误差试验)接口异常" + ex.ToString());
+                }
+            });
+            thread.IsBackground = true;
+            thread.Start();
+        }
+        private async void bttn_ErrorStart_Click(object sender, EventArgs e)
+        {
+            //获取传入的参数
+            string MeterConstant = tbx_MeterConstant.Text;//电表常数
+            int MeterCount = int.Parse(tbx_iMeterCount.Text);//表位数
+            int Pulse = int.Parse(tbx_iPulse.Text);//圈数
+            StringBuilder CMeterConstant = new StringBuilder();
+            for (int i = 1; i <= MeterCount; i++)
+            {
+                if (i< MeterCount)
+                {
+                    CMeterConstant.Append(tbx_MeterConstant.Text+",");
+                }
+                else
+                {
+                    CMeterConstant.Append(tbx_MeterConstant.Text);
+                }
+               
+            }
+            AddLog($"误差启动=>  Error_Start({CMeterConstant.ToString()},{MeterCount},{Pulse})");
+            Call_Error_Start(CMeterConstant.ToString(), MeterCount, Pulse);
+            //添加延迟等待
+            await Task.Delay(int.Parse(tbx_TaskDelay.Text) * 1000);
+            //读取实验误差
+            ReadTestError_1(MeterCount);
+        }
+        [DllImport("xyctr.dll")]
+        private static extern int Stop_Test();
+        [DllImport("xyctr.dll")]
+        private static extern int Error_Start();
+        public void Call_Stop_Test()
+        {
+            Thread thread = new Thread(() =>
+            {
+                try
+                {
+                    int stopTest_Status = Stop_Test();
+                    if (stopTest_Status == 1)
+                    {
+                        AddLog("调用设置Stop_Test(停止误差)接口正常" + stopTest_Status);
+                    }
+                    else
+                    {
+                        AddLog("调用设置Stop_Test(停止误差)接口异常" + stopTest_Status);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    AddLog("调用设置Stop_Test(停止误差)接口异常" + ex.ToString());
+                }
+            });
+            thread.IsBackground = true;
+            thread.Start();
+        }
+        public void Call_Error_Start()
+        {
+            Thread thread = new Thread(() =>
+            {
+                try
+                {
+                    int errorStart_Status = Error_Start();
+                    if (errorStart_Status == 1)
+                    {
+                        AddLog("调用设置Error_Start(清除误差)接口正常" + errorStart_Status);
+                    }
+                    else
+                    {
+                        AddLog("调用设置Error_Start(清除误差)接口异常" + errorStart_Status);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    AddLog("调用设置Error_Start(清除误差)接口异常" + ex.ToString());
+                }
+            });
+            thread.IsBackground = true;
+            thread.Start();
+        }
 
+        /// <summary>
+        /// 停止误差
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void bttn_StopError_Click(object sender, EventArgs e)
+        {
+            Call_Stop_Test();
+        }
+
+        /// <summary>
+        /// 清除误差
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void bttn_ClearError_Click(object sender, EventArgs e)
+        {
+            Call_Error_Start();
+        }
         private void ADJLC_CHANGE()
         {
             //            0.25L
@@ -1983,7 +2127,9 @@ namespace ModelTest
         #endregion
 
 
-        
+
+
+      
     }
     public static class A_GetDescription
     {
