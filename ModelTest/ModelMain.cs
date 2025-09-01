@@ -13,7 +13,17 @@ namespace ModelTest
 {
     public partial class ModelMain : Form
     {
-
+        // 在窗体类内部定义这个结构
+        private struct ControlInfo
+        {
+            public string Name;
+            public float FontSize;
+            public System.Drawing.SizeF Size;
+            public System.Drawing.Point Location;
+        }
+        // 定义字典来存储所有控件的初始信息
+        private Dictionary<System.Windows.Forms.Control, ControlInfo> _originalControlsInfo = new Dictionary<System.Windows.Forms.Control, ControlInfo>();
+        private System.Drawing.Size _originalFormSize;
         public enum TerminalCLASS : byte
         {
             [Description("专变III")]
@@ -78,6 +88,53 @@ namespace ModelTest
 
             // 例如：初始化数据、配置控件等
             Control.CheckForIllegalCrossThreadCalls = false;//跨线程
+
+            _originalFormSize = this.Size; // 保存窗体的初始大小
+            // 递归遍历窗体上的所有控件（包括容器内的控件）
+            StoreControlInfo(this);
+
+            // 为窗体本身启用双缓冲
+            this.DoubleBuffered = true;
+            // 更有效的方法是设置以下样式，这对包含大量控件的窗体更有效
+            this.SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint, true);
+            this.UpdateStyles();
+            AddLog("应用程序已启动成功");
+        }
+
+        private void StoreControlInfo(Control parentCtrl)
+        {
+            foreach (Control ctrl in parentCtrl.Controls)
+            {
+                // 存储当前控件的信息
+                _originalControlsInfo.Add(ctrl, new ControlInfo
+                {
+                    Name = ctrl.Name,
+                    FontSize = ctrl.Font.Size,
+                    Size = ctrl.Size,
+                    Location = ctrl.Location
+                });
+
+                // 如果当前控件本身也是一个容器（如Panel, GroupBox），则递归处理其子控件
+                if (ctrl.Controls.Count > 0)
+                {
+                    StoreControlInfo(ctrl);
+                }
+            }
+        }
+
+        /// <summary>
+        /// initialization port
+        /// </summary>
+        private void SerialPortinitialization()
+        {
+
+            comboBoxBaute.SelectedIndex = 6;
+            comboBoxparity.SelectedIndex = 1;
+            textBoxstopbit.SelectedIndex = 0;
+            textBoxdatabit.SelectedIndex = 0;
+            buttonOpen.BackColor = Color.YellowGreen;
+            comboBoxCOM.Items.AddRange(SerialPort.GetPortNames());
+            this.MainSerialPort.DataReceived += new System.IO.Ports.SerialDataReceivedEventHandler(this.MainSerialPort_DataReceived);
             btn_cilentSocket_Close.Enabled = false;
             btn_cilentSocket.Enabled = true;
             //初始化新跃电压电流选择信息
@@ -102,21 +159,6 @@ namespace ModelTest
             {
                 终端类型 = x.GetDescription()
             }).ToList();
-            AddLog("应用程序已启动成功");
-        }
-        /// <summary>
-        /// initialization port
-        /// </summary>
-        private void SerialPortinitialization()
-        {
-
-            comboBoxBaute.SelectedIndex = 6;
-            comboBoxparity.SelectedIndex = 1;
-            textBoxstopbit.SelectedIndex = 0;
-            textBoxdatabit.SelectedIndex = 0;
-            buttonOpen.BackColor = Color.YellowGreen;
-            comboBoxCOM.Items.AddRange(SerialPort.GetPortNames());
-            this.MainSerialPort.DataReceived += new System.IO.Ports.SerialDataReceivedEventHandler(this.MainSerialPort_DataReceived);
         }
 
         /// <summary>
@@ -1714,7 +1756,8 @@ namespace ModelTest
                     int readTestError_Status = Read_Test(iMeterNo, MeterError);
                     if (readTestError_Status == 1)
                     {
-                        AddLog($"读取{iMeterNo}表位误差数据成功：" + System.Text.Encoding.Default.GetString(MeterError));
+                        int.TryParse(System.Text.Encoding.Default.GetString(MeterError), out int resut);
+                        AddLog($"读取{iMeterNo}表位误差数据成功：" + (resut -1)*60*60*24*1000);
                     }
                     else
                     {
@@ -1780,7 +1823,7 @@ namespace ModelTest
             }
         }
         [DllImport("xyctr.dll")]
-        private static extern int Error_Start(string MeterConstant,int iMeterCount,int iPulse);
+        private static extern int Error_Start(string MeterConstant, int iMeterCount, int iPulse);
         /// <summary>
         /// 误差试验
         /// </summary>
@@ -1819,15 +1862,15 @@ namespace ModelTest
             StringBuilder CMeterConstant = new StringBuilder();
             for (int i = 1; i <= MeterCount; i++)
             {
-                if (i< MeterCount)
+                if (i < MeterCount)
                 {
-                    CMeterConstant.Append(tbx_MeterConstant.Text+",");
+                    CMeterConstant.Append(tbx_MeterConstant.Text + ",");
                 }
                 else
                 {
                     CMeterConstant.Append(tbx_MeterConstant.Text);
                 }
-               
+
             }
             AddLog($"误差启动=>  Error_Start({CMeterConstant.ToString()},{MeterCount},{Pulse})");
             Call_Error_Start(CMeterConstant.ToString(), MeterCount, Pulse);
@@ -2125,11 +2168,56 @@ namespace ModelTest
             }
         }
         #endregion
+        private void ModelMain_Resize(object sender, EventArgs e)
+        {
+            // 防止在窗体最小化时执行计算
+            if (this.WindowState == FormWindowState.Minimized || _originalFormSize.Width == 0 || _originalFormSize.Height == 0)
+                return;
 
+            // 计算宽度和高度的缩放比例
+            float scaleX = (float)this.Width / _originalFormSize.Width;
+            float scaleY = (float)this.Height / _originalFormSize.Height;
 
+            // 选择一个保守的比例（通常取最小值以保证内容不会溢出）
+            float scale = Math.Min(scaleX, scaleY);
 
+            // 应用缩放到所有控件
+            ApplyScaling(this, scale);
+        }
 
-      
+        private void ApplyScaling(Control parentCtrl, float scale)
+        {
+            foreach (Control ctrl in parentCtrl.Controls)
+            {
+                // 从字典中获取该控件的原始信息
+                if (_originalControlsInfo.TryGetValue(ctrl, out ControlInfo originalInfo))
+                {
+                    // 缩放大小
+                    ctrl.Width = (int)(originalInfo.Size.Width * scale);
+                    ctrl.Height = (int)(originalInfo.Size.Height * scale);
+
+                    // 缩放位置
+                    ctrl.Left = (int)(originalInfo.Location.X * scale);
+                    ctrl.Top = (int)(originalInfo.Location.Y * scale);
+
+                    // 缩放字体（可选，根据需求决定）
+                    // 创建一个新的Font对象，基于原始字体大小进行缩放
+                    ctrl.Font = new Font(ctrl.Font.FontFamily, originalInfo.FontSize * scale, ctrl.Font.Style);
+                }
+
+                // 递归处理子控件
+                if (ctrl.Controls.Count > 0)
+                {
+                    ApplyScaling(ctrl, scale);
+                }
+            }
+        }
+
+        private void ModelMain_SizeChanged(object sender, EventArgs e)
+        {
+            // 直接调用Resize事件的处理逻辑
+            ModelMain_Resize(sender, e);
+        }
     }
     public static class A_GetDescription
     {
@@ -2193,6 +2281,8 @@ namespace ModelTest
                 {
                     case "AA":
                         return "AA";
+                    case "255":
+                        return "FF";
                     case "1":
                         return "01";
                     case "2":

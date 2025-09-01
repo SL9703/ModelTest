@@ -170,6 +170,8 @@ namespace ModelTest
             tbxclockpulse = new TextBox();
             label98 = new Label();
             tabPage13 = new TabPage();
+            tbx_TaskDelay = new TextBox();
+            label105 = new Label();
             bttn_ErrorStart = new Button();
             tbx_iPulse = new TextBox();
             label104 = new Label();
@@ -313,8 +315,7 @@ namespace ModelTest
             panel1 = new Panel();
             panel2 = new Panel();
             panel3 = new Panel();
-            label105 = new Label();
-            tbx_TaskDelay = new TextBox();
+            label106 = new Label();
             tabControl1.SuspendLayout();
             tabPage1.SuspendLayout();
             TestUnit.SuspendLayout();
@@ -1129,6 +1130,7 @@ namespace ModelTest
             // 
             // groupBox3
             // 
+            groupBox3.Controls.Add(label106);
             groupBox3.Controls.Add(btnTerminalBW_ADown);
             groupBox3.Controls.Add(btnTerminalBW_AOn);
             groupBox3.Controls.Add(cbx_TerminalV1_UC);
@@ -2024,6 +2026,26 @@ namespace ModelTest
             tabPage13.TabIndex = 2;
             tabPage13.Text = "基本误差";
             tabPage13.UseVisualStyleBackColor = true;
+            // 
+            // tbx_TaskDelay
+            // 
+            tbx_TaskDelay.Location = new Point(746, 9);
+            tbx_TaskDelay.Margin = new Padding(6, 5, 6, 5);
+            tbx_TaskDelay.Name = "tbx_TaskDelay";
+            tbx_TaskDelay.Size = new Size(114, 34);
+            tbx_TaskDelay.TabIndex = 102;
+            tbx_TaskDelay.Text = "12";
+            // 
+            // label105
+            // 
+            label105.AutoSize = true;
+            label105.ForeColor = Color.Red;
+            label105.Location = new Point(378, 9);
+            label105.Margin = new Padding(6, 0, 6, 0);
+            label105.Name = "label105";
+            label105.Size = new Size(369, 28);
+            label105.TabIndex = 101;
+            label105.Text = "延迟等待多少时间读取误差（单位秒）";
             // 
             // bttn_ErrorStart
             // 
@@ -3651,25 +3673,16 @@ namespace ModelTest
             panel3.Size = new Size(2244, 292);
             panel3.TabIndex = 5;
             // 
-            // label105
+            // label106
             // 
-            label105.AutoSize = true;
-            label105.ForeColor = Color.Red;
-            label105.Location = new Point(378, 9);
-            label105.Margin = new Padding(6, 0, 6, 0);
-            label105.Name = "label105";
-            label105.Size = new Size(369, 28);
-            label105.TabIndex = 101;
-            label105.Text = "延迟等待多少时间读取误差（单位秒）";
-            // 
-            // tbx_TaskDelay
-            // 
-            tbx_TaskDelay.Location = new Point(746, 9);
-            tbx_TaskDelay.Margin = new Padding(6, 5, 6, 5);
-            tbx_TaskDelay.Name = "tbx_TaskDelay";
-            tbx_TaskDelay.Size = new Size(114, 34);
-            tbx_TaskDelay.TabIndex = 102;
-            tbx_TaskDelay.Text = "12";
+            label106.AutoSize = true;
+            label106.ForeColor = Color.Red;
+            label106.Location = new Point(17, 94);
+            label106.Margin = new Padding(4, 0, 4, 0);
+            label106.Name = "label106";
+            label106.Size = new Size(132, 28);
+            label106.TabIndex = 6;
+            label106.Text = "广播地址255";
             // 
             // ModelMain
             // 
@@ -3685,6 +3698,8 @@ namespace ModelTest
             StartPosition = FormStartPosition.CenterScreen;
             Text = "Model";
             Load += ModelMain_Load;
+            SizeChanged += ModelMain_SizeChanged;
+            Resize += ModelMain_Resize;
             tabControl1.ResumeLayout(false);
             tabPage1.ResumeLayout(false);
             TestUnit.ResumeLayout(false);
@@ -4028,5 +4043,6 @@ namespace ModelTest
         private Button bttn_ErrorStart;
         private Label label105;
         private TextBox tbx_TaskDelay;
+        private Label label106;
     }
 }
