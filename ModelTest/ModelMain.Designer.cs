@@ -76,6 +76,12 @@ namespace ModelTest
             tabControl2 = new TabControl();
             tabPage9 = new TabPage();
             panel4 = new Panel();
+            tableLayoutPanel1 = new TableLayoutPanel();
+            groupBox10 = new GroupBox();
+            btnT1_ACCTRL = new Button();
+            btnT1_DCCTRL = new Button();
+            cbbxSTAModel = new ComboBox();
+            label107 = new Label();
             panel5 = new Panel();
             groupBox5 = new GroupBox();
             label30 = new Label();
@@ -97,6 +103,7 @@ namespace ModelTest
             btnChangeTerminalClass = new Button();
             cbxTerminalV1 = new ComboBox();
             groupBox3 = new GroupBox();
+            label106 = new Label();
             btnTerminalBW_ADown = new Button();
             btnTerminalBW_AOn = new Button();
             cbx_TerminalV1_UC = new CheckBox();
@@ -315,7 +322,6 @@ namespace ModelTest
             panel1 = new Panel();
             panel2 = new Panel();
             panel3 = new Panel();
-            label106 = new Label();
             tabControl1.SuspendLayout();
             tabPage1.SuspendLayout();
             TestUnit.SuspendLayout();
@@ -324,6 +330,8 @@ namespace ModelTest
             tabControl2.SuspendLayout();
             tabPage9.SuspendLayout();
             panel4.SuspendLayout();
+            tableLayoutPanel1.SuspendLayout();
+            groupBox10.SuspendLayout();
             panel5.SuspendLayout();
             groupBox5.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)pBTaiti_yellow).BeginInit();
@@ -366,12 +374,14 @@ namespace ModelTest
             tabControl1.Controls.Add(tabPage7);
             tabControl1.Controls.Add(tabPage8);
             tabControl1.Dock = DockStyle.Fill;
+            tabControl1.DrawMode = TabDrawMode.OwnerDrawFixed;
             tabControl1.Location = new Point(0, 0);
             tabControl1.Margin = new Padding(6, 5, 6, 5);
             tabControl1.Name = "tabControl1";
             tabControl1.SelectedIndex = 0;
             tabControl1.Size = new Size(2244, 678);
             tabControl1.TabIndex = 0;
+            tabControl1.DrawItem += tabControl1_DrawItem;
             // 
             // tabPage1
             // 
@@ -877,6 +887,7 @@ namespace ModelTest
             // panel4
             // 
             panel4.BorderStyle = BorderStyle.FixedSingle;
+            panel4.Controls.Add(tableLayoutPanel1);
             panel4.Controls.Add(panel5);
             panel4.Dock = DockStyle.Fill;
             panel4.Location = new Point(4, 4);
@@ -884,6 +895,74 @@ namespace ModelTest
             panel4.Name = "panel4";
             panel4.Size = new Size(2212, 580);
             panel4.TabIndex = 19;
+            // 
+            // tableLayoutPanel1
+            // 
+            tableLayoutPanel1.ColumnCount = 2;
+            tableLayoutPanel1.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
+            tableLayoutPanel1.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
+            tableLayoutPanel1.Controls.Add(groupBox10, 0, 0);
+            tableLayoutPanel1.Dock = DockStyle.Fill;
+            tableLayoutPanel1.Location = new Point(585, 0);
+            tableLayoutPanel1.Name = "tableLayoutPanel1";
+            tableLayoutPanel1.RowCount = 2;
+            tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
+            tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
+            tableLayoutPanel1.Size = new Size(1625, 578);
+            tableLayoutPanel1.TabIndex = 31;
+            // 
+            // groupBox10
+            // 
+            groupBox10.Controls.Add(btnT1_ACCTRL);
+            groupBox10.Controls.Add(btnT1_DCCTRL);
+            groupBox10.Controls.Add(cbbxSTAModel);
+            groupBox10.Controls.Add(label107);
+            groupBox10.Dock = DockStyle.Fill;
+            groupBox10.Location = new Point(3, 3);
+            groupBox10.Name = "groupBox10";
+            groupBox10.Size = new Size(806, 283);
+            groupBox10.TabIndex = 0;
+            groupBox10.TabStop = false;
+            groupBox10.Text = "模块控制";
+            // 
+            // btnT1_ACCTRL
+            // 
+            btnT1_ACCTRL.Location = new Point(499, 32);
+            btnT1_ACCTRL.Name = "btnT1_ACCTRL";
+            btnT1_ACCTRL.Size = new Size(131, 40);
+            btnT1_ACCTRL.TabIndex = 3;
+            btnT1_ACCTRL.Text = "上交流电";
+            btnT1_ACCTRL.UseVisualStyleBackColor = true;
+            btnT1_ACCTRL.Click += btnT1_ACCTRL_Click;
+            // 
+            // btnT1_DCCTRL
+            // 
+            btnT1_DCCTRL.Location = new Point(341, 32);
+            btnT1_DCCTRL.Name = "btnT1_DCCTRL";
+            btnT1_DCCTRL.Size = new Size(131, 40);
+            btnT1_DCCTRL.TabIndex = 2;
+            btnT1_DCCTRL.Tag = "0";
+            btnT1_DCCTRL.Text = "上直流电";
+            btnT1_DCCTRL.UseVisualStyleBackColor = true;
+            btnT1_DCCTRL.Click += btnT1_DCCTRL_Click;
+            // 
+            // cbbxSTAModel
+            // 
+            cbbxSTAModel.FormattingEnabled = true;
+            cbbxSTAModel.Items.AddRange(new object[] { "STA1-STA2", "STA1", "STA2" });
+            cbbxSTAModel.Location = new Point(102, 33);
+            cbbxSTAModel.Name = "cbbxSTAModel";
+            cbbxSTAModel.Size = new Size(212, 36);
+            cbbxSTAModel.TabIndex = 1;
+            // 
+            // label107
+            // 
+            label107.AutoSize = true;
+            label107.Location = new Point(4, 38);
+            label107.Name = "label107";
+            label107.Size = new Size(84, 28);
+            label107.TabIndex = 0;
+            label107.Text = "sta模块";
             // 
             // panel5
             // 
@@ -1153,6 +1232,17 @@ namespace ModelTest
             groupBox3.TabIndex = 34;
             groupBox3.TabStop = false;
             groupBox3.Text = "电压0x21电流0x22";
+            // 
+            // label106
+            // 
+            label106.AutoSize = true;
+            label106.ForeColor = Color.Red;
+            label106.Location = new Point(17, 94);
+            label106.Margin = new Padding(4, 0, 4, 0);
+            label106.Name = "label106";
+            label106.Size = new Size(132, 28);
+            label106.TabIndex = 6;
+            label106.Text = "广播地址255";
             // 
             // btnTerminalBW_ADown
             // 
@@ -3673,17 +3763,6 @@ namespace ModelTest
             panel3.Size = new Size(2244, 292);
             panel3.TabIndex = 5;
             // 
-            // label106
-            // 
-            label106.AutoSize = true;
-            label106.ForeColor = Color.Red;
-            label106.Location = new Point(17, 94);
-            label106.Margin = new Padding(4, 0, 4, 0);
-            label106.Name = "label106";
-            label106.Size = new Size(132, 28);
-            label106.TabIndex = 6;
-            label106.Text = "广播地址255";
-            // 
             // ModelMain
             // 
             AutoScaleDimensions = new SizeF(13F, 28F);
@@ -3697,6 +3776,7 @@ namespace ModelTest
             Name = "ModelMain";
             StartPosition = FormStartPosition.CenterScreen;
             Text = "Model";
+            WindowState = FormWindowState.Maximized;
             Load += ModelMain_Load;
             SizeChanged += ModelMain_SizeChanged;
             Resize += ModelMain_Resize;
@@ -3710,6 +3790,9 @@ namespace ModelTest
             tabControl2.ResumeLayout(false);
             tabPage9.ResumeLayout(false);
             panel4.ResumeLayout(false);
+            tableLayoutPanel1.ResumeLayout(false);
+            groupBox10.ResumeLayout(false);
+            groupBox10.PerformLayout();
             panel5.ResumeLayout(false);
             groupBox5.ResumeLayout(false);
             groupBox5.PerformLayout();
@@ -4044,5 +4127,11 @@ namespace ModelTest
         private Label label105;
         private TextBox tbx_TaskDelay;
         private Label label106;
+        private TableLayoutPanel tableLayoutPanel1;
+        private GroupBox groupBox10;
+        private Label label107;
+        private ComboBox cbbxSTAModel;
+        private Button btnT1_ACCTRL;
+        private Button btnT1_DCCTRL;
     }
 }

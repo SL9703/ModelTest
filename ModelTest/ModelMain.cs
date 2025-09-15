@@ -1,14 +1,11 @@
 using System.ComponentModel;
+using System.Data;
 using System.IO.Ports;
 using System.Net;
 using System.Net.Sockets;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
-using System.Linq;
-using System.Threading.Tasks;
-using static System.Runtime.InteropServices.JavaScript.JSType;
-using System.Data;
 namespace ModelTest
 {
     public partial class ModelMain : Form
@@ -67,11 +64,13 @@ namespace ModelTest
             Terminal_9 = 0x09
         }
         string CMD_2D = "2D";
-        string CMD_21 = "21";
-        string CMD_22 = "22";
+        string CMD_21 = "21";//终端电压上电
+        string CMD_22 = "22";//终端电流上电
         string CMD_29 = "29";
         string CMD_2A = "2A";
         string CMD_2C = "2C";
+        string CMD_3A = "3A";//sta上直流电
+        string CMD_85 = "85";//sta上交流电
         string UABC = string.Empty;
         string IABCN = string.Empty;
         public ModelMain() => InitializeComponent();
@@ -85,7 +84,6 @@ namespace ModelTest
                 终端类型 = x.GetDescription()
             }).ToList();
             SerialPortinitialization();
-
             // 例如：初始化数据、配置控件等
             Control.CheckForIllegalCrossThreadCalls = false;//跨线程
 
@@ -155,6 +153,7 @@ namespace ModelTest
             cbx_LC.SelectedIndex = 3;
             cbbx_BlueTooth.SelectedIndex = 0;
             cbbx_ToosNum.SelectedIndex = 0;
+            cbbxSTAModel.SelectedIndex = 0;
             cbxTerminalV1.DataSource = Enum.GetValues(typeof(TerminalV1CLASS)).Cast<TerminalV1CLASS>().Select(x => new
             {
                 终端类型 = x.GetDescription()
@@ -494,17 +493,6 @@ namespace ModelTest
         {
             textBoxlog.AppendText($"[{DateTime.Now:HH:mm:ss.fff}] {Message}\r\n");
             textBoxlog.ScrollToCaret();
-            ////是否是标准表值
-            //if (Message.ElementAt(0) == 'B' && Message.ElementAt(Message.Length - 1) == 'E')
-            //{
-            //    ModelXYStandValue = Message;
-            //    ShowTextReadStandValue(ModelXYStandValue);
-            //}
-            ////是否是脉冲常数
-            //if (Message.ElementAt(0) == 'C' && Message.ElementAt(Message.Length - 1) == 'E')
-            //{
-            //    tb_contans.Text = Message;
-            //}
         }
 
         #region tcpclient 代码
@@ -1189,7 +1177,7 @@ namespace ModelTest
             MCUAddr = A_GetDescription.BW_Addr(tbxTerminalAdds.Text);//地址
             if (!GreenFlas)
             {
-                var Terminal_GreenLoop = A0700_DataLength + MCUAddr + MCUAddr + CMD_2A + "40";
+                var Terminal_GreenLoop = A0700_DataLength + MCUAddr + MCUCtrl + CMD_2A + "40";
                 var check = A_GetDescription.CalculateChecksum(Terminal_GreenLoop);
                 string Terminal_GreenLoop_55AA = "55" + Terminal_GreenLoop + check + "AA";
                 await SeedMethod(Terminal_GreenLoop_55AA);
@@ -1202,7 +1190,7 @@ namespace ModelTest
             }
             else
             {
-                var Terminal_GreenLoop = A0700_DataLength + MCUAddr + MCUAddr + CMD_2A + "10";
+                var Terminal_GreenLoop = A0700_DataLength + MCUAddr + MCUCtrl + CMD_2A + "10";
                 var check = A_GetDescription.CalculateChecksum(Terminal_GreenLoop);
                 string Terminal_GreenLoop_55AA = "55" + Terminal_GreenLoop + check + "AA";
                 await SeedMethod(Terminal_GreenLoop_55AA);
@@ -1245,36 +1233,169 @@ namespace ModelTest
             string strCopy = textBoxlog.SelectedText;
             Clipboard.SetDataObject(strCopy);
         }
+        private bool TaiTiRed = false;
+        private bool TaiTiGreen = false;
+        private bool TaiTiYellow = false;
         /// <summary>
         /// 台体运行指示灯红
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-        private void pBTaiti_Red_Click(object sender, EventArgs e)
+        private async void pBTaiti_Red_Click(object sender, EventArgs e)
         {
             MCUAddr = A_GetDescription.BW_Addr(tbxTerminalAdds.Text);//地址
+            if (TaiTiRed)
+            {
+                var check = A_GetDescription.CalculateChecksum(DataLength + MCUAddr + MCUCtrl + CMD_2C + "01" + "01");
+                string Terminal_TaiTiRed_55AA = "55" + DataLength + MCUAddr + MCUCtrl + CMD_2C + "01" + "01" + check + "AA";
+                await SeedMethod(Terminal_TaiTiRed_55AA);
+                if (Terminal_TaiTiRed_55AA.Contains(BitConverter.ToString(buffer)))
+                {
+                    this.pictureBoxRed.Image = Image.FromFile(Application.StartupPath + "\\png\\" + "红灯.png");
+                    GreenFlas = true;
+                }
+            }
+            else
+            {
+                var check = A_GetDescription.CalculateChecksum(DataLength + MCUAddr + MCUCtrl + CMD_2C + "01" + "00");
+                string Terminal_TaiTiRed_55AA = "55" + DataLength + MCUAddr + MCUCtrl + CMD_2C + "01" + "00" + check + "AA";
+                await SeedMethod(Terminal_TaiTiRed_55AA);
+                if (Terminal_TaiTiRed_55AA.Contains(BitConverter.ToString(buffer)))
+                {
+                    this.pictureBoxRed.Image = Image.FromFile(Application.StartupPath + "\\png\\" + "灰灯.png");
+                    GreenFlas = true;
+                }
+            }
         }
-
-        private bool TaiTiRed = false;
-        private bool TaiTiGreen = false;
-        private bool TaiTiYellow = false;
         /// <summary>
         /// 台体运行指示绿灯
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-        private void pBTaiti_Green_Click(object sender, EventArgs e)
+        private async void pBTaiti_Green_Click(object sender, EventArgs e)
         {
-
+            MCUAddr = A_GetDescription.BW_Addr(tbxTerminalAdds.Text);//地址
+            if (TaiTiRed)
+            {
+                var check = A_GetDescription.CalculateChecksum(DataLength + MCUAddr + MCUCtrl + CMD_2C + "02" + "01");
+                string Terminal_TaiTiRed_55AA = "55" + DataLength + MCUAddr + MCUCtrl + CMD_2C + "01" + "01" + check + "AA";
+                await SeedMethod(Terminal_TaiTiRed_55AA);
+                if (Terminal_TaiTiRed_55AA.Contains(BitConverter.ToString(buffer)))
+                {
+                    this.pictureBoxRed.Image = Image.FromFile(Application.StartupPath + "\\png\\" + "绿灯.png");
+                    GreenFlas = true;
+                }
+            }
+            else
+            {
+                var check = A_GetDescription.CalculateChecksum(DataLength + MCUAddr + MCUCtrl + CMD_2C + "02" + "00");
+                string Terminal_TaiTiRed_55AA = "55" + DataLength + MCUAddr + MCUCtrl + CMD_2C + "01" + "00" + check + "AA";
+                await SeedMethod(Terminal_TaiTiRed_55AA);
+                if (Terminal_TaiTiRed_55AA.Contains(BitConverter.ToString(buffer)))
+                {
+                    this.pictureBoxRed.Image = Image.FromFile(Application.StartupPath + "\\png\\" + "灰灯.png");
+                    GreenFlas = true;
+                }
+            }
         }
         /// <summary>
         /// 台体运行指示黄灯
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-        private void pBTaiti_yellow_Click(object sender, EventArgs e)
+        private async void pBTaiti_yellow_Click(object sender, EventArgs e)
         {
+            MCUAddr = A_GetDescription.BW_Addr(tbxTerminalAdds.Text);//地址
+            if (TaiTiRed)
+            {
+                var check = A_GetDescription.CalculateChecksum(DataLength + MCUAddr + MCUCtrl + CMD_2C + "03" + "01");
+                string Terminal_TaiTiRed_55AA = "55" + DataLength + MCUAddr + MCUCtrl + CMD_2C + "03" + "01" + check + "AA";
+                await SeedMethod(Terminal_TaiTiRed_55AA);
+                if (Terminal_TaiTiRed_55AA.Contains(BitConverter.ToString(buffer)))
+                {
+                    this.pictureBoxRed.Image = Image.FromFile(Application.StartupPath + "\\png\\" + "红灯.png");
+                    GreenFlas = true;
+                }
+            }
+            else
+            {
+                var check = A_GetDescription.CalculateChecksum(DataLength + MCUAddr + MCUCtrl + CMD_2C + "03" + "00");
+                string Terminal_TaiTiRed_55AA = "55" + DataLength + MCUAddr + MCUCtrl + CMD_2C + "03" + "00" + check + "AA";
+                await SeedMethod(Terminal_TaiTiRed_55AA);
+                if (Terminal_TaiTiRed_55AA.Contains(BitConverter.ToString(buffer)))
+                {
+                    this.pictureBoxRed.Image = Image.FromFile(Application.StartupPath + "\\png\\" + "灰灯.png");
+                    GreenFlas = true;
+                }
+            }
+        }
+        /// <summary>
+        /// sta上下DC（直流电）
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private async void btnT1_DCCTRL_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                string sta = A_GetDescription.GetSta1_2(cbbxSTAModel.Text);
+                MCUAddr = A_GetDescription.BW_Addr(tbxTerminalAdds.Text);//地址
+                if (btnT1_DCCTRL.Text == "上直流电")
+                {
+                    var check = A_GetDescription.CalculateChecksum(A0700_DataLength + MCUAddr + MCUCtrl + CMD_3A + sta);
+                    var Terminal_STADCUP_55AA = "55" + A0700_DataLength + MCUAddr + MCUCtrl + CMD_3A + sta + check + "AA";
+                    //AddLog(Terminal_STADCUP_55AA);
+                    await SeedMethod(Terminal_STADCUP_55AA);
+                    btnT1_DCCTRL.Text = "下直流电";
+                }
+                else if (btnT1_DCCTRL.Text == "下直流电")
+                {
+                    var check = A_GetDescription.CalculateChecksum(A0700_DataLength + MCUAddr + MCUCtrl + CMD_3A + "00");
+                    var Terminal_STADCDown_55AA = "55" + A0700_DataLength + MCUAddr + MCUCtrl + CMD_3A + "00" + check + "AA";
+                    //AddLog(Terminal_STADCUP_55AA);
+                    await SeedMethod(Terminal_STADCDown_55AA);
+                    btnT1_DCCTRL.Text = "上直流电";
+                }
+            }
+            catch (Exception ex)
+            {
+                AddLog(ex.Message);
+            }
 
+
+        }
+        /// <summary>
+        /// sta上下AC（交流电）
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private async void btnT1_ACCTRL_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                string sta = A_GetDescription.GetSta1_2(cbbxSTAModel.Text);
+                MCUAddr = A_GetDescription.BW_Addr(tbxTerminalAdds.Text);//地址
+                if (btnT1_ACCTRL.Text == "上交流电")
+                {
+                    var check = A_GetDescription.CalculateChecksum(A0700_DataLength + MCUAddr + MCUCtrl + CMD_85 + sta);
+                    var Terminal_STAACUP_55AA = "55" + A0700_DataLength + MCUAddr + MCUCtrl + CMD_85 + sta + check + "AA";
+                    //AddLog(Terminal_STAACUP_55AA);
+                    await SeedMethod(Terminal_STAACUP_55AA);
+                    btnT1_ACCTRL.Text = "下交流电";
+                }
+                else if (btnT1_ACCTRL.Text == "下交流电")
+                {
+                    var check = A_GetDescription.CalculateChecksum(A0700_DataLength + MCUAddr + MCUCtrl + CMD_85 + "00");
+                    var Terminal_STAACDown_55AA = "55" + A0700_DataLength + MCUAddr + MCUCtrl + CMD_85 + "00" + check + "AA";
+                    //AddLog(Terminal_STAACDown_55AA);
+                    await SeedMethod(Terminal_STAACDown_55AA);
+                    btnT1_ACCTRL.Text = "上交流电";
+                }
+            }
+            catch (Exception ex)
+            {
+                AddLog(ex.Message);
+            }
         }
         #region 控源XY
         string XYModel = "model1";
@@ -1757,7 +1878,7 @@ namespace ModelTest
                     if (readTestError_Status == 1)
                     {
                         int.TryParse(System.Text.Encoding.Default.GetString(MeterError), out int resut);
-                        AddLog($"读取{iMeterNo}表位误差数据成功：" + (resut -1)*60*60*24*1000);
+                        AddLog($"读取{iMeterNo}表位误差数据成功：" + (resut - 1) * 60 * 60 * 24 * 1000);
                     }
                     else
                     {
@@ -2218,9 +2339,59 @@ namespace ModelTest
             // 直接调用Resize事件的处理逻辑
             ModelMain_Resize(sender, e);
         }
+
+        private void tabControl1_DrawItem(object sender, DrawItemEventArgs e)
+        {
+            Font fntTab;
+            Brush bshBack;
+            Brush bshFore;
+            if (e.Index == this.tabControl1.SelectedIndex)    //当前Tab页的样式
+            {
+                fntTab = e.Font;
+                bshBack = new SolidBrush(Color.FromArgb(255, 255, 0)); //选中的标签颜色变为红色
+                bshFore = new SolidBrush(Color.Black);
+            }
+            else    //其余Tab页的样式
+            {
+                fntTab = new Font(e.Font, FontStyle.Bold);
+                bshBack = new System.Drawing.Drawing2D.LinearGradientBrush(e.Bounds, SystemColors.Control, SystemColors.Control,
+                                                                           System.Drawing.Drawing2D.LinearGradientMode.BackwardDiagonal);
+                bshFore = Brushes.Black;
+            }
+            //画样式
+            string tabName = this.tabControl1.TabPages[e.Index].Text;
+            StringFormat sftTab = new StringFormat();
+            sftTab.Alignment = StringAlignment.Center;  //水平方向居中
+            sftTab.LineAlignment = StringAlignment.Center;   //垂直方向居中 
+            e.Graphics.FillRectangle(bshBack, e.Bounds);
+            Rectangle recTab = e.Bounds;
+            recTab = new Rectangle(recTab.X, recTab.Y + 4, recTab.Width, recTab.Height - 4);
+            e.Graphics.DrawString(tabName, fntTab, bshFore, recTab, sftTab);
+        }
     }
     public static class A_GetDescription
     {
+        /// <summary>
+        /// STA1-STA2 03 STA1 01 STA2 02
+        /// </summary>
+        /// <param name="s"></param>
+        /// <returns></returns>
+        public static string GetSta1_2(string s)
+        {
+            if (!string.IsNullOrEmpty(s))
+            {
+                switch (s)
+                {
+                    case "STA1-STA2":
+                        return "03";
+                    case "STA1":
+                        return "01";
+                    case "STA2":
+                        return "02";
+                }
+            }
+            return "03";
+        }
         public static string GetDescription(this Enum value)
         {
             var field = value.GetType().GetField(value.ToString());
