@@ -78,10 +78,25 @@ namespace ModelTest
             panel4 = new Panel();
             tableLayoutPanel1 = new TableLayoutPanel();
             groupBox10 = new GroupBox();
+            bttnReadSTAPinStatus = new Button();
+            comboBoxSTAStutas = new ComboBox();
+            bttnSTALPin = new Button();
+            bttnSTAHPin = new Button();
+            cbxSTAModePinStatus = new ComboBox();
+            label109 = new Label();
+            label108 = new Label();
             btnT1_ACCTRL = new Button();
             btnT1_DCCTRL = new Button();
             cbbxSTAModel = new ComboBox();
             label107 = new Label();
+            groupBox11 = new GroupBox();
+            panel6 = new Panel();
+            label110 = new Label();
+            chexblx_LEDRGY = new CheckedListBox();
+            button_SETLED1 = new Button();
+            button_SETLED4 = new Button();
+            button_SETLED2 = new Button();
+            button_SETLED3 = new Button();
             panel5 = new Panel();
             groupBox5 = new GroupBox();
             label30 = new Label();
@@ -128,6 +143,9 @@ namespace ModelTest
             tabPage5 = new TabPage();
             tabPage6 = new TabPage();
             tabPage7 = new TabPage();
+            label111 = new Label();
+            tbxXYMeterPulse = new TextBox();
+            buttonRead_Pulset = new Button();
             groupBox9 = new GroupBox();
             cbx_HABC = new ComboBox();
             cbx_LC = new ComboBox();
@@ -332,6 +350,8 @@ namespace ModelTest
             panel4.SuspendLayout();
             tableLayoutPanel1.SuspendLayout();
             groupBox10.SuspendLayout();
+            groupBox11.SuspendLayout();
+            panel6.SuspendLayout();
             panel5.SuspendLayout();
             groupBox5.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)pBTaiti_yellow).BeginInit();
@@ -902,6 +922,7 @@ namespace ModelTest
             tableLayoutPanel1.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
             tableLayoutPanel1.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
             tableLayoutPanel1.Controls.Add(groupBox10, 0, 0);
+            tableLayoutPanel1.Controls.Add(groupBox11, 1, 0);
             tableLayoutPanel1.Dock = DockStyle.Fill;
             tableLayoutPanel1.Location = new Point(585, 0);
             tableLayoutPanel1.Name = "tableLayoutPanel1";
@@ -913,6 +934,13 @@ namespace ModelTest
             // 
             // groupBox10
             // 
+            groupBox10.Controls.Add(bttnReadSTAPinStatus);
+            groupBox10.Controls.Add(comboBoxSTAStutas);
+            groupBox10.Controls.Add(bttnSTALPin);
+            groupBox10.Controls.Add(bttnSTAHPin);
+            groupBox10.Controls.Add(cbxSTAModePinStatus);
+            groupBox10.Controls.Add(label109);
+            groupBox10.Controls.Add(label108);
             groupBox10.Controls.Add(btnT1_ACCTRL);
             groupBox10.Controls.Add(btnT1_DCCTRL);
             groupBox10.Controls.Add(cbbxSTAModel);
@@ -924,6 +952,75 @@ namespace ModelTest
             groupBox10.TabIndex = 0;
             groupBox10.TabStop = false;
             groupBox10.Text = "模块控制";
+            // 
+            // bttnReadSTAPinStatus
+            // 
+            bttnReadSTAPinStatus.Location = new Point(362, 131);
+            bttnReadSTAPinStatus.Name = "bttnReadSTAPinStatus";
+            bttnReadSTAPinStatus.Size = new Size(165, 40);
+            bttnReadSTAPinStatus.TabIndex = 10;
+            bttnReadSTAPinStatus.Tag = "0";
+            bttnReadSTAPinStatus.Text = "读取状态";
+            bttnReadSTAPinStatus.UseVisualStyleBackColor = true;
+            bttnReadSTAPinStatus.Click += bttnReadSTAPinStatus_Click;
+            // 
+            // comboBoxSTAStutas
+            // 
+            comboBoxSTAStutas.FormattingEnabled = true;
+            comboBoxSTAStutas.Items.AddRange(new object[] { "STA1", "STA2" });
+            comboBoxSTAStutas.Location = new Point(191, 132);
+            comboBoxSTAStutas.Name = "comboBoxSTAStutas";
+            comboBoxSTAStutas.Size = new Size(137, 36);
+            comboBoxSTAStutas.TabIndex = 9;
+            // 
+            // bttnSTALPin
+            // 
+            bttnSTALPin.Location = new Point(677, 89);
+            bttnSTALPin.Name = "bttnSTALPin";
+            bttnSTALPin.Size = new Size(96, 40);
+            bttnSTALPin.TabIndex = 8;
+            bttnSTALPin.Tag = "0";
+            bttnSTALPin.Text = "低电平";
+            bttnSTALPin.UseVisualStyleBackColor = true;
+            bttnSTALPin.Click += bttnSTALPin_Click;
+            // 
+            // bttnSTAHPin
+            // 
+            bttnSTAHPin.Location = new Point(550, 89);
+            bttnSTAHPin.Name = "bttnSTAHPin";
+            bttnSTAHPin.Size = new Size(96, 40);
+            bttnSTAHPin.TabIndex = 7;
+            bttnSTAHPin.Tag = "0";
+            bttnSTAHPin.Text = "高电平";
+            bttnSTAHPin.UseVisualStyleBackColor = true;
+            bttnSTAHPin.Click += bttnSTAHPin_Click;
+            // 
+            // cbxSTAModePinStatus
+            // 
+            cbxSTAModePinStatus.FormattingEnabled = true;
+            cbxSTAModePinStatus.Items.AddRange(new object[] { "RST_1", "SET_1", "EVENT_1", "RST_2", "SET_2", "EVENT_2" });
+            cbxSTAModePinStatus.Location = new Point(390, 89);
+            cbxSTAModePinStatus.Name = "cbxSTAModePinStatus";
+            cbxSTAModePinStatus.Size = new Size(137, 36);
+            cbxSTAModePinStatus.TabIndex = 6;
+            // 
+            // label109
+            // 
+            label109.AutoSize = true;
+            label109.Location = new Point(6, 134);
+            label109.Name = "label109";
+            label109.Size = new Size(177, 28);
+            label109.TabIndex = 5;
+            label109.Text = "STA模块引脚电平";
+            // 
+            // label108
+            // 
+            label108.AutoSize = true;
+            label108.Location = new Point(6, 92);
+            label108.Name = "label108";
+            label108.Size = new Size(360, 28);
+            label108.TabIndex = 4;
+            label108.Text = "STA模块RST、SET、EVENT引脚状态";
             // 
             // btnT1_ACCTRL
             // 
@@ -963,6 +1060,92 @@ namespace ModelTest
             label107.Size = new Size(84, 28);
             label107.TabIndex = 0;
             label107.Text = "sta模块";
+            // 
+            // groupBox11
+            // 
+            groupBox11.Controls.Add(panel6);
+            groupBox11.Dock = DockStyle.Fill;
+            groupBox11.Location = new Point(815, 3);
+            groupBox11.Name = "groupBox11";
+            groupBox11.Size = new Size(807, 283);
+            groupBox11.TabIndex = 1;
+            groupBox11.TabStop = false;
+            groupBox11.Text = "河南模组化新增";
+            // 
+            // panel6
+            // 
+            panel6.BorderStyle = BorderStyle.FixedSingle;
+            panel6.Controls.Add(label110);
+            panel6.Controls.Add(chexblx_LEDRGY);
+            panel6.Controls.Add(button_SETLED1);
+            panel6.Controls.Add(button_SETLED4);
+            panel6.Controls.Add(button_SETLED2);
+            panel6.Controls.Add(button_SETLED3);
+            panel6.Dock = DockStyle.Left;
+            panel6.Location = new Point(3, 30);
+            panel6.Name = "panel6";
+            panel6.Size = new Size(235, 250);
+            panel6.TabIndex = 7;
+            // 
+            // label110
+            // 
+            label110.AutoSize = true;
+            label110.Location = new Point(13, 15);
+            label110.Name = "label110";
+            label110.Size = new Size(135, 28);
+            label110.TabIndex = 1;
+            label110.Text = "LED控制命令";
+            // 
+            // chexblx_LEDRGY
+            // 
+            chexblx_LEDRGY.FormattingEnabled = true;
+            chexblx_LEDRGY.Items.AddRange(new object[] { "红", "绿", "黄" });
+            chexblx_LEDRGY.Location = new Point(22, 57);
+            chexblx_LEDRGY.Name = "chexblx_LEDRGY";
+            chexblx_LEDRGY.Size = new Size(67, 159);
+            chexblx_LEDRGY.TabIndex = 6;
+            chexblx_LEDRGY.ItemCheck += chexblx_LEDRGY_ItemCheck;
+            // 
+            // button_SETLED1
+            // 
+            button_SETLED1.ForeColor = Color.Black;
+            button_SETLED1.Location = new Point(99, 52);
+            button_SETLED1.Name = "button_SETLED1";
+            button_SETLED1.Size = new Size(131, 37);
+            button_SETLED1.TabIndex = 2;
+            button_SETLED1.Text = "LED1";
+            button_SETLED1.UseVisualStyleBackColor = true;
+            button_SETLED1.Click += button_SETLED1_Click;
+            // 
+            // button_SETLED4
+            // 
+            button_SETLED4.Location = new Point(99, 181);
+            button_SETLED4.Name = "button_SETLED4";
+            button_SETLED4.Size = new Size(131, 37);
+            button_SETLED4.TabIndex = 5;
+            button_SETLED4.Text = "LED4";
+            button_SETLED4.UseVisualStyleBackColor = true;
+            button_SETLED4.Click += button_SETLED4_Click;
+            // 
+            // button_SETLED2
+            // 
+            button_SETLED2.Location = new Point(99, 95);
+            button_SETLED2.Name = "button_SETLED2";
+            button_SETLED2.Size = new Size(131, 37);
+            button_SETLED2.TabIndex = 3;
+            button_SETLED2.Text = "LED2";
+            button_SETLED2.UseVisualStyleBackColor = true;
+            button_SETLED2.Click += button_SETLED2_Click;
+            // 
+            // button_SETLED3
+            // 
+            button_SETLED3.Location = new Point(99, 138);
+            button_SETLED3.Name = "button_SETLED3";
+            button_SETLED3.Size = new Size(131, 37);
+            button_SETLED3.TabIndex = 4;
+            button_SETLED3.Text = "LED3";
+            button_SETLED3.UseVisualStyleBackColor = true;
+            button_SETLED3.Click += button_SETLED3_Click;
             // 
             // panel5
             // 
@@ -1500,6 +1683,9 @@ namespace ModelTest
             // 
             // tabPage7
             // 
+            tabPage7.Controls.Add(label111);
+            tabPage7.Controls.Add(tbxXYMeterPulse);
+            tabPage7.Controls.Add(buttonRead_Pulset);
             tabPage7.Controls.Add(groupBox9);
             tabPage7.Controls.Add(groupBox8);
             tabPage7.Controls.Add(label70);
@@ -1520,6 +1706,37 @@ namespace ModelTest
             tabPage7.TabIndex = 6;
             tabPage7.Text = "新跃控源参数";
             tabPage7.UseVisualStyleBackColor = true;
+            // 
+            // label111
+            // 
+            label111.AutoSize = true;
+            label111.ForeColor = Color.Red;
+            label111.Location = new Point(4, 113);
+            label111.Margin = new Padding(6, 0, 6, 0);
+            label111.Name = "label111";
+            label111.Size = new Size(264, 28);
+            label111.TabIndex = 86;
+            label111.Text = "读取指定表位的测试脉冲数";
+            // 
+            // tbxXYMeterPulse
+            // 
+            tbxXYMeterPulse.Location = new Point(12, 159);
+            tbxXYMeterPulse.Margin = new Padding(6, 5, 6, 5);
+            tbxXYMeterPulse.Name = "tbxXYMeterPulse";
+            tbxXYMeterPulse.Size = new Size(88, 34);
+            tbxXYMeterPulse.TabIndex = 21;
+            tbxXYMeterPulse.Text = "0";
+            // 
+            // buttonRead_Pulset
+            // 
+            buttonRead_Pulset.Location = new Point(109, 154);
+            buttonRead_Pulset.Margin = new Padding(4);
+            buttonRead_Pulset.Name = "buttonRead_Pulset";
+            buttonRead_Pulset.Size = new Size(132, 40);
+            buttonRead_Pulset.TabIndex = 33;
+            buttonRead_Pulset.Text = "读取脉冲数";
+            buttonRead_Pulset.UseVisualStyleBackColor = true;
+            buttonRead_Pulset.Click += buttonRead_Pulset_Click;
             // 
             // groupBox9
             // 
@@ -2070,7 +2287,7 @@ namespace ModelTest
             // label99
             // 
             label99.AutoSize = true;
-            label99.Location = new Point(9, 38);
+            label99.Location = new Point(0, 38);
             label99.Name = "label99";
             label99.Size = new Size(138, 28);
             label99.TabIndex = 86;
@@ -2089,7 +2306,7 @@ namespace ModelTest
             // 
             label98.AutoSize = true;
             label98.ForeColor = Color.Red;
-            label98.Location = new Point(9, 3);
+            label98.Location = new Point(1, 3);
             label98.Margin = new Padding(6, 0, 6, 0);
             label98.Name = "label98";
             label98.Size = new Size(180, 28);
@@ -3773,6 +3990,7 @@ namespace ModelTest
             Controls.Add(panel1);
             Controls.Add(statusStrip1);
             Margin = new Padding(6, 5, 6, 5);
+            MaximizeBox = false;
             Name = "ModelMain";
             StartPosition = FormStartPosition.CenterScreen;
             Text = "Model";
@@ -3793,6 +4011,9 @@ namespace ModelTest
             tableLayoutPanel1.ResumeLayout(false);
             groupBox10.ResumeLayout(false);
             groupBox10.PerformLayout();
+            groupBox11.ResumeLayout(false);
+            panel6.ResumeLayout(false);
+            panel6.PerformLayout();
             panel5.ResumeLayout(false);
             groupBox5.ResumeLayout(false);
             groupBox5.PerformLayout();
@@ -4133,5 +4354,23 @@ namespace ModelTest
         private ComboBox cbbxSTAModel;
         private Button btnT1_ACCTRL;
         private Button btnT1_DCCTRL;
+        private Label label108;
+        private Label label109;
+        private ComboBox cbxSTAModePinStatus;
+        private Button bttnSTAHPin;
+        private Button bttnSTALPin;
+        private Button bttnReadSTAPinStatus;
+        private ComboBox comboBoxSTAStutas;
+        private GroupBox groupBox11;
+        private Label label110;
+        private Button button_SETLED1;
+        private Button button_SETLED4;
+        private Button button_SETLED3;
+        private Button button_SETLED2;
+        private CheckedListBox chexblx_LEDRGY;
+        private Panel panel6;
+        private Button buttonRead_Pulset;
+        private Label label111;
+        private TextBox tbxXYMeterPulse;
     }
 }

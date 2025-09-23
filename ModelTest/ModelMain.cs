@@ -6,6 +6,8 @@ using System.Net.Sockets;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Transactions;
+using System.Windows.Forms;
 namespace ModelTest
 {
     public partial class ModelMain : Form
@@ -63,14 +65,19 @@ namespace ModelTest
             [Description("南网-13集中器")]
             Terminal_9 = 0x09
         }
-        string CMD_2D = "2D";
+        string CMD_2D = "2D";//切换终端类型
         string CMD_21 = "21";//终端电压上电
         string CMD_22 = "22";//终端电流上电
-        string CMD_29 = "29";
-        string CMD_2A = "2A";
-        string CMD_2C = "2C";
+        string CMD_29 = "29";//压接
+        string CMD_2A = "2A";//表位运行指示灯
+        string CMD_2C = "2C";//台体运行指示灯
         string CMD_3A = "3A";//sta上直流电
         string CMD_85 = "85";//sta上交流电
+        string CMD_3B = "3B";//设置单相表模块(STA1)RST、SET、EVENT引脚状态命令（0x3B）
+        string CMD_3C = "3C";//读取单相表模块(STA1)STA引脚电平命令（0x3C）
+        string CMD_86 = "86";//设置单相表模块(STA2)RST、SET、EVENT引脚状态命令（0x86）
+        string CMD_87 = "87";//读取单相表模块(STA2)STA引脚电平命令（0x87）
+        string CMD_30 = "30";//表位led灯控制
         string UABC = string.Empty;
         string IABCN = string.Empty;
         public ModelMain() => InitializeComponent();
@@ -96,9 +103,9 @@ namespace ModelTest
             // 更有效的方法是设置以下样式，这对包含大量控件的窗体更有效
             this.SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint, true);
             this.UpdateStyles();
+
             AddLog("应用程序已启动成功");
         }
-
         private void StoreControlInfo(Control parentCtrl)
         {
             foreach (Control ctrl in parentCtrl.Controls)
@@ -153,7 +160,9 @@ namespace ModelTest
             cbx_LC.SelectedIndex = 3;
             cbbx_BlueTooth.SelectedIndex = 0;
             cbbx_ToosNum.SelectedIndex = 0;
-            cbbxSTAModel.SelectedIndex = 0;
+            cbbxSTAModel.SelectedIndex = 0;//选择sta模组
+            cbxSTAModePinStatus.SelectedIndex = 0;//sta模块引脚状态
+            comboBoxSTAStutas.SelectedIndex = 0;//读取sta模块状态用到
             cbxTerminalV1.DataSource = Enum.GetValues(typeof(TerminalV1CLASS)).Cast<TerminalV1CLASS>().Select(x => new
             {
                 终端类型 = x.GetDescription()
@@ -1397,6 +1406,271 @@ namespace ModelTest
                 AddLog(ex.Message);
             }
         }
+        /// <summary>
+        /// 设置sta模块高电平
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private async void bttnSTAHPin_Click(object sender, EventArgs e)
+        {
+            string STAPINSTATUS = A_GetDescription.GetSTAPin(cbxSTAModePinStatus.Text);//获取设置)RST、SET、EVENT
+            string STAPINSET = string.Empty;
+            MCUAddr = A_GetDescription.BW_Addr(tbxTerminalAdds.Text);//地址
+            if (cbxSTAModePinStatus.Text.Contains("_1"))
+            {
+                STAPINSET = A0700_DataLength + MCUAddr + MCUCtrl + CMD_3B + STAPINSTATUS;//sta1设置高
+            }
+            else if (cbxSTAModePinStatus.Text.Contains("_2"))
+            {
+                STAPINSET = A0700_DataLength + MCUAddr + MCUCtrl + CMD_86 + STAPINSTATUS;//sta1设置高
+            }
+            var check = A_GetDescription.CalculateChecksum(STAPINSET);
+            var STAPINSET_55AA = "55" + STAPINSET + check + "AA";
+            await SeedMethod(STAPINSET_55AA);
+        }
+        /// <summary>
+        /// 设置sta模组低电平
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private async void bttnSTALPin_Click(object sender, EventArgs e)
+        {
+            var STAPINSET = string.Empty;
+            MCUAddr = A_GetDescription.BW_Addr(tbxTerminalAdds.Text);//地址
+            if (cbxSTAModePinStatus.Text.Contains("_1"))
+            {
+                STAPINSET = A0700_DataLength + MCUAddr + MCUCtrl + CMD_3B + "00";//sta1设置高
+            }
+            else if (cbxSTAModePinStatus.Text.Contains("_2"))
+            {
+                STAPINSET = A0700_DataLength + MCUAddr + MCUCtrl + CMD_86 + "00";//sta1设置高
+            }
+            var check = A_GetDescription.CalculateChecksum(STAPINSET);
+            var STAPINSET_55AA = "55" + STAPINSET + check + "AA";
+            await SeedMethod(STAPINSET_55AA);
+        }
+        /// <summary>
+        /// 读取sta模组电平状态
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private async void bttnReadSTAPinStatus_Click(object sender, EventArgs e)
+        {
+            var STAPINREAD = string.Empty;
+            MCUAddr = A_GetDescription.BW_Addr(tbxTerminalAdds.Text);//地址
+            if (comboBoxSTAStutas.Text.Contains("1"))
+            {
+                STAPINREAD = "0600" + MCUAddr + MCUCtrl + CMD_3C;//读取sta1状态
+            }
+            if (comboBoxSTAStutas.Text.Contains("2"))
+            {
+                STAPINREAD = "0600" + MCUAddr + MCUCtrl + CMD_87;//读取sta2状态
+            }
+            var check = A_GetDescription.CalculateChecksum(STAPINREAD);
+            var STAPINREAD_55AA = "55" + STAPINREAD + check + "AA";
+            await SeedMethod(STAPINREAD_55AA);
+
+            if (BitConverter.ToString(buffer) != string.Empty)
+            {
+                AddLog("开始解析读取状态……");
+                //不知道怎么数据是什么样子，暂时不解析
+            }
+
+        }
+        /// <summary>
+        /// led1点灯
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private async void button_SETLED1_Click(object sender, EventArgs e)
+        {
+            //55 0700 01 00 30 f1   xxAA
+            //BIT0~BIT2分别表示LED亮红色1、绿色2、黄色4
+            //BIT4~BIT8分别表示控制LED1=8,LED2,LED3,LED4（可以同时控制，也可单独控制）
+            var LED_OneCtrl = string.Empty;
+            MCUAddr = A_GetDescription.BW_Addr(tbxTerminalAdds.Text);//地址
+            if (chexblx_LEDRGY.GetItemChecked(0))
+            {
+                LED_OneCtrl = A0700_DataLength + MCUAddr + MCUCtrl + CMD_30 + "09";
+                button_SETLED1.BackColor = Color.Red;
+                button_SETLED1.ForeColor = Color.White;
+            }
+            else if (chexblx_LEDRGY.GetItemChecked(1))
+            {
+                LED_OneCtrl = A0700_DataLength + MCUAddr + MCUCtrl + CMD_30 + "0A";
+                button_SETLED1.BackColor = Color.Green;
+                button_SETLED1.ForeColor = Color.White;
+            }
+            else if (chexblx_LEDRGY.GetItemChecked(2))
+            {
+                LED_OneCtrl = A0700_DataLength + MCUAddr + MCUCtrl + CMD_30 + "0C";
+                button_SETLED1.BackColor = Color.Yellow;
+                button_SETLED1.ForeColor = Color.Black;
+            }
+            else
+            {
+                LED_OneCtrl = A0700_DataLength + MCUAddr + MCUCtrl + CMD_30 + "00";
+                button_SETLED1.BackColor = Color.Transparent;
+                button_SETLED1.ForeColor = Color.Black;
+            }
+            try
+            {
+                var check = A_GetDescription.CalculateChecksum(LED_OneCtrl);
+                var LED_OneCtrl_55AA = "55" + LED_OneCtrl + check + "AA";
+                AddLog(LED_OneCtrl_55AA);
+                await SeedMethod(LED_OneCtrl_55AA);
+            }
+            catch (Exception ex)
+            {
+                AddLog(ex.ToString());
+            }
+
+        }
+        /// <summary>
+        /// led2点灯
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private async void button_SETLED2_Click(object sender, EventArgs e)
+        {
+            //55 0700 01 00 30 f1   xxAA
+            //BIT0~BIT2分别表示LED亮红色1、绿色2、黄色4
+            //BIT4~BIT8分别表示控制LED1=8,LED2=16,LED3=32,LED4=32（可以同时控制，也可单独控制）
+            var LED_TwoCtrl = string.Empty;
+            MCUAddr = A_GetDescription.BW_Addr(tbxTerminalAdds.Text);//地址
+            if (chexblx_LEDRGY.GetItemChecked(0))
+            {
+                LED_TwoCtrl = A0700_DataLength + MCUAddr + MCUCtrl + CMD_30 + "11";
+                button_SETLED2.BackColor = Color.Red;
+                button_SETLED2.ForeColor = Color.White;
+            }
+            else if (chexblx_LEDRGY.GetItemChecked(1))
+            {
+                LED_TwoCtrl = A0700_DataLength + MCUAddr + MCUCtrl + CMD_30 + "12";
+                button_SETLED2.BackColor = Color.Green;
+                button_SETLED2.ForeColor = Color.White;
+            }
+            else if (chexblx_LEDRGY.GetItemChecked(2))
+            {
+                LED_TwoCtrl = A0700_DataLength + MCUAddr + MCUCtrl + CMD_30 + "14";
+                button_SETLED2.BackColor = Color.Yellow;
+                button_SETLED2.ForeColor = Color.Black;
+            }
+            else
+            {
+                LED_TwoCtrl = A0700_DataLength + MCUAddr + MCUCtrl + CMD_30 + "00";
+                button_SETLED2.BackColor = Color.Transparent;
+                button_SETLED2.ForeColor = Color.Black;
+            }
+            try
+            {
+                var check = A_GetDescription.CalculateChecksum(LED_TwoCtrl);
+                var LED_TwoCtrl_55AA = "55" + LED_TwoCtrl + check + "AA";
+                AddLog(LED_TwoCtrl_55AA);
+                await SeedMethod(LED_TwoCtrl_55AA);
+            }
+            catch (Exception ex)
+            {
+                AddLog(ex.ToString());
+            }
+        }
+        /// <summary>
+        /// led3点灯
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private async void button_SETLED3_Click(object sender, EventArgs e)
+        {
+            //55 0700 01 00 30 f1   xxAA
+            //BIT0~BIT2分别表示LED亮红色1、绿色2、黄色4
+            //BIT4~BIT8分别表示控制LED1=8,LED2=16,LED3=32,LED4=32（可以同时控制，也可单独控制）
+            var LED_ThreeCtrl = string.Empty;
+            MCUAddr = A_GetDescription.BW_Addr(tbxTerminalAdds.Text);//地址
+            if (chexblx_LEDRGY.GetItemChecked(0))
+            {
+                LED_ThreeCtrl = A0700_DataLength + MCUAddr + MCUCtrl + CMD_30 + "21";
+                button_SETLED3.BackColor = Color.Red;
+                button_SETLED3.ForeColor = Color.White;
+            }
+            else if (chexblx_LEDRGY.GetItemChecked(1))
+            {
+                LED_ThreeCtrl = A0700_DataLength + MCUAddr + MCUCtrl + CMD_30 + "22";
+                button_SETLED3.BackColor = Color.Green;
+                button_SETLED3.ForeColor = Color.White;
+            }
+            else if (chexblx_LEDRGY.GetItemChecked(2))
+            {
+                LED_ThreeCtrl = A0700_DataLength + MCUAddr + MCUCtrl + CMD_30 + "24";
+                button_SETLED3.BackColor = Color.Yellow;
+                button_SETLED3.ForeColor = Color.Black;
+            }
+            else
+            {
+                LED_ThreeCtrl = A0700_DataLength + MCUAddr + MCUCtrl + CMD_30 + "00";
+                button_SETLED3.BackColor = Color.Transparent;
+                button_SETLED3.ForeColor = Color.Black;
+            }
+            try
+            {
+                var check = A_GetDescription.CalculateChecksum(LED_ThreeCtrl);
+                var LED_ThreeCtrl_55AA = "55" + LED_ThreeCtrl + check + "AA";
+                AddLog(LED_ThreeCtrl_55AA);
+                await SeedMethod(LED_ThreeCtrl_55AA);
+            }
+            catch (Exception ex)
+            {
+                AddLog(ex.ToString());
+            }
+        }
+        /// <summary>
+        /// led4点灯
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private async void button_SETLED4_Click(object sender, EventArgs e)
+        {
+
+            //55 0700 01 00 30 f1   xxAA
+            //BIT0~BIT2分别表示LED亮红色1、绿色2、黄色4
+            //BIT4~BIT8分别表示控制LED1=8,LED2=16,LED3=32,LED4=64（可以同时控制，也可单独控制）
+            var LED_FourCtrl = string.Empty;
+            MCUAddr = A_GetDescription.BW_Addr(tbxTerminalAdds.Text);//地址
+            if (chexblx_LEDRGY.GetItemChecked(0))
+            {
+                LED_FourCtrl = A0700_DataLength + MCUAddr + MCUCtrl + CMD_30 + "41";
+                button_SETLED4.BackColor = Color.Red;
+                button_SETLED4.ForeColor = Color.White;
+            }
+            else if (chexblx_LEDRGY.GetItemChecked(1))
+            {
+                LED_FourCtrl = A0700_DataLength + MCUAddr + MCUCtrl + CMD_30 + "42";
+                button_SETLED4.BackColor = Color.Green;
+                button_SETLED4.ForeColor = Color.White;
+            }
+            else if (chexblx_LEDRGY.GetItemChecked(2))
+            {
+                LED_FourCtrl = A0700_DataLength + MCUAddr + MCUCtrl + CMD_30 + "44";
+                button_SETLED4.BackColor = Color.Yellow;
+                button_SETLED4.ForeColor = Color.Black;
+            }
+            else
+            {
+                LED_FourCtrl = A0700_DataLength + MCUAddr + MCUCtrl + CMD_30 + "00";
+                button_SETLED4.BackColor = Color.Transparent;
+                button_SETLED4.ForeColor = Color.Black;
+            }
+            try
+            {
+                var check = A_GetDescription.CalculateChecksum(LED_FourCtrl);
+                var LED_FourCtrl_55AA = "55" + LED_FourCtrl + check + "AA";
+                AddLog(LED_FourCtrl_55AA);
+                await SeedMethod(LED_FourCtrl_55AA);
+            }
+            catch (Exception ex)
+            {
+                AddLog(ex.ToString());
+            }
+        }
         #region 控源XY
         string XYModel = "model1";
         /// <summary>
@@ -1877,8 +2151,9 @@ namespace ModelTest
                     int readTestError_Status = Read_Test(iMeterNo, MeterError);
                     if (readTestError_Status == 1)
                     {
-                        int.TryParse(System.Text.Encoding.Default.GetString(MeterError), out int resut);
-                        AddLog($"读取{iMeterNo}表位误差数据成功：" + (resut - 1) * 60 * 60 * 24 * 1000);
+                        // int.TryParse(System.Text.Encoding.Default.GetString(MeterError), out double resut);
+
+                        AddLog($"读取{iMeterNo}表位误差数据成功：" + MeterError);
                     }
                     else
                     {
@@ -1904,8 +2179,8 @@ namespace ModelTest
             int iPulse = int.Parse(tbxclockpulse.Text);//时钟误差数
             AddLog("时钟误差数：" + iPulse);
             Call_Clock_Start(iPulse);
-            AddLog($"开始测试时钟误差,延迟等待{iPulse + 2}秒，等待结束自动读取误差数据。");
-            await Task.Delay(iPulse * 1000 + 2000);//延迟等待
+            AddLog($"开始测试时钟误差,延迟等待{iPulse + iPulse}秒，等待结束自动读取误差数据。");
+            await Task.Delay(iPulse * 1000 + iPulse * 1000);//延迟等待
             //读取误差
             ReadTestError();
             bttn_ClockStart.Enabled = true;
@@ -1923,8 +2198,9 @@ namespace ModelTest
             {
                 for (int i = firtNo; i < ListNo + 1; i++)
                 {
+                    ReadTestData(1, i, MeterError);
                     AddLog($"正在读取{i}表位误差数据...");
-                    Call_Read_TestError(i, MeterError);
+                    AddLog($"误差数据" + MeterError + "+\r\n");
                 }
             }
             else if (meterNo.Length != 2)
@@ -2071,6 +2347,43 @@ namespace ModelTest
         private void bttn_ClearError_Click(object sender, EventArgs e)
         {
             Call_Error_Start();
+        }
+
+        [DllImport("xyctr.dll")]
+        private static extern int Read_Pulse([In,Out] int iMeterNo,[Out] byte[] MeterError);
+        public void Call_Read_Pulse(int iMeterNo, byte[] MeterError)
+        {
+            Thread thread = new Thread(() =>
+            {
+                try
+                {
+                    int readPulse_status = Read_Pulse(iMeterNo, MeterError);
+                    if (readPulse_status == 1)
+                    {
+                        AddLog("调用设置Read_Pulse(读取脉冲数)接口正常" + readPulse_status);
+                        AddLog($"读取表位{iMeterNo}脉冲数数为：{MeterError}");
+                    }
+                    else
+                    {
+                        AddLog("调用设置Read_Pulse(读取脉冲数)接口异常" + readPulse_status);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    AddLog("调用设置Read_Pulset(读取脉冲数)接口异常" + ex.ToString());
+                }
+            });
+            thread.IsBackground = true;
+            thread.Start();
+        }        /// <summary>
+                 /// 读取表位的脉冲数
+                 /// </summary>
+                 /// <param name="sender"></param>
+                 /// <param name="e"></param>
+        private void buttonRead_Pulset_Click(object sender, EventArgs e)
+        {
+            byte[] MeterError = new byte[1024];
+            Call_Read_Pulse(int.Parse(tbxXYMeterPulse.Text), MeterError);
         }
         private void ADJLC_CHANGE()
         {
@@ -2291,6 +2604,16 @@ namespace ModelTest
         #endregion
         private void ModelMain_Resize(object sender, EventArgs e)
         {
+            if (this.WindowState == FormWindowState.Maximized)
+            {
+                // 获取当前窗体所在的屏幕
+                Screen currentScreen = Screen.FromControl(this);
+
+                this.Height = currentScreen.WorkingArea.Height;
+                this.Top = currentScreen.WorkingArea.Top;
+                this.Width = currentScreen.WorkingArea.Width;
+                this.Left = currentScreen.WorkingArea.Left;
+            }
             // 防止在窗体最小化时执行计算
             if (this.WindowState == FormWindowState.Minimized || _originalFormSize.Width == 0 || _originalFormSize.Height == 0)
                 return;
@@ -2301,7 +2624,6 @@ namespace ModelTest
 
             // 选择一个保守的比例（通常取最小值以保证内容不会溢出）
             float scale = Math.Min(scaleX, scaleY);
-
             // 应用缩放到所有控件
             ApplyScaling(this, scale);
         }
@@ -2361,13 +2683,56 @@ namespace ModelTest
             //画样式
             string tabName = this.tabControl1.TabPages[e.Index].Text;
             StringFormat sftTab = new StringFormat();
-            sftTab.Alignment = StringAlignment.Center;  //水平方向居中
+            sftTab.Alignment = StringAlignment.Near;  //水平方向居中
             sftTab.LineAlignment = StringAlignment.Center;   //垂直方向居中 
             e.Graphics.FillRectangle(bshBack, e.Bounds);
             Rectangle recTab = e.Bounds;
-            recTab = new Rectangle(recTab.X, recTab.Y + 4, recTab.Width, recTab.Height - 4);
+            recTab = new Rectangle(recTab.X, recTab.Y, recTab.Width + 20, recTab.Height - 4);
             e.Graphics.DrawString(tabName, fntTab, bshFore, recTab, sftTab);
         }
+
+#if false
+        private void chexblx_LEDRGY_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            if (chexblx_LEDRGY.SelectedIndex == 0)
+            {
+                chexblx_LEDRGY.SetItemChecked(1, false);
+                chexblx_LEDRGY.SetItemChecked(2, false);
+            }
+            else if (chexblx_LEDRGY.SelectedIndex == 1)
+            {
+                chexblx_LEDRGY.SetItemChecked(0, false);
+                chexblx_LEDRGY.SetItemChecked(2, false);
+            }
+            else if (chexblx_LEDRGY.SelectedIndex == 2)
+            {
+                chexblx_LEDRGY.SetItemChecked(0, false);
+                chexblx_LEDRGY.SetItemChecked(1, false);
+            }
+
+        } 
+#endif
+        private int NumMax = 1;//任意给值
+        private int beforeindex = 0;
+        private void chexblx_LEDRGY_ItemCheck(object sender, ItemCheckEventArgs e)
+        {
+            if (e.CurrentValue == CheckState.Checked) return;
+            int truecount = 0;
+            for (int i = 0; i < chexblx_LEDRGY.Items.Count; i++)
+            {
+                if (chexblx_LEDRGY.GetItemChecked(i))
+                {
+                    truecount++;
+                }
+            }
+            if (truecount >= NumMax)//判断当前选项是否超出限制范围
+            {
+                ((CheckedListBox)sender).SetItemChecked(beforeindex, false);
+            }
+            beforeindex = e.Index;//记住前一次选择的索引值
+            e.NewValue = CheckState.Checked;
+        }
+
     }
     public static class A_GetDescription
     {
@@ -2391,6 +2756,38 @@ namespace ModelTest
                 }
             }
             return "03";
+        }
+        /// <summary>
+        /// RST_1
+//        SET_1
+//        EVENT_1
+//          RST_2
+//          SET_2
+//          EVENT_2
+        /// </summary>
+        /// <param name="s"></param>
+        /// <returns></returns>
+        public static string GetSTAPin(string s)
+        {
+            if (!string.IsNullOrEmpty(s))
+            {
+                switch (s)
+                {
+                    case "RST_1":
+                        return "01";
+                    case "SET_1":
+                        return "02";
+                    case "EVENT_1":
+                        return "04";
+                    case "RST_2":
+                        return "01";
+                    case "SET_2":
+                        return "02";
+                    case "EVENT_2":
+                        return "04";
+                }
+            }
+            return default;
         }
         public static string GetDescription(this Enum value)
         {
