@@ -20,6 +20,9 @@ namespace ModelTest
             public System.Drawing.SizeF Size;
             public System.Drawing.Point Location;
         }
+
+        //加密机对象
+        private WinSocketServer winSocketServer = new WinSocketServer();
         // 定义字典来存储所有控件的初始信息
         private Dictionary<System.Windows.Forms.Control, ControlInfo> _originalControlsInfo = new Dictionary<System.Windows.Forms.Control, ControlInfo>();
         private System.Drawing.Size _originalFormSize;
@@ -86,6 +89,16 @@ namespace ModelTest
         private void ModelMain_Load(object sender, EventArgs e)
         {
             // 窗体加载时需要执行的初始化代码
+            this.FormBorderStyle = FormBorderStyle.FixedDialog;
+
+            // 禁用最大化按钮
+            this.MaximizeBox = false;
+
+            // 可选：禁用最小化按钮
+            // this.MinimizeBox = false;
+
+            // 可选：设置窗体不能最大化（额外保障）
+            this.MaximumSize = this.MinimumSize = this.Size;
             cbxTerminalCLASS.DataSource = Enum.GetValues(typeof(TerminalCLASS)).Cast<TerminalCLASS>().Select(x => new
             {
                 终端类型 = x.GetDescription()
@@ -104,8 +117,12 @@ namespace ModelTest
             this.SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint, true);
             this.UpdateStyles();
 
+            CheckItemSetUpFrom();
+
             AddLog("应用程序已启动成功");
         }
+
+
         private void StoreControlInfo(Control parentCtrl)
         {
             foreach (Control ctrl in parentCtrl.Controls)
@@ -1788,6 +1805,7 @@ namespace ModelTest
                         }
                         else
                         {
+
                             AddLog("标准表数据返回失败，错误代码：" + ReadStandMeter_data);
                         }
                     }
@@ -2350,7 +2368,7 @@ namespace ModelTest
         }
 
         [DllImport("xyctr.dll")]
-        private static extern int Read_Pulse([In,Out] int iMeterNo,[Out] byte[] MeterError);
+        private static extern int Read_Pulse([In, Out] int iMeterNo, [Out] byte[] MeterError);
         public void Call_Read_Pulse(int iMeterNo, byte[] MeterError)
         {
             Thread thread = new Thread(() =>
@@ -2384,6 +2402,39 @@ namespace ModelTest
         {
             byte[] MeterError = new byte[1024];
             Call_Read_Pulse(int.Parse(tbxXYMeterPulse.Text), MeterError);
+        }
+        [DllImport("xyctr.dll")]
+        private static extern int FunctionReadVersion([Out] byte[] StrVer);
+        /// <summary>
+        /// 读取新跃dll版本日期
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void btn_ReadTime_Click(object sender, EventArgs e)
+        {
+            byte[] StrVer = new byte[1024];
+            Thread thread = new Thread(() =>
+            {
+                try
+                {
+                    int readPulse_status = FunctionReadVersion(StrVer);
+                    if (readPulse_status == 1)
+                    {
+                        AddLog("读取dll版本日期接口正常" + readPulse_status);
+                        label112.Text = "Dll版本日期：" + StrVer.ToString();
+                    }
+                    else
+                    {
+                        AddLog("读取dll版本日期接口异常" + readPulse_status);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    AddLog("读取dll版本日期接口异常" + ex.ToString());
+                }
+            });
+            thread.IsBackground = true;
+            thread.Start();
         }
         private void ADJLC_CHANGE()
         {
@@ -2601,18 +2652,107 @@ namespace ModelTest
                     break;
             }
         }
+        /// <summary>
+        /// setui设置电压和电流量程
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        [DllImport("xyctr.dll")]
+        private static extern int SetUIRange(int iUI, int iValue);
+        private void button7_Click(object sender, EventArgs e)
+        {
+            //得到数据，分割数据，
+            string ServerData = textBoxSetUIRange.Text;
+
+            string[] ServerDataNew = StringDataSplit(ServerData);
+            int Iui = int.Parse(ServerDataNew[0]);
+            int Ivalue = int.Parse(ServerDataNew[1]);
+            Thread thread = new Thread(() =>
+            {
+
+                try
+                {
+                    int SetUIResult = SetUIRange(Iui, Ivalue);
+                    if (SetUIResult > 0)
+                    {
+                        AddLog("SetUIRange设置电压和电流量程接口正常" + SetUIResult);
+                    }
+                    else if (true)
+                    {
+                        AddLog("SetUIRange设置电压和电流量程接口异常" + SetUIResult);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    AddLog(ex.Message);
+                }
+            });
+            thread.IsBackground = true;
+            thread.Start();
+        }
+
+        private static string[] StringDataSplit(string ServerData)
+        {
+            // 分割字符串并移除空条目
+            string[] parts = ServerData.Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+            // 处理特殊值：将 "None" 转换为 null，数值保持原样
+            var ServerDataNew = parts.Select(p => p == "None" ? "None" : p).ToArray();
+            return ServerDataNew;
+        }
+
+        /// <summary>
+        /// rangui
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        [DllImport("xyctr.dll")]
+        private static extern int RangeOutputUI(string StrUICommand);
+        private void RangeOutputUI_Click(object sender, EventArgs e)
+        {
+            string RangeOutputUIData = textBoxRangeOutputUI.Text;
+            string[] ServerDataNew = StringDataSplit(RangeOutputUIData);
+            string ua = ServerDataNew[0];
+            string ub = ServerDataNew[1];
+            string uc = ServerDataNew[2];
+            string ia = ServerDataNew[3];
+            string ib = ServerDataNew[4];
+            string ic = ServerDataNew[5];
+            string StrUICommand = $"{ua}_{ub}_{uc}_{ia}_{ib}_{ic}";
+            Thread thread = new Thread(() =>
+            {
+
+                try
+                {
+                    int SetUIResult = RangeOutputUI(StrUICommand);
+                    if (SetUIResult == 1)
+                    {
+                        AddLog("RangeOutputUI设置电压和电流量程接口正常" + SetUIResult);
+                    }
+                    else
+                    {
+                        AddLog("RangeOutputUI设置电压和电流量程接口异常" + SetUIResult);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    AddLog(ex.Message);
+                }
+            });
+            thread.IsBackground = true;
+            thread.Start();
+        }
+
         #endregion
         private void ModelMain_Resize(object sender, EventArgs e)
         {
             if (this.WindowState == FormWindowState.Maximized)
             {
-                // 获取当前窗体所在的屏幕
                 Screen currentScreen = Screen.FromControl(this);
+                this.MaximizedBounds = currentScreen.WorkingArea;
 
+                // 双重保障
                 this.Height = currentScreen.WorkingArea.Height;
                 this.Top = currentScreen.WorkingArea.Top;
-                this.Width = currentScreen.WorkingArea.Width;
-                this.Left = currentScreen.WorkingArea.Left;
             }
             // 防止在窗体最小化时执行计算
             if (this.WindowState == FormWindowState.Minimized || _originalFormSize.Width == 0 || _originalFormSize.Height == 0)
@@ -2733,6 +2873,414 @@ namespace ModelTest
             e.NewValue = CheckState.Checked;
         }
 
+        private void LgServer_Click(object sender, EventArgs e)
+        {
+            byte[] OutRandNum = new byte[128];
+            string ServerIp = textBox4.Text;
+            string ServerPort = textBox3.Text;
+            Thread thread = new Thread(() =>
+            {
+                int rtnConnnt = winSocketServer.ConnectDeviceEx(ServerIp, ServerPort, "8000");
+                if (rtnConnnt == 0)
+                {
+                    AddLog("连接服务器成功！");
+                    label115.Text = "服务器连接状态：已连接";
+                    //获取随机数
+                    int ret = winSocketServer.CreateRandEx(byte.Parse("8"), OutRandNum);
+                    if (ret == 0)
+                    {
+                        richTextBox1.AppendText("获取随机数成功！" + System.Text.Encoding.Default.GetString(OutRandNum));
+                    }
+                    else
+                    {
+                        richTextBox1.AppendText("获取随机数失败！" + System.Text.Encoding.Default.GetString(OutRandNum));
+                    }
+
+                }
+                else
+                {
+                    AddLog("连接服务器失败，错误代码：" + rtnConnnt);
+                    label115.Text = "服务器连接状态：连接服务器失败";
+                }
+            });
+            thread.IsBackground = true;
+            thread.Start();
+        }
+
+        /// <summary>
+        /// 加密数据接口
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void button5_Click(object sender, EventArgs e)
+        {
+            Thread thread = new Thread(() => { });
+            //cOutSID, cOutAttachData, cOutData, cOutMAC
+            byte[] cOutSID = new byte[256];
+            byte[] cOutAttachData = new byte[256];
+            byte[] cOutData = new byte[256];
+            byte[] cOutMAC = new byte[256];
+            try
+            {
+                //得到数据，分割数据，
+                string ServerData = textBox5.Text;
+
+                // 分割字符串并移除空条目
+                string[] parts = ServerData.Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+                // 处理特殊值：将 "None" 转换为 null，数值保持原样
+                var ServerDataNew = parts.Select(p => p == "None" ? "None" : p).ToArray();
+                int result = 0;
+                switch (ServerImp.Text)
+                {
+
+                    case "":
+                        AddLog("请右上角选择加密算法！");
+                        break;
+                    case "RESAM_Formal_GetKeyData_AppLayer":
+                        thread = new Thread(() =>
+                        {
+                            AddLog($"调用接口：{ServerImp.Text}");
+                            AddLog($"传入参数iOperateMode{ServerDataNew[0]}，cTESAMID{ServerDataNew[1]}，" +
+                                $"cSessionKey{ServerDataNew[2]}，cTaskType{ServerDataNew[3]}，cTaskData{ServerDataNew[4]}");
+                            result = winSocketServer.ReSAM_Formal_GetKeyData_AppLayer
+                              (int.Parse(ServerDataNew[0]),
+                              ServerDataNew[1],
+                              ServerDataNew[2],
+                              int.Parse(ServerDataNew[3]),
+                              ServerDataNew[4],
+                               cOutSID,
+                               cOutAttachData,
+                               cOutData,
+                               cOutMAC
+                              );
+                            //cOutSID, cOutAttachData, cOutData, cOutMAC
+                            if (result == 0)
+                            {
+                                AddLog($"调用接口：{ServerImp.Text}----------成功");
+                                richTextBox1.AppendText($"加密机返回数据：cOutSID={System.Text.Encoding.Default.GetString(cOutSID)}，" +
+                                    $"cOutAttachData={System.Text.Encoding.Default.GetString(cOutAttachData)}," +
+                                    $"cOutData={System.Text.Encoding.Default.GetString(cOutData)}," +
+                                    $"cOutMAC={System.Text.Encoding.Default.GetString(cOutMAC)}");
+                            }
+                            else
+                            {
+                                AddLog($"调用接口：{ServerImp.Text}----------失败,返回值：{result}");
+                            }
+                        });
+                        break;
+                    case "CloseDevice":
+                        thread = new Thread(() =>
+                        {
+                            AddLog($"调用接口：{ServerImp.Text}");
+                            result = winSocketServer.CloseDeviceEx();
+                            if (result == 0)
+                            {
+                                AddLog($"调用接口：{ServerImp.Text}----------成功");
+                            }
+                            else
+                            {
+                                AddLog($"调用接口：{ServerImp.Text}----------失败,返回值：{result}");
+                            }
+                        });
+                        break;
+                    case "ClseUsbkey":
+                        thread = new Thread(() =>
+                        {
+                            AddLog($"调用接口：{ServerImp.Text}");
+                            result = winSocketServer.ClseUsbkeyEx();
+                            if (result == 0)
+                            {
+                                AddLog($"调用接口：{ServerImp.Text}----------成功");
+                            }
+                            else
+                            {
+                                AddLog($"调用接口：{ServerImp.Text}----------失败,返回值：{result}");
+                            }
+                        });
+                        break;
+                    case "Obj_Meter_Formal_SetESAMData":
+                        AddLog($"调用接口：{ServerImp.Text}");
+                        AddLog($"传入参数InKeyState={ServerDataNew[0]},InOperateMode={ServerDataNew[1]}," +
+                            $"cESAMNO={ServerDataNew[2]},cSessionKey={ServerDataNew[3]}," +
+                            $"cMeterNo={ServerDataNew[4]},cESAMRand={ServerDataNew[5]},cData={ServerDataNew[6]}");
+                        thread = new Thread(() =>
+                        {
+                            result = winSocketServer.Call_Obj_Meter_Formal_SetESAMData
+                                (int.Parse(ServerDataNew[0]),
+                                int.Parse(ServerDataNew[1]),
+                                ServerDataNew[2],
+                                ServerDataNew[3],
+                                ServerDataNew[4],
+                                ServerDataNew[5],
+                                ServerDataNew[6],
+                                 cOutSID,
+                                 cOutAttachData,
+                                 cOutData,
+                                 cOutMAC
+                                );
+                            if (result == 0)
+                            {
+                                AddLog($"调用接口：{ServerImp.Text}----------成功");
+                                Thread.Sleep(2000);
+                                richTextBox1.AppendText($"加密机返回数据：cOutSID={System.Text.Encoding.Default.GetString(cOutSID)}+\r\n");
+                                richTextBox1.AppendText($"cOutAttachData={System.Text.Encoding.Default.GetString(cOutAttachData)}+\r\n");
+                                richTextBox1.AppendText($"cOutData={System.Text.Encoding.Default.GetString(cOutData)}+\r\n");
+                                richTextBox1.AppendText($"cOutMAC={System.Text.Encoding.Default.GetString(cOutMAC)}+\r\n");
+                            }
+                            else
+                            {
+                                AddLog($"调用接口：{ServerImp.Text}----------失败,返回值：{result}");
+                            }
+                        });
+                        thread.IsBackground = true;
+                        thread.Start();
+                        break;
+                    default:
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                AddLog(ex.Message);
+            }
+
+        }
+
+        private void button6_Click(object sender, EventArgs e)
+        {
+
+        }
+        /// <summary>
+        /// 加密机接口选项发生改变之后
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void ServerImp_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            string ServerImpType = (string)ServerImp.SelectedItem;
+            switch (ServerImpType)
+            {
+                case "RESAM_Formal_GetKeyData_AppLayer":
+                    AddLog($"选择加密机函数 {ServerImpType}，调用接口参数：");
+                    AddLog("int iOperateMode,char * cTESAMID, char * cSessionKey,int cTaskType, char * cTaskData, char * cOutSID,char * cOutAttachData, char * cOutData ,char * cOutMAC");
+                    break;
+                case "CloseDevice":
+                    AddLog($"选择加密机函数 {ServerImpType}，调用接口参数：");
+                    AddLog("无参数");
+                    break;
+                case "ClseUsbkey":
+                    AddLog($"选择加密机函数 {ServerImpType}，调用接口参数：");
+                    AddLog("无参数");
+                    break;
+                case "Obj_Meter_Formal_SetESAMData":
+                    AddLog($"选择加密机函数 {ServerImpType}，调用接口参数：");
+                    AddLog("int InKeyState,int InOperateMode,char * cESAMNO, char * cSessionKey, char * cMeterNo, char * cESAMRand, char * cData, char * OutSID,char * OutAddData, char * OutData,char * OutMAC");
+                    break;
+                default:
+                    break;
+            }
+        }
+        private void CheckItemSetUpFrom()
+        {
+            List<string> ComBoxServerImp = new List<string>()
+            {
+                "RESAM_Formal_GetKeyData_AppLayer",
+                "BT_WESAM_Formal_GetTrmKeyData",
+                "CT_Terminal_Formal_CalCTESAMMac",
+                "CT_Terminal_Formal_CalCTTESAMMac",
+                "CT_Terminal_Formal_CalVerifyCTESAMMac",
+                "CT_Terminal_Formal_CalVerifyCTTESAMMac",
+                "ClearKeyInfo",
+                "CloseDevice",
+                "ClseUsbkey",
+                "ConnectDevice",
+                "CreateRand",
+                "Create_Rand",
+                "DisEncrptUserInfor",
+                "IdentityAuthentication",
+                "InCreasePurse",
+                "KeyUpdate",
+                "LgServer",
+                "LgoutServer",
+                "Log_WriteLogFile_FlieName",
+                "Maccheck",
+                "Meter_Formal_DataClear1",
+                "Meter_Formal_DataClear2",
+                "Meter_Formal_EncMacWrite",
+                "Meter_Formal_GetAuthKey",
+                "Meter_Formal_IdentityAuthentication",
+                "Meter_Formal_IdentityAuthentication_",
+"Meter_Formal_InCreasePurse",
+"Meter_Formal_InfraredAuth",
+"Meter_Formal_InfraredAuth_TermnalToMeter",
+"Meter_Formal_InfraredRand",
+"Meter_Formal_InintPurse",
+"Meter_Formal_KeyUpdateV2",
+"Meter_Formal_KeyUpdate_20201118",
+"Meter_Formal_MacCheck",
+"Meter_Formal_MacWrite",
+"Meter_Formal_ParameterElseUpdate",
+"Meter_Formal_ParameterUpdate",
+"Meter_Formal_ParameterUpdate1",
+"Meter_Formal_ParameterUpdate2",
+"Meter_Formal_UserControl",
+"NMeter_Formal_DataClear1",
+"NMeter_Formal_DataClear2",
+"NMeter_Formal_GetTrmKeyData",
+"NMeter_Formal_ParameterElseUpdate",
+"NMeter_Formal_ParameterUpdate",
+"NMeter_PowerOff",
+"NMeter_PowerOn",
+"NMeter_VerifyPowerOff",
+"Obj_CT_ESAM_Formal_GetSessionData",
+"Obj_CT_ESAM_Formal_GetTrmKeyData",
+"Obj_CT_ESAM_Formal_InitSession",
+"Obj_CT_ESAM_Formal_VerifyCTData",
+"Obj_CT_ESAM_Formal_VerifySession",
+"Obj_CT_TESAM_Formal_GetTrmKeyData",
+"Obj_ESAM_GN_Formal_GetMacKey",
+"Obj_ESAM_GN_Formal_GetPubKey",
+"Obj_ESAM_GN_Formal_GetSm4Key",
+"Obj_Formal_GetRandHost",
+"Obj_InterFace_Formal_BusinessData",
+"Obj_InterFace_Formal_GetTrmKeyData",
+"Obj_InterFace_Formal_InitSession",
+"Obj_InterFace_Formal_ParameterElseUpdate",
+"Obj_InterFace_Formal_VerifyBusinessData",
+"Obj_InterFace_Formal_VerifyMeterData",
+"Obj_InterFace_Formal_VerifySession",
+"Obj_InterFace_GetSessionData",
+"Obj_JL_Formal_InitSession",
+"Obj_JL_Formal_VerifySession",
+"Obj_Meter_Formal_EncForCompare",
+"Obj_Meter_Formal_GenReadData",
+"Obj_Meter_Formal_GetESAMData",
+"Obj_Meter_Formal_GetESAMFileData",
+"Obj_Meter_Formal_GetGrpBrdCstData",
+"Obj_Meter_Formal_GetGrpBrdCstDataNew",
+"Obj_Meter_Formal_GetMeterSetData",
+"Obj_Meter_Formal_GetPurseData",
+"Obj_Meter_Formal_GetResponseData",
+"Obj_Meter_Formal_GetSessionData",
+"Obj_Meter_Formal_GetTrmKeyData",
+"Obj_Meter_Formal_GetTrmKeyData_ForCheck",
+"Obj_Meter_Formal_InitSession",
+"Obj_Meter_Formal_InitTrmKeyData",
+"Obj_Meter_Formal_SetESAMData",
+"Obj_Meter_Formal_SetESAMDataNew",
+"Obj_Meter_Formal_VerifyESAMData",
+"Obj_Meter_Formal_VerifyMeterData",
+"Obj_Meter_Formal_VerifyReadData",
+"Obj_Meter_Formal_VerifyReportData",
+"Obj_Meter_Formal_VerifySession",
+"Obj_Meter_Formal_VerifySessionForECard",
+"Obj_Meter_JL_VerifyReadData",
+"Obj_Meter_JL_VerifyReportData",
+"Obj_Meter_Test_GetTrmKeyData",
+"Obj_Meter_Test_VerifyESAMData",
+"Obj_NMeter_Formal_GetESAMData",
+"Obj_NMeter_Formal_SetESAMData",
+"Obj_Normal_Formal_InitSession",
+"Obj_Normal_Formal_VerifySession",
+"Obj_Send_Formal_Data",
+"Obj_Send_Formal_DataForGetKey",
+"Obj_Terminal_Formal_ChangeDataAuthorize",
+"Obj_Terminal_Formal_ExternalAuth",
+"Obj_Terminal_Formal_GetCACertificateData",
+"Obj_Terminal_Formal_GetGrpBrdCstData",
+"Obj_Terminal_Formal_GetMeterSessionKey",
+"Obj_Terminal_Formal_GetResponseData",
+"Obj_Terminal_Formal_GetSessionData",
+"Obj_Terminal_Formal_GetSessionDataForMeter",
+"Obj_Terminal_Formal_GetTerminalSetData",
+"Obj_Terminal_Formal_GetTerminlMeterKey",
+"Obj_Terminal_Formal_GetTrmKeyData",
+"Obj_Terminal_Formal_InitSession",
+"Obj_Terminal_Formal_InitTrmKeyData",
+"Obj_Terminal_Formal_VerifyReadData",
+"Obj_Terminal_Formal_VerifyReportData",
+"Obj_Terminal_Formal_VerifySession",
+"Obj_Terminal_Formal_VerifyTerminalData",
+"OpenDevice",
+"OpenUsbkey",
+"ParameterElseUpdate",
+"ParameterUpdate",
+"ParameterUpdate1",
+"ParameterUpdate2",
+"Pcsc_CloseDevice",
+"Pcsc_GetDeviceList",
+"Pcsc_OpenDevice",
+"Pcsc_OpenDeviceSgchip",
+"RDID_Formal_RFIDChangeKey",
+"RDID_Formal_RFIDCheckData",
+"RDID_Formal_RFIDDataMAC",
+"RDID_Formal_RFIDDisEncrptData",
+"RDID_Formal_RFIDEncrptData",
+"RDID_Formal_RFIDGetPin",
+"RDID_Formal_SealRFIDChangeKey",
+"Seal_ChangekeyF",
+"Seal_ChangekeySgchip",
+"Seal_ReadData",
+"Seal_ReadDataSgchip",
+"Seal_WriteCodeDataF",
+"Seal_WriteCodeDataSgchip",
+"Seal_WriteDataSgchip",
+"Set_MeterType",
+"Terminal_Formal_CACertificateUpdate",
+"Terminal_Formal_CertificateStateChange",
+"Terminal_Formal_ChangeDataAuthorize",
+"Terminal_Formal_EncTaskData",
+"Terminal_Formal_ExternalAuth",
+"Terminal_Formal_GetCipherMeterKey",
+"Terminal_Formal_GetR1",
+"Terminal_Formal_GroupBroadcast",
+"Terminal_Formal_InternalAuth",
+"Terminal_Formal_MACVerify",
+"Terminal_Formal_SessionConsultVerify",
+"Terminal_Formal_SessionConsultVerify_",
+"Terminal_Formal_SessionInitRec",
+"Terminal_Formal_SessionKeyConsult",
+"Terminal_Formal_SessionKeyConsult_",
+"Terminal_Formal_SessionRecoveryVerify",
+"Terminal_Formal_SessionRecoveryVerify_",
+"Terminal_Formal_SetOfflineCounter",
+"Terminal_Formal_SymmetricKeyUpdate",
+"Terminal_Formal_SymmetricKeyUpdateCT",
+"Terminal_Formal_SymmetricKeyUpdateNT",
+"Terminal_Formal_SystemBroadcast",
+"Terminal_Formal_WriteTEsam",
+"UserControl",
+"WESAM_Formal_EncrypteData",
+"WESAM_Formal_GetSessionData",
+"WESAM_Formal_GetTrmKeyDataForMeteringBox",
+"WESAM_Formal_InitSession",
+"WESAM_Formal_SetESAMData",
+"WESAM_Formal_VerifyData",
+"WESAM_Formal_VerifyReadData",
+"WESAM_Formal_VerifyReportData",
+"WESAM_Formal_VerifySession",
+"Write_SealRDID",
+"Write_SealRFIDForCheckData",
+"Write_SealRFIDForSceneData",
+"YESAM_Formal_ChangeSealKey",
+"YESAM_Formal_GetSealKey",
+"YESAM_Formal_GetSessionData",
+"YESAM_Formal_GetTrmKeyData",
+"YESAM_Formal_GetWESAMEncrptKey",
+"YESAM_Formal_GetWESAMSessionKeyForMeteringBox",
+"YESAM_Formal_InitSessionOffline",
+"YESAM_Formal_VerifyData",
+"YESAM_Formal_VerifySessionOffline",
+"testapi",
+            }
+            ;
+            ServerImp.SelectedIndexChanged -= ServerImp_SelectedIndexChanged;
+            ServerImp.DataSource = ComBoxServerImp;
+            ServerImp.SelectedIndex = -1;
+            ServerImp.SelectedIndexChanged += ServerImp_SelectedIndexChanged;
+        }
+
+
     }
     public static class A_GetDescription
     {
@@ -2759,11 +3307,11 @@ namespace ModelTest
         }
         /// <summary>
         /// RST_1
-//        SET_1
-//        EVENT_1
-//          RST_2
-//          SET_2
-//          EVENT_2
+        //        SET_1
+        //        EVENT_1
+        //          RST_2
+        //          SET_2
+        //          EVENT_2
         /// </summary>
         /// <param name="s"></param>
         /// <returns></returns>
