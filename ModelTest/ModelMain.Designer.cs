@@ -90,6 +90,11 @@ namespace ModelTest
             cbbxSTAModel = new ComboBox();
             label107 = new Label();
             groupBox11 = new GroupBox();
+            panel9 = new Panel();
+            btn_changePCBDownAC = new Button();
+            btn_changePCBUPAC = new Button();
+            cbx_changePCBUPAC = new ComboBox();
+            label22 = new Label();
             panel6 = new Panel();
             label110 = new Label();
             chexblx_LEDRGY = new CheckedListBox();
@@ -133,12 +138,6 @@ namespace ModelTest
             tbxTerminalAdds = new TextBox();
             cbx_TerminalV1_IN = new CheckBox();
             tabPage10 = new TabPage();
-            button1 = new Button();
-            textBox1 = new TextBox();
-            button2 = new Button();
-            textBox2 = new TextBox();
-            label23 = new Label();
-            label22 = new Label();
             tabPage4 = new TabPage();
             tabPage5 = new TabPage();
             tabPage6 = new TabPage();
@@ -342,27 +341,38 @@ namespace ModelTest
             复制ToolStripMenuItem = new ToolStripMenuItem();
             切换背景色ToolStripMenuItem = new ToolStripMenuItem();
             statusStrip1 = new StatusStrip();
+            toolStripSplitButton1 = new ToolStripSplitButton();
+            服务器ToolStripMenuItem = new ToolStripMenuItem();
+            tstServerIp = new ToolStripTextBox();
+            tstServerPort = new ToolStripTextBox();
+            toolStripSeparator1 = new ToolStripSeparator();
             lblconnectStatus = new ToolStripStatusLabel();
             socketUnit = new GroupBox();
+            groupBox14 = new GroupBox();
+            TCPServerConnent = new Button();
+            label119 = new Label();
+            groupBox13 = new GroupBox();
             cbxIsNoPortSeed = new CheckBox();
+            comboBoxCOM = new ComboBox();
             btnflushPort = new Button();
+            label12 = new Label();
+            comboBoxBaute = new ComboBox();
             textBoxdatabit = new ComboBox();
             textBoxstopbit = new ComboBox();
             comboBoxparity = new ComboBox();
-            label17 = new Label();
-            label16 = new Label();
-            label15 = new Label();
-            comboBoxBaute = new ComboBox();
             label14 = new Label();
-            label12 = new Label();
-            comboBoxCOM = new ComboBox();
+            label17 = new Label();
+            label15 = new Label();
+            label16 = new Label();
             buttonOpen = new Button();
-            btn_cilentSocket_Close = new Button();
-            textBoxPort = new TextBox();
+            groupBox12 = new GroupBox();
+            panel8 = new Panel();
             textBoxIP = new TextBox();
-            label2 = new Label();
+            btn_cilentSocket_Close = new Button();
             label1 = new Label();
             btn_cilentSocket = new Button();
+            textBoxPort = new TextBox();
+            label2 = new Label();
             panel1 = new Panel();
             panel2 = new Panel();
             panel3 = new Panel();
@@ -377,6 +387,7 @@ namespace ModelTest
             tableLayoutPanel1.SuspendLayout();
             groupBox10.SuspendLayout();
             groupBox11.SuspendLayout();
+            panel9.SuspendLayout();
             panel6.SuspendLayout();
             panel5.SuspendLayout();
             groupBox5.SuspendLayout();
@@ -389,7 +400,6 @@ namespace ModelTest
             groupBox1.SuspendLayout();
             groupBox4.SuspendLayout();
             groupBox3.SuspendLayout();
-            tabPage10.SuspendLayout();
             tabPage7.SuspendLayout();
             groupBox9.SuspendLayout();
             groupBox8.SuspendLayout();
@@ -409,6 +419,10 @@ namespace ModelTest
             contextMenuStrip1.SuspendLayout();
             statusStrip1.SuspendLayout();
             socketUnit.SuspendLayout();
+            groupBox14.SuspendLayout();
+            groupBox13.SuspendLayout();
+            groupBox12.SuspendLayout();
+            panel8.SuspendLayout();
             panel1.SuspendLayout();
             panel2.SuspendLayout();
             panel3.SuspendLayout();
@@ -775,7 +789,7 @@ namespace ModelTest
             tabPage2.Padding = new Padding(6, 5, 6, 5);
             tabPage2.Size = new Size(1916, 638);
             tabPage2.TabIndex = 1;
-            tabPage2.Text = "国网广播报文测试";
+            tabPage2.Text = "国网报文测试";
             tabPage2.UseVisualStyleBackColor = true;
             // 
             // buttonKZHLID
@@ -1108,6 +1122,7 @@ namespace ModelTest
             // 
             // groupBox11
             // 
+            groupBox11.Controls.Add(panel9);
             groupBox11.Controls.Add(panel6);
             groupBox11.Dock = DockStyle.Fill;
             groupBox11.Location = new Point(656, 3);
@@ -1118,6 +1133,62 @@ namespace ModelTest
             groupBox11.TabIndex = 1;
             groupBox11.TabStop = false;
             groupBox11.Text = "河南模组化新增";
+            // 
+            // panel9
+            // 
+            panel9.Controls.Add(btn_changePCBDownAC);
+            panel9.Controls.Add(btn_changePCBUPAC);
+            panel9.Controls.Add(cbx_changePCBUPAC);
+            panel9.Controls.Add(label22);
+            panel9.Dock = DockStyle.Left;
+            panel9.Location = new Point(251, 30);
+            panel9.Name = "panel9";
+            panel9.Size = new Size(209, 252);
+            panel9.TabIndex = 8;
+            // 
+            // btn_changePCBDownAC
+            // 
+            btn_changePCBDownAC.ForeColor = Color.Black;
+            btn_changePCBDownAC.Location = new Point(8, 151);
+            btn_changePCBDownAC.Margin = new Padding(4, 3, 4, 3);
+            btn_changePCBDownAC.Name = "btn_changePCBDownAC";
+            btn_changePCBDownAC.Size = new Size(132, 36);
+            btn_changePCBDownAC.TabIndex = 18;
+            btn_changePCBDownAC.Text = "下电";
+            btn_changePCBDownAC.UseVisualStyleBackColor = true;
+            btn_changePCBDownAC.Click += btn_changePCBDownAC_Click;
+            // 
+            // btn_changePCBUPAC
+            // 
+            btn_changePCBUPAC.ForeColor = Color.Black;
+            btn_changePCBUPAC.Location = new Point(8, 106);
+            btn_changePCBUPAC.Margin = new Padding(4, 3, 4, 3);
+            btn_changePCBUPAC.Name = "btn_changePCBUPAC";
+            btn_changePCBUPAC.Size = new Size(132, 36);
+            btn_changePCBUPAC.TabIndex = 7;
+            btn_changePCBUPAC.Text = "上电";
+            btn_changePCBUPAC.UseVisualStyleBackColor = true;
+            btn_changePCBUPAC.Click += btn_changePCBUPAC_Click;
+            // 
+            // cbx_changePCBUPAC
+            // 
+            cbx_changePCBUPAC.FormattingEnabled = true;
+            cbx_changePCBUPAC.Items.AddRange(new object[] { "源表", "功放", "源表功放", "读取状态" });
+            cbx_changePCBUPAC.Location = new Point(8, 54);
+            cbx_changePCBUPAC.Margin = new Padding(4, 3, 4, 3);
+            cbx_changePCBUPAC.Name = "cbx_changePCBUPAC";
+            cbx_changePCBUPAC.Size = new Size(114, 36);
+            cbx_changePCBUPAC.TabIndex = 17;
+            // 
+            // label22
+            // 
+            label22.AutoSize = true;
+            label22.Location = new Point(4, 6);
+            label22.Margin = new Padding(4, 0, 4, 0);
+            label22.Name = "label22";
+            label22.Size = new Size(159, 28);
+            label22.TabIndex = 7;
+            label22.Text = "切换版上交流电";
             // 
             // panel6
             // 
@@ -1132,13 +1203,13 @@ namespace ModelTest
             panel6.Location = new Point(4, 30);
             panel6.Margin = new Padding(4, 3, 4, 3);
             panel6.Name = "panel6";
-            panel6.Size = new Size(234, 252);
+            panel6.Size = new Size(247, 252);
             panel6.TabIndex = 7;
             // 
             // label110
             // 
             label110.AutoSize = true;
-            label110.Location = new Point(13, 15);
+            label110.Location = new Point(4, 7);
             label110.Margin = new Padding(4, 0, 4, 0);
             label110.Name = "label110";
             label110.Size = new Size(135, 28);
@@ -1149,17 +1220,17 @@ namespace ModelTest
             // 
             chexblx_LEDRGY.FormattingEnabled = true;
             chexblx_LEDRGY.Items.AddRange(new object[] { "红", "绿", "黄" });
-            chexblx_LEDRGY.Location = new Point(22, 58);
+            chexblx_LEDRGY.Location = new Point(4, 38);
             chexblx_LEDRGY.Margin = new Padding(4, 3, 4, 3);
             chexblx_LEDRGY.Name = "chexblx_LEDRGY";
-            chexblx_LEDRGY.Size = new Size(67, 97);
+            chexblx_LEDRGY.Size = new Size(86, 128);
             chexblx_LEDRGY.TabIndex = 6;
             chexblx_LEDRGY.ItemCheck += chexblx_LEDRGY_ItemCheck;
             // 
             // button_SETLED1
             // 
             button_SETLED1.ForeColor = Color.Black;
-            button_SETLED1.Location = new Point(98, 53);
+            button_SETLED1.Location = new Point(98, 38);
             button_SETLED1.Margin = new Padding(4, 3, 4, 3);
             button_SETLED1.Name = "button_SETLED1";
             button_SETLED1.Size = new Size(132, 36);
@@ -1170,7 +1241,7 @@ namespace ModelTest
             // 
             // button_SETLED4
             // 
-            button_SETLED4.Location = new Point(98, 181);
+            button_SETLED4.Location = new Point(98, 164);
             button_SETLED4.Margin = new Padding(4, 3, 4, 3);
             button_SETLED4.Name = "button_SETLED4";
             button_SETLED4.Size = new Size(132, 36);
@@ -1181,7 +1252,7 @@ namespace ModelTest
             // 
             // button_SETLED2
             // 
-            button_SETLED2.Location = new Point(98, 96);
+            button_SETLED2.Location = new Point(98, 80);
             button_SETLED2.Margin = new Padding(4, 3, 4, 3);
             button_SETLED2.Name = "button_SETLED2";
             button_SETLED2.Size = new Size(132, 36);
@@ -1192,7 +1263,7 @@ namespace ModelTest
             // 
             // button_SETLED3
             // 
-            button_SETLED3.Location = new Point(98, 138);
+            button_SETLED3.Location = new Point(98, 122);
             button_SETLED3.Margin = new Padding(4, 3, 4, 3);
             button_SETLED3.Name = "button_SETLED3";
             button_SETLED3.Size = new Size(132, 36);
@@ -1629,12 +1700,6 @@ namespace ModelTest
             // 
             // tabPage10
             // 
-            tabPage10.Controls.Add(button1);
-            tabPage10.Controls.Add(textBox1);
-            tabPage10.Controls.Add(button2);
-            tabPage10.Controls.Add(textBox2);
-            tabPage10.Controls.Add(label23);
-            tabPage10.Controls.Add(label22);
             tabPage10.Location = new Point(4, 37);
             tabPage10.Margin = new Padding(4, 3, 4, 3);
             tabPage10.Name = "tabPage10";
@@ -1643,64 +1708,6 @@ namespace ModelTest
             tabPage10.TabIndex = 1;
             tabPage10.Text = "遥信";
             tabPage10.UseVisualStyleBackColor = true;
-            // 
-            // button1
-            // 
-            button1.Location = new Point(784, 5);
-            button1.Margin = new Padding(6, 5, 6, 5);
-            button1.Name = "button1";
-            button1.Size = new Size(167, 41);
-            button1.TabIndex = 23;
-            button1.Text = "断开";
-            button1.UseVisualStyleBackColor = true;
-            // 
-            // textBox1
-            // 
-            textBox1.Location = new Point(371, 7);
-            textBox1.Margin = new Padding(6, 5, 6, 5);
-            textBox1.Name = "textBox1";
-            textBox1.Size = new Size(242, 34);
-            textBox1.TabIndex = 22;
-            textBox1.Text = "4000";
-            // 
-            // button2
-            // 
-            button2.Location = new Point(617, 5);
-            button2.Margin = new Padding(6, 5, 6, 5);
-            button2.Name = "button2";
-            button2.Size = new Size(167, 41);
-            button2.TabIndex = 18;
-            button2.Text = "连接";
-            button2.UseVisualStyleBackColor = true;
-            // 
-            // textBox2
-            // 
-            textBox2.Location = new Point(59, 7);
-            textBox2.Margin = new Padding(6, 5, 6, 5);
-            textBox2.Name = "textBox2";
-            textBox2.Size = new Size(242, 34);
-            textBox2.TabIndex = 21;
-            textBox2.Text = "192.168.127.201";
-            // 
-            // label23
-            // 
-            label23.AutoSize = true;
-            label23.Location = new Point(20, 12);
-            label23.Margin = new Padding(6, 0, 6, 0);
-            label23.Name = "label23";
-            label23.Size = new Size(36, 28);
-            label23.TabIndex = 19;
-            label23.Text = "IP:";
-            // 
-            // label22
-            // 
-            label22.AutoSize = true;
-            label22.Location = new Point(306, 12);
-            label22.Margin = new Padding(6, 0, 6, 0);
-            label22.Name = "label22";
-            label22.Size = new Size(59, 28);
-            label22.TabIndex = 20;
-            label22.Text = "Port:";
             // 
             // tabPage4
             // 
@@ -2538,8 +2545,9 @@ namespace ModelTest
             tabPage17.Controls.Add(label117);
             tabPage17.Controls.Add(textBoxSetUIRange);
             tabPage17.Location = new Point(4, 37);
+            tabPage17.Margin = new Padding(4, 3, 4, 3);
             tabPage17.Name = "tabPage17";
-            tabPage17.Padding = new Padding(3);
+            tabPage17.Padding = new Padding(4, 3, 4, 3);
             tabPage17.Size = new Size(898, 120);
             tabPage17.TabIndex = 3;
             tabPage17.Text = "SETUIRangOutUI";
@@ -2549,7 +2557,7 @@ namespace ModelTest
             // 
             label118.AutoSize = true;
             label118.ForeColor = Color.Red;
-            label118.Location = new Point(503, 6);
+            label118.Location = new Point(503, 7);
             label118.Margin = new Padding(6, 0, 6, 0);
             label118.Name = "label118";
             label118.Size = new Size(294, 28);
@@ -2558,7 +2566,7 @@ namespace ModelTest
             // 
             // textBoxRangeOutputUI
             // 
-            textBoxRangeOutputUI.Location = new Point(503, 39);
+            textBoxRangeOutputUI.Location = new Point(503, 40);
             textBoxRangeOutputUI.Margin = new Padding(6, 5, 6, 5);
             textBoxRangeOutputUI.Name = "textBoxRangeOutputUI";
             textBoxRangeOutputUI.Size = new Size(357, 34);
@@ -2567,7 +2575,7 @@ namespace ModelTest
             // 
             // tbxRangeOutputUI
             // 
-            tbxRangeOutputUI.Location = new Point(503, 73);
+            tbxRangeOutputUI.Location = new Point(503, 72);
             tbxRangeOutputUI.Margin = new Padding(4, 3, 4, 3);
             tbxRangeOutputUI.Name = "tbxRangeOutputUI";
             tbxRangeOutputUI.Size = new Size(318, 40);
@@ -2591,7 +2599,7 @@ namespace ModelTest
             // 
             label117.AutoSize = true;
             label117.ForeColor = Color.Red;
-            label117.Location = new Point(6, 6);
+            label117.Location = new Point(6, 7);
             label117.Margin = new Padding(6, 0, 6, 0);
             label117.Name = "label117";
             label117.Size = new Size(489, 28);
@@ -2600,7 +2608,7 @@ namespace ModelTest
             // 
             // textBoxSetUIRange
             // 
-            textBoxSetUIRange.Location = new Point(9, 39);
+            textBoxSetUIRange.Location = new Point(9, 40);
             textBoxSetUIRange.Margin = new Padding(6, 5, 6, 5);
             textBoxSetUIRange.Name = "textBoxSetUIRange";
             textBoxSetUIRange.Size = new Size(357, 34);
@@ -3839,6 +3847,7 @@ namespace ModelTest
             // 
             richTextBox1.Dock = DockStyle.Fill;
             richTextBox1.Location = new Point(6, 224);
+            richTextBox1.Margin = new Padding(4, 3, 4, 3);
             richTextBox1.Name = "richTextBox1";
             richTextBox1.ReadOnly = true;
             richTextBox1.Size = new Size(1888, 297);
@@ -4074,13 +4083,48 @@ namespace ModelTest
             // statusStrip1
             // 
             statusStrip1.ImageScalingSize = new Size(24, 24);
-            statusStrip1.Items.AddRange(new ToolStripItem[] { lblconnectStatus });
+            statusStrip1.Items.AddRange(new ToolStripItem[] { toolStripSplitButton1, lblconnectStatus });
             statusStrip1.Location = new Point(0, 1024);
             statusStrip1.Name = "statusStrip1";
             statusStrip1.Padding = new Padding(2, 0, 26, 0);
             statusStrip1.Size = new Size(1924, 37);
             statusStrip1.TabIndex = 1;
             statusStrip1.Text = "statusStrip1";
+            // 
+            // toolStripSplitButton1
+            // 
+            toolStripSplitButton1.DisplayStyle = ToolStripItemDisplayStyle.Image;
+            toolStripSplitButton1.DropDownItems.AddRange(new ToolStripItem[] { 服务器ToolStripMenuItem });
+            toolStripSplitButton1.Image = Properties.Resources.红灯;
+            toolStripSplitButton1.ImageTransparentColor = Color.Magenta;
+            toolStripSplitButton1.Name = "toolStripSplitButton1";
+            toolStripSplitButton1.Size = new Size(48, 33);
+            toolStripSplitButton1.Text = "连接配置";
+            // 
+            // 服务器ToolStripMenuItem
+            // 
+            服务器ToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { tstServerIp, tstServerPort, toolStripSeparator1 });
+            服务器ToolStripMenuItem.Name = "服务器ToolStripMenuItem";
+            服务器ToolStripMenuItem.Size = new Size(231, 40);
+            服务器ToolStripMenuItem.Text = "TCP服务器";
+            // 
+            // tstServerIp
+            // 
+            tstServerIp.Name = "tstServerIp";
+            tstServerIp.Size = new Size(200, 34);
+            tstServerIp.Text = "192.168.127.127";
+            // 
+            // tstServerPort
+            // 
+            tstServerPort.Name = "tstServerPort";
+            tstServerPort.Size = new Size(100, 34);
+            tstServerPort.Text = "9027";
+            // 
+            // toolStripSeparator1
+            // 
+            toolStripSeparator1.ForeColor = Color.Red;
+            toolStripSeparator1.Name = "toolStripSeparator1";
+            toolStripSeparator1.Size = new Size(302, 6);
             // 
             // lblconnectStatus
             // 
@@ -4091,25 +4135,9 @@ namespace ModelTest
             // 
             // socketUnit
             // 
-            socketUnit.Controls.Add(cbxIsNoPortSeed);
-            socketUnit.Controls.Add(btnflushPort);
-            socketUnit.Controls.Add(textBoxdatabit);
-            socketUnit.Controls.Add(textBoxstopbit);
-            socketUnit.Controls.Add(comboBoxparity);
-            socketUnit.Controls.Add(label17);
-            socketUnit.Controls.Add(label16);
-            socketUnit.Controls.Add(label15);
-            socketUnit.Controls.Add(comboBoxBaute);
-            socketUnit.Controls.Add(label14);
-            socketUnit.Controls.Add(label12);
-            socketUnit.Controls.Add(comboBoxCOM);
-            socketUnit.Controls.Add(buttonOpen);
-            socketUnit.Controls.Add(btn_cilentSocket_Close);
-            socketUnit.Controls.Add(textBoxPort);
-            socketUnit.Controls.Add(textBoxIP);
-            socketUnit.Controls.Add(label2);
-            socketUnit.Controls.Add(label1);
-            socketUnit.Controls.Add(btn_cilentSocket);
+            socketUnit.Controls.Add(groupBox14);
+            socketUnit.Controls.Add(groupBox13);
+            socketUnit.Controls.Add(groupBox12);
             socketUnit.Dock = DockStyle.Fill;
             socketUnit.Location = new Point(0, 0);
             socketUnit.Margin = new Padding(6, 5, 6, 5);
@@ -4120,10 +4148,70 @@ namespace ModelTest
             socketUnit.TabStop = false;
             socketUnit.Text = "通信单元";
             // 
+            // groupBox14
+            // 
+            groupBox14.Controls.Add(TCPServerConnent);
+            groupBox14.Controls.Add(label119);
+            groupBox14.Dock = DockStyle.Fill;
+            groupBox14.Location = new Point(1384, 32);
+            groupBox14.Margin = new Padding(4, 3, 4, 3);
+            groupBox14.Name = "groupBox14";
+            groupBox14.Padding = new Padding(4, 3, 4, 3);
+            groupBox14.Size = new Size(532, 136);
+            groupBox14.TabIndex = 9;
+            groupBox14.TabStop = false;
+            groupBox14.Text = "TCP或UDP服务器";
+            // 
+            // TCPServerConnent
+            // 
+            TCPServerConnent.Location = new Point(9, 77);
+            TCPServerConnent.Margin = new Padding(6, 5, 6, 5);
+            TCPServerConnent.Name = "TCPServerConnent";
+            TCPServerConnent.Size = new Size(167, 41);
+            TCPServerConnent.TabIndex = 30;
+            TCPServerConnent.Text = "TCP服务器侦听";
+            TCPServerConnent.UseVisualStyleBackColor = true;
+            // 
+            // label119
+            // 
+            label119.AutoSize = true;
+            label119.ForeColor = Color.Red;
+            label119.Location = new Point(9, 33);
+            label119.Margin = new Padding(6, 0, 6, 0);
+            label119.Name = "label119";
+            label119.Size = new Size(222, 28);
+            label119.TabIndex = 29;
+            label119.Text = "左下角配置服务器参数";
+            // 
+            // groupBox13
+            // 
+            groupBox13.Controls.Add(cbxIsNoPortSeed);
+            groupBox13.Controls.Add(comboBoxCOM);
+            groupBox13.Controls.Add(btnflushPort);
+            groupBox13.Controls.Add(label12);
+            groupBox13.Controls.Add(comboBoxBaute);
+            groupBox13.Controls.Add(textBoxdatabit);
+            groupBox13.Controls.Add(textBoxstopbit);
+            groupBox13.Controls.Add(comboBoxparity);
+            groupBox13.Controls.Add(label14);
+            groupBox13.Controls.Add(label17);
+            groupBox13.Controls.Add(label15);
+            groupBox13.Controls.Add(label16);
+            groupBox13.Controls.Add(buttonOpen);
+            groupBox13.Dock = DockStyle.Left;
+            groupBox13.Location = new Point(532, 32);
+            groupBox13.Margin = new Padding(4, 3, 4, 3);
+            groupBox13.Name = "groupBox13";
+            groupBox13.Padding = new Padding(4, 3, 4, 3);
+            groupBox13.Size = new Size(852, 136);
+            groupBox13.TabIndex = 8;
+            groupBox13.TabStop = false;
+            groupBox13.Text = "串口通信";
+            // 
             // cbxIsNoPortSeed
             // 
             cbxIsNoPortSeed.AutoSize = true;
-            cbxIsNoPortSeed.Location = new Point(1538, 114);
+            cbxIsNoPortSeed.Location = new Point(676, 30);
             cbxIsNoPortSeed.Margin = new Padding(4, 3, 4, 3);
             cbxIsNoPortSeed.Name = "cbxIsNoPortSeed";
             cbxIsNoPortSeed.Size = new Size(164, 32);
@@ -4131,9 +4219,18 @@ namespace ModelTest
             cbxIsNoPortSeed.Text = "是否串口发送";
             cbxIsNoPortSeed.UseVisualStyleBackColor = true;
             // 
+            // comboBoxCOM
+            // 
+            comboBoxCOM.FormattingEnabled = true;
+            comboBoxCOM.Location = new Point(106, 30);
+            comboBoxCOM.Margin = new Padding(4, 3, 4, 3);
+            comboBoxCOM.Name = "comboBoxCOM";
+            comboBoxCOM.Size = new Size(114, 36);
+            comboBoxCOM.TabIndex = 7;
+            // 
             // btnflushPort
             // 
-            btnflushPort.Location = new Point(1322, 115);
+            btnflushPort.Location = new Point(672, 72);
             btnflushPort.Margin = new Padding(6, 5, 6, 5);
             btnflushPort.Name = "btnflushPort";
             btnflushPort.Size = new Size(167, 41);
@@ -4142,11 +4239,31 @@ namespace ModelTest
             btnflushPort.UseVisualStyleBackColor = true;
             btnflushPort.Click += btnflushPort_Click;
             // 
+            // label12
+            // 
+            label12.AutoSize = true;
+            label12.Location = new Point(13, 36);
+            label12.Margin = new Padding(6, 0, 6, 0);
+            label12.Name = "label12";
+            label12.Size = new Size(80, 28);
+            label12.TabIndex = 8;
+            label12.Text = "串口号:";
+            // 
+            // comboBoxBaute
+            // 
+            comboBoxBaute.FormattingEnabled = true;
+            comboBoxBaute.Items.AddRange(new object[] { "300", "600", "900", "1200", "2400", "4800", "9600", "19200", "38400", "57600", "115200" });
+            comboBoxBaute.Location = new Point(106, 72);
+            comboBoxBaute.Margin = new Padding(4, 3, 4, 3);
+            comboBoxBaute.Name = "comboBoxBaute";
+            comboBoxBaute.Size = new Size(114, 36);
+            comboBoxBaute.TabIndex = 10;
+            // 
             // textBoxdatabit
             // 
             textBoxdatabit.FormattingEnabled = true;
             textBoxdatabit.Items.AddRange(new object[] { "8", "7" });
-            textBoxdatabit.Location = new Point(559, 115);
+            textBoxdatabit.Location = new Point(321, 30);
             textBoxdatabit.Margin = new Padding(4, 3, 4, 3);
             textBoxdatabit.Name = "textBoxdatabit";
             textBoxdatabit.Size = new Size(114, 36);
@@ -4156,7 +4273,7 @@ namespace ModelTest
             // 
             textBoxstopbit.FormattingEnabled = true;
             textBoxstopbit.Items.AddRange(new object[] { "1", "1.5", "2" });
-            textBoxstopbit.Location = new Point(769, 115);
+            textBoxstopbit.Location = new Point(323, 71);
             textBoxstopbit.Margin = new Padding(4, 3, 4, 3);
             textBoxstopbit.Name = "textBoxstopbit";
             textBoxstopbit.Size = new Size(114, 36);
@@ -4166,84 +4283,55 @@ namespace ModelTest
             // 
             comboBoxparity.FormattingEnabled = true;
             comboBoxparity.Items.AddRange(new object[] { "NONE", "EVEN", "ODD", "MARK", "SPACE" });
-            comboBoxparity.Location = new Point(994, 115);
+            comboBoxparity.Location = new Point(553, 28);
             comboBoxparity.Margin = new Padding(4, 3, 4, 3);
             comboBoxparity.Name = "comboBoxparity";
             comboBoxparity.Size = new Size(114, 36);
             comboBoxparity.TabIndex = 16;
             // 
-            // label17
-            // 
-            label17.AutoSize = true;
-            label17.Location = new Point(888, 122);
-            label17.Margin = new Padding(6, 0, 6, 0);
-            label17.Name = "label17";
-            label17.Size = new Size(101, 28);
-            label17.TabIndex = 13;
-            label17.Text = "奇偶校验:";
-            // 
-            // label16
-            // 
-            label16.AutoSize = true;
-            label16.Location = new Point(678, 122);
-            label16.Margin = new Padding(6, 0, 6, 0);
-            label16.Name = "label16";
-            label16.Size = new Size(80, 28);
-            label16.TabIndex = 12;
-            label16.Text = "停止位:";
-            // 
-            // label15
-            // 
-            label15.AutoSize = true;
-            label15.Location = new Point(470, 122);
-            label15.Margin = new Padding(6, 0, 6, 0);
-            label15.Name = "label15";
-            label15.Size = new Size(80, 28);
-            label15.TabIndex = 11;
-            label15.Text = "数据位:";
-            // 
-            // comboBoxBaute
-            // 
-            comboBoxBaute.FormattingEnabled = true;
-            comboBoxBaute.Items.AddRange(new object[] { "300", "600", "900", "1200", "2400", "4800", "9600", "19200", "38400", "57600", "115200" });
-            comboBoxBaute.Location = new Point(344, 115);
-            comboBoxBaute.Margin = new Padding(4, 3, 4, 3);
-            comboBoxBaute.Name = "comboBoxBaute";
-            comboBoxBaute.Size = new Size(114, 36);
-            comboBoxBaute.TabIndex = 10;
-            // 
             // label14
             // 
             label14.AutoSize = true;
-            label14.Location = new Point(251, 122);
+            label14.Location = new Point(11, 79);
             label14.Margin = new Padding(6, 0, 6, 0);
             label14.Name = "label14";
             label14.Size = new Size(80, 28);
             label14.TabIndex = 9;
             label14.Text = "波特率:";
             // 
-            // label12
+            // label17
             // 
-            label12.AutoSize = true;
-            label12.Location = new Point(32, 122);
-            label12.Margin = new Padding(6, 0, 6, 0);
-            label12.Name = "label12";
-            label12.Size = new Size(80, 28);
-            label12.TabIndex = 8;
-            label12.Text = "串口号:";
+            label17.AutoSize = true;
+            label17.Location = new Point(448, 35);
+            label17.Margin = new Padding(6, 0, 6, 0);
+            label17.Name = "label17";
+            label17.Size = new Size(101, 28);
+            label17.TabIndex = 13;
+            label17.Text = "奇偶校验:";
             // 
-            // comboBoxCOM
+            // label15
             // 
-            comboBoxCOM.FormattingEnabled = true;
-            comboBoxCOM.Location = new Point(124, 115);
-            comboBoxCOM.Margin = new Padding(4, 3, 4, 3);
-            comboBoxCOM.Name = "comboBoxCOM";
-            comboBoxCOM.Size = new Size(114, 36);
-            comboBoxCOM.TabIndex = 7;
+            label15.AutoSize = true;
+            label15.Location = new Point(232, 36);
+            label15.Margin = new Padding(6, 0, 6, 0);
+            label15.Name = "label15";
+            label15.Size = new Size(80, 28);
+            label15.TabIndex = 11;
+            label15.Text = "数据位:";
+            // 
+            // label16
+            // 
+            label16.AutoSize = true;
+            label16.Location = new Point(232, 77);
+            label16.Margin = new Padding(6, 0, 6, 0);
+            label16.Name = "label16";
+            label16.Size = new Size(80, 28);
+            label16.TabIndex = 12;
+            label16.Text = "停止位:";
             // 
             // buttonOpen
             // 
-            buttonOpen.Location = new Point(1118, 114);
+            buttonOpen.Location = new Point(494, 72);
             buttonOpen.Margin = new Padding(6, 5, 6, 5);
             buttonOpen.Name = "buttonOpen";
             buttonOpen.Size = new Size(167, 41);
@@ -4252,9 +4340,46 @@ namespace ModelTest
             buttonOpen.UseVisualStyleBackColor = true;
             buttonOpen.Click += buttonOpen_Click;
             // 
+            // groupBox12
+            // 
+            groupBox12.Controls.Add(panel8);
+            groupBox12.Dock = DockStyle.Left;
+            groupBox12.Location = new Point(6, 32);
+            groupBox12.Margin = new Padding(4, 3, 4, 3);
+            groupBox12.Name = "groupBox12";
+            groupBox12.Padding = new Padding(4, 3, 4, 3);
+            groupBox12.Size = new Size(526, 136);
+            groupBox12.TabIndex = 7;
+            groupBox12.TabStop = false;
+            groupBox12.Text = "TCPClient";
+            // 
+            // panel8
+            // 
+            panel8.Controls.Add(textBoxIP);
+            panel8.Controls.Add(btn_cilentSocket_Close);
+            panel8.Controls.Add(label1);
+            panel8.Controls.Add(btn_cilentSocket);
+            panel8.Controls.Add(textBoxPort);
+            panel8.Controls.Add(label2);
+            panel8.Dock = DockStyle.Fill;
+            panel8.Location = new Point(4, 30);
+            panel8.Margin = new Padding(4, 3, 4, 3);
+            panel8.Name = "panel8";
+            panel8.Size = new Size(518, 103);
+            panel8.TabIndex = 6;
+            // 
+            // textBoxIP
+            // 
+            textBoxIP.Location = new Point(76, 12);
+            textBoxIP.Margin = new Padding(6, 5, 6, 5);
+            textBoxIP.Name = "textBoxIP";
+            textBoxIP.Size = new Size(242, 34);
+            textBoxIP.TabIndex = 3;
+            textBoxIP.Text = "192.168.127.201";
+            // 
             // btn_cilentSocket_Close
             // 
-            btn_cilentSocket_Close.Location = new Point(795, 36);
+            btn_cilentSocket_Close.Location = new Point(331, 56);
             btn_cilentSocket_Close.Margin = new Padding(6, 5, 6, 5);
             btn_cilentSocket_Close.Name = "btn_cilentSocket_Close";
             btn_cilentSocket_Close.Size = new Size(167, 41);
@@ -4263,38 +4388,10 @@ namespace ModelTest
             btn_cilentSocket_Close.UseVisualStyleBackColor = true;
             btn_cilentSocket_Close.Click += btn_cilentSocket_Close_Click;
             // 
-            // textBoxPort
-            // 
-            textBoxPort.Location = new Point(383, 36);
-            textBoxPort.Margin = new Padding(6, 5, 6, 5);
-            textBoxPort.Name = "textBoxPort";
-            textBoxPort.Size = new Size(242, 34);
-            textBoxPort.TabIndex = 4;
-            textBoxPort.Text = "4000";
-            // 
-            // textBoxIP
-            // 
-            textBoxIP.Location = new Point(72, 36);
-            textBoxIP.Margin = new Padding(6, 5, 6, 5);
-            textBoxIP.Name = "textBoxIP";
-            textBoxIP.Size = new Size(242, 34);
-            textBoxIP.TabIndex = 3;
-            textBoxIP.Text = "192.168.127.201";
-            // 
-            // label2
-            // 
-            label2.AutoSize = true;
-            label2.Location = new Point(318, 43);
-            label2.Margin = new Padding(6, 0, 6, 0);
-            label2.Name = "label2";
-            label2.Size = new Size(59, 28);
-            label2.TabIndex = 2;
-            label2.Text = "Port:";
-            // 
             // label1
             // 
             label1.AutoSize = true;
-            label1.Location = new Point(32, 43);
+            label1.Location = new Point(28, 12);
             label1.Margin = new Padding(6, 0, 6, 0);
             label1.Name = "label1";
             label1.Size = new Size(36, 28);
@@ -4303,7 +4400,7 @@ namespace ModelTest
             // 
             // btn_cilentSocket
             // 
-            btn_cilentSocket.Location = new Point(628, 36);
+            btn_cilentSocket.Location = new Point(331, 12);
             btn_cilentSocket.Margin = new Padding(6, 5, 6, 5);
             btn_cilentSocket.Name = "btn_cilentSocket";
             btn_cilentSocket.Size = new Size(167, 41);
@@ -4311,6 +4408,25 @@ namespace ModelTest
             btn_cilentSocket.Text = "连接";
             btn_cilentSocket.UseVisualStyleBackColor = true;
             btn_cilentSocket.Click += btn_clientSocket_Click;
+            // 
+            // textBoxPort
+            // 
+            textBoxPort.Location = new Point(76, 59);
+            textBoxPort.Margin = new Padding(6, 5, 6, 5);
+            textBoxPort.Name = "textBoxPort";
+            textBoxPort.Size = new Size(242, 34);
+            textBoxPort.TabIndex = 4;
+            textBoxPort.Text = "4000";
+            // 
+            // label2
+            // 
+            label2.AutoSize = true;
+            label2.Location = new Point(6, 61);
+            label2.Margin = new Padding(6, 0, 6, 0);
+            label2.Name = "label2";
+            label2.Size = new Size(59, 28);
+            label2.TabIndex = 2;
+            label2.Text = "Port:";
             // 
             // panel1
             // 
@@ -4356,7 +4472,7 @@ namespace ModelTest
             MaximizeBox = false;
             Name = "ModelMain";
             StartPosition = FormStartPosition.CenterScreen;
-            Text = "Model";
+            Text = "习承科技测试";
             WindowState = FormWindowState.Maximized;
             Load += ModelMain_Load;
             SizeChanged += ModelMain_SizeChanged;
@@ -4375,6 +4491,8 @@ namespace ModelTest
             groupBox10.ResumeLayout(false);
             groupBox10.PerformLayout();
             groupBox11.ResumeLayout(false);
+            panel9.ResumeLayout(false);
+            panel9.PerformLayout();
             panel6.ResumeLayout(false);
             panel6.PerformLayout();
             panel5.ResumeLayout(false);
@@ -4391,8 +4509,6 @@ namespace ModelTest
             groupBox4.ResumeLayout(false);
             groupBox3.ResumeLayout(false);
             groupBox3.PerformLayout();
-            tabPage10.ResumeLayout(false);
-            tabPage10.PerformLayout();
             tabPage7.ResumeLayout(false);
             tabPage7.PerformLayout();
             groupBox9.ResumeLayout(false);
@@ -4425,7 +4541,13 @@ namespace ModelTest
             statusStrip1.ResumeLayout(false);
             statusStrip1.PerformLayout();
             socketUnit.ResumeLayout(false);
-            socketUnit.PerformLayout();
+            groupBox14.ResumeLayout(false);
+            groupBox14.PerformLayout();
+            groupBox13.ResumeLayout(false);
+            groupBox13.PerformLayout();
+            groupBox12.ResumeLayout(false);
+            panel8.ResumeLayout(false);
+            panel8.PerformLayout();
             panel1.ResumeLayout(false);
             panel2.ResumeLayout(false);
             panel3.ResumeLayout(false);
@@ -4508,12 +4630,6 @@ namespace ModelTest
         private TabControl tabControl2;
         private TabPage tabPage9;
         private TabPage tabPage10;
-        private Button button1;
-        private TextBox textBox1;
-        private Button button2;
-        private TextBox textBox2;
-        private Label label23;
-        private Label label22;
         private ComboBox cbxTerminalV1;
         private Panel panel4;
         private Button btnChangeTerminalClass;
@@ -4769,5 +4885,21 @@ namespace ModelTest
         private Button tbxRangeOutputUI;
         private TextBox textBoxRangeOutputUI;
         private Label label118;
+        private ToolStripSplitButton toolStripSplitButton1;
+        private ToolStripMenuItem 服务器ToolStripMenuItem;
+        private ToolStripTextBox tstServerIp;
+        private ToolStripTextBox tstServerPort;
+        private ToolStripSeparator toolStripSeparator1;
+        private Panel panel8;
+        private GroupBox groupBox12;
+        private GroupBox groupBox13;
+        private GroupBox groupBox14;
+        private Label label119;
+        private Button TCPServerConnent;
+        private Panel panel9;
+        private Label label22;
+        private Button btn_changePCBDownAC;
+        private Button btn_changePCBUPAC;
+        private ComboBox cbx_changePCBUPAC;
     }
 }
