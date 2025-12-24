@@ -49,5 +49,26 @@ namespace ModelTest
             var ServerDataNew = parts.Select(p => p == "None" ? "None" : p).ToArray();
             return ServerDataNew;
         }
+
+        public static byte[] HexStringToByteArray(string hex)
+        {
+            // 移除所有空白字符
+            hex = hex.Replace(" ", "").Replace("\t", "").Replace("\n", "");
+            hex = hex.Replace("0X", string.Empty);
+            hex = hex.Replace("0x", string.Empty);
+            hex = hex.Replace(" ", string.Empty);
+            if (hex.Length % 2 != 0)
+            {
+                throw new ArgumentException("Hex字符串长度必须是偶数");
+            }
+
+            byte[] data = new byte[hex.Length / 2];
+            for (int i = 0; i < data.Length; i++)
+            {
+                string byteValue = hex.Substring(i * 2, 2);
+                data[i] = Convert.ToByte(byteValue, 16);
+            }
+            return data;
+        }
     }
 }

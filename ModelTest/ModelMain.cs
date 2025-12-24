@@ -8,6 +8,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Transactions;
 using System.Windows.Forms;
+using ModelTest.SerialPortImp;
 namespace ModelTest
 {
     public partial class ModelMain : Form
@@ -24,6 +25,8 @@ namespace ModelTest
 
         //加密机对象
         private WinSocketServer winSocketServer = new WinSocketServer();
+        //自定义串口对象
+        private SerialPortSocket portSocket = new SerialPortSocket();
         // 定义字典来存储所有控件的初始信息
         private Dictionary<System.Windows.Forms.Control, ControlInfo> _originalControlsInfo = new Dictionary<System.Windows.Forms.Control, ControlInfo>();
         private System.Drawing.Size _originalFormSize;
@@ -251,7 +254,7 @@ namespace ModelTest
                             }
                             else
                             {
-                                SerialPortSendACSIIData(mCU);
+                                portSocket.SerialPortSendACSIIDataOrHexData(mCU, true);
                             }
                         }
                     }
@@ -579,7 +582,7 @@ namespace ModelTest
             }
             try
             {
-                SendMCUData = HexStringToByteArray(hexString);
+                SendMCUData = ModelTool.HexStringToByteArray(hexString);
                 await stream.WriteAsync(SendMCUData, 0, SendMCUData.Length);
                 AddLog($"[PC-->MCU成功] {BitConverter.ToString(SendMCUData).Replace("-", " ")}");
             }
@@ -589,24 +592,7 @@ namespace ModelTest
                 throw;
             }
         }
-        private byte[] HexStringToByteArray(string hex)
-        {
-            // 移除所有空白字符
-            hex = hex.Replace(" ", "").Replace("\t", "").Replace("\n", "");
 
-            if (hex.Length % 2 != 0)
-            {
-                throw new ArgumentException("Hex字符串长度必须是偶数");
-            }
-
-            byte[] data = new byte[hex.Length / 2];
-            for (int i = 0; i < data.Length; i++)
-            {
-                string byteValue = hex.Substring(i * 2, 2);
-                data[i] = Convert.ToByte(byteValue, 16);
-            }
-            return data;
-        }
         public void Disconnect()
         {
             if (!isConnected) return;
@@ -687,12 +673,18 @@ namespace ModelTest
         /// <param name="e"></param>
         private void buttonOpen_Click(object sender, EventArgs e)
         {
+            bool portIsopen = portSocket.OpenSerialPort(
+                 MainSerialPort,
+                 comboBoxCOM.Text,
+                 Convert.ToInt32(comboBoxBaute.Text),
+                 Convert.ToInt32(textBoxdatabit.Text),
+                 comboBoxparity.Text,
+                 textBoxstopbit.Text
+                 );
             try
             {
-                if (MainSerialPort.IsOpen)
+                if (portIsopen)
                 {
-                    //串口是打开的状态
-                    MainSerialPort.Close();
                     buttonOpen.Text = "OPEN";
                     buttonOpen.BackColor = Color.YellowGreen;
                     comboBoxCOM.Enabled = true;
@@ -711,36 +703,13 @@ namespace ModelTest
                     textBoxstopbit.Enabled = false;
                     comboBoxparity.Enabled = false;
                     AddLog("串口已打开");
-                    MainSerialPort.PortName = comboBoxCOM.Text;//串口号
-                    MainSerialPort.BaudRate = Convert.ToInt32(comboBoxBaute.Text); //波特率
-                    MainSerialPort.DataBits = Convert.ToInt32(textBoxdatabit.Text);//数据位
-                    //校验位
-                    if (comboBoxparity.Text.Equals("NONE"))
-                        MainSerialPort.Parity = Parity.None;
-                    if (comboBoxparity.Text.Equals("ODD"))
-                        MainSerialPort.Parity = Parity.Odd;
-                    if (comboBoxparity.Text.Equals("EVEN"))
-                        MainSerialPort.Parity = Parity.Even;
-                    if (comboBoxparity.Text.Equals("MARK"))
-                        MainSerialPort.Parity = Parity.Mark;
-                    if (comboBoxparity.Text.Equals("SPACE"))
-                        MainSerialPort.Parity = Parity.Space;
-                    //停止位
-                    if (textBoxstopbit.Text.Equals("1"))
-                        MainSerialPort.StopBits = StopBits.One;
-                    if (textBoxstopbit.Text.Equals("1.5"))
-                        MainSerialPort.StopBits = StopBits.OnePointFive;
-                    if (textBoxstopbit.Text.Equals("2"))
-                        MainSerialPort.StopBits = StopBits.Two;
-
-                    MainSerialPort.Open();
                     buttonOpen.Text = "CLOSE";
                     buttonOpen.BackColor = Color.IndianRed;
                 }
             }
             catch (Exception ex_prot)
             {
-                //AddLog(ex_prot.ToString());
+                portSocket.SerialPortException(ex_prot);
                 SerialPortException(ex_prot);
             }
 
@@ -748,11 +717,8 @@ namespace ModelTest
 
         private void SerialPortException(object ex)
         {
-            MainSerialPort = new SerialPort();
             comboBoxCOM.Items.Clear();
-            comboBoxCOM.Items.AddRange(SerialPort.GetPortNames());
-            //响铃并显示异常展示给客户
-            System.Media.SystemSounds.Beep.Play();
+            comboBoxCOM.Items.AddRange(SerialPortSocket.GetPort());
             buttonOpen.Text = "OPEN";
             buttonOpen.BackColor = Color.YellowGreen;
             AddLog(ex?.ToString());
@@ -769,27 +735,9 @@ namespace ModelTest
         /// <param name="e"></param>
         private void btnflushPort_Click(object sender, EventArgs e)
         {
-            comboBoxCOM.Items.AddRange(SerialPort.GetPortNames());
+            comboBoxCOM.Items.AddRange(SerialPortSocket.GetPort());
         }
-        /// <summary>
-        /// 串口发送 acsii数据
-        /// </summary>
-        /// <param name="data"></param>
-        public void SerialPortSendACSIIData(string data)
-        {
-            try
-            {
-                if (data.Length != 0 && MainSerialPort.IsOpen)
-                {
-                    MainSerialPort.Write(data);
-                }
 
-            }
-            catch (Exception ex)
-            {
-                AddLog(ex.ToString());
-            }
-        }
         private long receive_count = 0;//接收字节数，全局变量
         private StringBuilder SerialSB = new StringBuilder();//
         /// <summary>
@@ -799,38 +747,13 @@ namespace ModelTest
         /// <param name="e"></param>
         public void MainSerialPort_DataReceived(object sender, SerialDataReceivedEventArgs e)
         {
-            try
-            {
-                int series_x = 0;
-                int num = MainSerialPort.BytesToRead;//获取缓冲区的字节
-                byte[] reviced_buf = new byte[num];
-                receive_count += num;//接收字节变量
-                MainSerialPort.Read(reviced_buf, 0, num);//读取缓冲期num字节存到字节数组中
-                SerialSB.Clear();
-                if (checkBoxISNOHEX.Checked)//hex
-                {
-                    foreach (var item in reviced_buf)
-                    {
-                        SerialSB.Append(item.ToString("X2" + " "));//将byte数组转换成16进制数据，空格隔开
-                    }
-                }
-                else
-                {
-                    SerialSB.Append(Encoding.ASCII.GetString(reviced_buf));//将数组转换成ascii数组
-                }
-                AddLog(SerialSB.ToString());
-
-            }
-            catch (Exception ex)
-            {
-                System.Media.SystemSounds.Beep.Play();
-                AddLog(ex.ToString());
-            }
+            string portstr = portSocket.SeriPortDataRevice(true);
+            AddLog(portstr);
         }
 
 
         /// <summary>
-        /// 
+        /// 控制回路
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
@@ -2020,8 +1943,8 @@ namespace ModelTest
         {
             LogMessage.Info(sender.ToString());
             byte[] MeterError = new byte[1024];
-            XYIresult =XYCtr.Call_Read_Pulse(int.Parse(tbxXYMeterPulse.Text), MeterError);
-            if (XYIresult ==1)
+            XYIresult = XYCtr.Call_Read_Pulse(int.Parse(tbxXYMeterPulse.Text), MeterError);
+            if (XYIresult == 1)
             {
                 AddLog("读取表位的脉冲数接口正常" + XYIresult);
             }
@@ -2030,7 +1953,7 @@ namespace ModelTest
                 AddLog(("读取表位的脉冲数接口异常" + XYIresult));
             }
         }
-       
+
         /// <summary>
         /// 读取新跃dll版本日期
         /// </summary>
@@ -2041,9 +1964,9 @@ namespace ModelTest
             LogMessage.Info(sender.ToString());
             byte[] StrVer = new byte[1024];
             XYIresult = XYCtr.CallFunctionReadVersion(StrVer);
-            if (XYIresult ==1)
+            if (XYIresult == 1)
             {
-                AddLog("读取新跃dll版本日期接口正常"+ XYIresult);
+                AddLog("读取新跃dll版本日期接口正常" + XYIresult);
             }
             else
             {
@@ -2078,7 +2001,7 @@ namespace ModelTest
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-        
+
         private void RangeOutputUI_Click(object sender, EventArgs e)
         {
             string RangeOutputUIData = textBoxRangeOutputUI.Text;
@@ -2091,7 +2014,7 @@ namespace ModelTest
             string ic = ServerDataNew[5];
             string StrUICommand = $"{ua}_{ub}_{uc}_{ia}_{ib}_{ic}";
             XYIresult = XYCtr.CallRangeOutputUI(StrUICommand);
-            if (XYIresult ==1)
+            if (XYIresult == 1)
             {
                 AddLog("设置RangeOutputUI接口正常" + XYIresult);
             }
@@ -2478,6 +2401,40 @@ namespace ModelTest
             ServerImp.DataSource = winSocketServer.WinSocketSericeImp();
             ServerImp.SelectedIndex = -1;
             ServerImp.SelectedIndexChanged += ServerImp_SelectedIndexChanged;
+        }
+        /// <summary>
+        /// textbox只能输入数字
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void TextboxOnlyNumber_KeyPressed(object sender, KeyPressEventArgs e)
+        {
+            if (e.KeyChar >= '0' && e.KeyChar <= '9' || e.KeyChar == 8)
+            {
+                e.Handled = false;//这可以输入
+            }
+            else
+            {
+                e.Handled = true;//不能输入
+            }
+        }
+        /// <summary>
+        /// textbox只能输入字母
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void TextboxOnlyAz_keyPress(object sender, KeyPressEventArgs e)
+        {
+
+            // e.KeyChar == 8 退格 删除
+            if ((e.KeyChar >= 'a' && e.KeyChar <= 'z') || (e.KeyChar >= 'A' && e.KeyChar <= 'Z') || e.KeyChar == 8)
+            {
+                e.Handled = false;//这可以输入
+            }
+            else
+            {
+                e.Handled = true;//不能输入
+            }
         }
     }
 }

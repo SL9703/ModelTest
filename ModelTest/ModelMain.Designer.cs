@@ -32,6 +32,7 @@ namespace ModelTest
         private void InitializeComponent()
         {
             components = new System.ComponentModel.Container();
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(ModelMain));
             tabControl1 = new TabControl();
             tabPage1 = new TabPage();
             TestUnit = new GroupBox();
@@ -374,8 +375,10 @@ namespace ModelTest
             textBoxPort = new TextBox();
             label2 = new Label();
             panel1 = new Panel();
+            toolStrip1 = new ToolStrip();
             panel2 = new Panel();
             panel3 = new Panel();
+            toolStripButton1 = new ToolStripSplitButton();
             tabControl1.SuspendLayout();
             tabPage1.SuspendLayout();
             TestUnit.SuspendLayout();
@@ -424,6 +427,7 @@ namespace ModelTest
             groupBox12.SuspendLayout();
             panel8.SuspendLayout();
             panel1.SuspendLayout();
+            toolStrip1.SuspendLayout();
             panel2.SuspendLayout();
             panel3.SuspendLayout();
             SuspendLayout();
@@ -689,6 +693,7 @@ namespace ModelTest
             tbxModelNumber.Size = new Size(102, 34);
             tbxModelNumber.TabIndex = 14;
             tbxModelNumber.Text = "1";
+            tbxModelNumber.KeyPress += TextboxOnlyNumber_KeyPressed;
             // 
             // cbxTerminalCLASS
             // 
@@ -1686,6 +1691,7 @@ namespace ModelTest
             tbxTerminalAdds.Size = new Size(102, 34);
             tbxTerminalAdds.TabIndex = 20;
             tbxTerminalAdds.Text = "1";
+            tbxTerminalAdds.KeyPress += TextboxOnlyNumber_KeyPressed;
             // 
             // cbx_TerminalV1_IN
             // 
@@ -2129,6 +2135,7 @@ namespace ModelTest
             tbx_sourcePort.Name = "tbx_sourcePort";
             tbx_sourcePort.Size = new Size(114, 34);
             tbx_sourcePort.TabIndex = 21;
+            tbx_sourcePort.KeyPress += TextboxOnlyNumber_KeyPressed;
             // 
             // label69
             // 
@@ -3979,6 +3986,7 @@ namespace ModelTest
             textBox3.Size = new Size(242, 34);
             textBox3.TabIndex = 8;
             textBox3.Text = "8001";
+            textBox3.KeyPress += TextboxOnlyNumber_KeyPressed;
             // 
             // LgServer
             // 
@@ -4021,7 +4029,7 @@ namespace ModelTest
             LogUnit.Margin = new Padding(6, 5, 6, 5);
             LogUnit.Name = "LogUnit";
             LogUnit.Padding = new Padding(6, 5, 6, 5);
-            LogUnit.Size = new Size(1924, 170);
+            LogUnit.Size = new Size(1924, 125);
             LogUnit.TabIndex = 2;
             LogUnit.TabStop = false;
             LogUnit.Text = "日志单元-右击清空日志";
@@ -4033,7 +4041,7 @@ namespace ModelTest
             panellog.Location = new Point(6, 33);
             panellog.Margin = new Padding(6, 5, 6, 5);
             panellog.Name = "panellog";
-            panellog.Size = new Size(1912, 132);
+            panellog.Size = new Size(1912, 87);
             panellog.TabIndex = 0;
             // 
             // textBoxlog
@@ -4049,7 +4057,7 @@ namespace ModelTest
             textBoxlog.Name = "textBoxlog";
             textBoxlog.ReadOnly = true;
             textBoxlog.ScrollBars = ScrollBars.Both;
-            textBoxlog.Size = new Size(1912, 132);
+            textBoxlog.Size = new Size(1912, 87);
             textBoxlog.TabIndex = 0;
             // 
             // contextMenuStrip1
@@ -4139,11 +4147,11 @@ namespace ModelTest
             socketUnit.Controls.Add(groupBox13);
             socketUnit.Controls.Add(groupBox12);
             socketUnit.Dock = DockStyle.Fill;
-            socketUnit.Location = new Point(0, 0);
+            socketUnit.Location = new Point(0, 38);
             socketUnit.Margin = new Padding(6, 5, 6, 5);
             socketUnit.Name = "socketUnit";
             socketUnit.Padding = new Padding(6, 5, 6, 5);
-            socketUnit.Size = new Size(1922, 173);
+            socketUnit.Size = new Size(1922, 180);
             socketUnit.TabIndex = 0;
             socketUnit.TabStop = false;
             socketUnit.Text = "通信单元";
@@ -4157,7 +4165,7 @@ namespace ModelTest
             groupBox14.Margin = new Padding(4, 3, 4, 3);
             groupBox14.Name = "groupBox14";
             groupBox14.Padding = new Padding(4, 3, 4, 3);
-            groupBox14.Size = new Size(532, 136);
+            groupBox14.Size = new Size(532, 143);
             groupBox14.TabIndex = 9;
             groupBox14.TabStop = false;
             groupBox14.Text = "TCP或UDP服务器";
@@ -4203,7 +4211,7 @@ namespace ModelTest
             groupBox13.Margin = new Padding(4, 3, 4, 3);
             groupBox13.Name = "groupBox13";
             groupBox13.Padding = new Padding(4, 3, 4, 3);
-            groupBox13.Size = new Size(852, 136);
+            groupBox13.Size = new Size(852, 143);
             groupBox13.TabIndex = 8;
             groupBox13.TabStop = false;
             groupBox13.Text = "串口通信";
@@ -4348,7 +4356,7 @@ namespace ModelTest
             groupBox12.Margin = new Padding(4, 3, 4, 3);
             groupBox12.Name = "groupBox12";
             groupBox12.Padding = new Padding(4, 3, 4, 3);
-            groupBox12.Size = new Size(526, 136);
+            groupBox12.Size = new Size(526, 143);
             groupBox12.TabIndex = 7;
             groupBox12.TabStop = false;
             groupBox12.Text = "TCPClient";
@@ -4365,7 +4373,7 @@ namespace ModelTest
             panel8.Location = new Point(4, 30);
             panel8.Margin = new Padding(4, 3, 4, 3);
             panel8.Name = "panel8";
-            panel8.Size = new Size(518, 103);
+            panel8.Size = new Size(518, 110);
             panel8.TabIndex = 6;
             // 
             // textBoxIP
@@ -4417,6 +4425,7 @@ namespace ModelTest
             textBoxPort.Size = new Size(242, 34);
             textBoxPort.TabIndex = 4;
             textBoxPort.Text = "4000";
+            textBoxPort.KeyPress += TextboxOnlyNumber_KeyPressed;
             // 
             // label2
             // 
@@ -4432,18 +4441,29 @@ namespace ModelTest
             // 
             panel1.BorderStyle = BorderStyle.FixedSingle;
             panel1.Controls.Add(socketUnit);
+            panel1.Controls.Add(toolStrip1);
             panel1.Dock = DockStyle.Top;
             panel1.Location = new Point(0, 0);
             panel1.Margin = new Padding(4, 3, 4, 3);
             panel1.Name = "panel1";
-            panel1.Size = new Size(1924, 175);
+            panel1.Size = new Size(1924, 220);
             panel1.TabIndex = 3;
+            // 
+            // toolStrip1
+            // 
+            toolStrip1.ImageScalingSize = new Size(28, 28);
+            toolStrip1.Items.AddRange(new ToolStripItem[] { toolStripButton1 });
+            toolStrip1.Location = new Point(0, 0);
+            toolStrip1.Name = "toolStrip1";
+            toolStrip1.Size = new Size(1922, 38);
+            toolStrip1.TabIndex = 10;
+            toolStrip1.Text = "toolStrip1";
             // 
             // panel2
             // 
             panel2.Controls.Add(tabControl1);
             panel2.Dock = DockStyle.Top;
-            panel2.Location = new Point(0, 175);
+            panel2.Location = new Point(0, 220);
             panel2.Margin = new Padding(4, 3, 4, 3);
             panel2.Name = "panel2";
             panel2.Size = new Size(1924, 679);
@@ -4453,11 +4473,20 @@ namespace ModelTest
             // 
             panel3.Controls.Add(LogUnit);
             panel3.Dock = DockStyle.Fill;
-            panel3.Location = new Point(0, 854);
+            panel3.Location = new Point(0, 899);
             panel3.Margin = new Padding(4, 3, 4, 3);
             panel3.Name = "panel3";
-            panel3.Size = new Size(1924, 170);
+            panel3.Size = new Size(1924, 125);
             panel3.TabIndex = 5;
+            // 
+            // toolStripButton1
+            // 
+            toolStripButton1.DisplayStyle = ToolStripItemDisplayStyle.Image;
+            toolStripButton1.Image = (Image)resources.GetObject("toolStripButton1.Image");
+            toolStripButton1.ImageTransparentColor = Color.Magenta;
+            toolStripButton1.Name = "toolStripButton1";
+            toolStripButton1.Size = new Size(52, 32);
+            toolStripButton1.Text = "toolStripButton1";
             // 
             // ModelMain
             // 
@@ -4549,6 +4578,9 @@ namespace ModelTest
             panel8.ResumeLayout(false);
             panel8.PerformLayout();
             panel1.ResumeLayout(false);
+            panel1.PerformLayout();
+            toolStrip1.ResumeLayout(false);
+            toolStrip1.PerformLayout();
             panel2.ResumeLayout(false);
             panel3.ResumeLayout(false);
             ResumeLayout(false);
@@ -4901,5 +4933,7 @@ namespace ModelTest
         private Button btn_changePCBDownAC;
         private Button btn_changePCBUPAC;
         private ComboBox cbx_changePCBUPAC;
+        private ToolStrip toolStrip1;
+        private ToolStripSplitButton toolStripButton1;
     }
 }
