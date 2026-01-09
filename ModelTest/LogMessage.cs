@@ -67,7 +67,38 @@ namespace ModelTest
                 // 如果日志写入失败，忽略异常避免循环
             }
         }
-      
+        /// <summary>
+        /// socket日志
+        /// </summary>
+        /// <param name="ex"></param>
+        public static void SocketLog(string? ex)
+        {
+            EnsureLogDirectoryExists();
+            string logPath = Path.Combine(_logDirectory, $"SocketLog_{logDateTime}.log");
+            string logMessage = $"[{DateTime.Now:yyyy-MM-dd HH:mm:sss}] - {ex?.ToString()}";
+            try
+            {
+                File.AppendAllText(logPath, logMessage + Environment.NewLine);
+            }
+            catch
+            {
+                // 如果日志写入失败，忽略异常避免循环
+            }
+        }
+        public static void TestLog(string? ex,string testName)
+        {
+            EnsureLogDirectoryExists();
+            string logPath = Path.Combine(_logDirectory, $"{testName}TestLog_{logDateTime}.log");
+            string logMessage = $"[{DateTime.Now:yyyy-MM-dd HH:mm:sss}] - {ex?.ToString()}";
+            try
+            {
+                File.AppendAllText(logPath, logMessage + Environment.NewLine);
+            }
+            catch
+            {
+                // 如果日志写入失败，忽略异常避免循环
+            }
+        }
         private static void EnsureLogDirectoryExists()
         {
             try

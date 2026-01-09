@@ -9,8 +9,9 @@ namespace ModelTest
         ///  The main entry point for the application.
         /// </summary>
         // 在文件顶部添加
-
-    [STAThread]
+        // 静态主窗体引用
+        public static ModelMain MainForm { get; private set; }
+        [STAThread]
         static void Main()
         {
             // To customize application configuration such as set high DPI settings or default font,
@@ -25,7 +26,9 @@ namespace ModelTest
 
                 Application.EnableVisualStyles();
                 Application.SetCompatibleTextRenderingDefault(false);
-                Application.Run(new ModelMain());
+                MainForm = new ModelMain();
+                Application.Run(MainForm);
+                //Application.Run(new MeterTest.MeterTest());
             }
             catch (Exception ex)
             {
@@ -35,7 +38,7 @@ namespace ModelTest
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Error);
             }
-    }
+        }
 
         private static void CurrentDomain_UnhandledException(object sender, UnhandledExceptionEventArgs e)
         {

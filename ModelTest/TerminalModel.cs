@@ -141,5 +141,21 @@ namespace ModelTest
             }
             return "00";
         }
+        //1：表示源表2：表示功放3：表示先上源表，8秒后上功放4：读取状态
+        public static string GetTerminalSourceType(int sourceType)
+        {
+            switch (sourceType)
+            {
+                case 0:
+                    return "01";
+                case 1:
+                    return "02";
+                case 2:
+                    return "03";
+                case 3:
+                    return "04";
+            }
+            return "00";
+        }
     }
 }

@@ -49,7 +49,12 @@ namespace ModelTest
             var ServerDataNew = parts.Select(p => p == "None" ? "None" : p).ToArray();
             return ServerDataNew;
         }
-
+        /// <summary>
+        /// Hex字符串转换为字节数组
+        /// </summary>
+        /// <param name="hex"></param>
+        /// <returns></returns>
+        /// <exception cref="ArgumentException"></exception>
         public static byte[] HexStringToByteArray(string hex)
         {
             // 移除所有空白字符
@@ -69,6 +74,27 @@ namespace ModelTest
                 data[i] = Convert.ToByte(byteValue, 16);
             }
             return data;
+        }
+        /// <summary>
+        /// 去空
+        /// </summary>
+        /// <param name="bytes"></param>
+        /// <returns></returns>
+        public static byte[] bytesTrimEnd(byte[] bytes)
+        {
+            List<byte> list = bytes.ToList();
+            for (int i = bytes.Length - 1; i >= 0; i--)
+            {
+                if (bytes[i] == 0x00)
+                {
+                    list.RemoveAt(i);
+                }
+                else
+                {
+                    break;
+                }
+            }
+            return list.ToArray();
         }
     }
 }

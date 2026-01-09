@@ -3,12 +3,10 @@ using System.Data;
 using System.IO.Ports;
 using System.Net;
 using System.Net.Sockets;
-using System.Reflection;
-using System.Runtime.InteropServices;
 using System.Text;
-using System.Transactions;
-using System.Windows.Forms;
 using ModelTest.SerialPortImp;
+using ModelTest.Socket_DLL;
+using ModelTest.MeterTest;
 namespace ModelTest
 {
     public partial class ModelMain : Form
@@ -27,6 +25,9 @@ namespace ModelTest
         private WinSocketServer winSocketServer = new WinSocketServer();
         //自定义串口对象
         private SerialPortSocket portSocket = new SerialPortSocket();
+        // 获取UI线程的SynchronizationContext
+        private readonly SynchronizationContext _uiContext;
+
         // 定义字典来存储所有控件的初始信息
         private Dictionary<System.Windows.Forms.Control, ControlInfo> _originalControlsInfo = new Dictionary<System.Windows.Forms.Control, ControlInfo>();
         private System.Drawing.Size _originalFormSize;
@@ -80,6 +81,7 @@ namespace ModelTest
         public ModelMain()
         {
             InitializeComponent();
+            _uiContext = SynchronizationContext.Current;
             // 处理UI线程异常
             Application.ThreadException += (sender, e) =>
             {
@@ -98,6 +100,8 @@ namespace ModelTest
 
             // 可选：禁用最小化按钮
             // this.MinimizeBox = false;
+            //设置背景颜色58957f
+            this.BackColor = Color.FromArgb(88, 149, 127);
 
             // 可选：设置窗体不能最大化（额外保障）
             this.MaximumSize = this.MinimumSize = this.Size;
@@ -120,6 +124,9 @@ namespace ModelTest
             this.UpdateStyles();
 
             CheckItemSetUpFrom();
+            checkBox1_CheckedChanged(sender, e);//初始化模组0x01 0x31命令选择状态
+            cbxRevcHEX_CheckedChanged(sender, e);//初始化接收HEX状态。tcpserver用到
+            cbxSendHEX_CheckedChanged(sender, e);//初始化发送HEX状态。tcpserver用到
             AddLog("应用程序已启动成功");
             LogMessage.Info("应用程序已启动成功");
         }
@@ -182,6 +189,8 @@ namespace ModelTest
             cbbxSTAModel.SelectedIndex = 0;//选择sta模组
             cbxSTAModePinStatus.SelectedIndex = 0;//sta模块引脚状态
             comboBoxSTAStutas.SelectedIndex = 0;//读取sta模块状态用到
+            cbxSocketClass.SelectedIndex = 1;//socket类型选择 tcpclient
+
             cbxTerminalV1.DataSource = Enum.GetValues(typeof(TerminalV1CLASS)).Cast<TerminalV1CLASS>().Select(x => new
             {
                 终端类型 = ModelTool.GetDescription(x)
@@ -431,18 +440,15 @@ namespace ModelTest
             textBoxlog.ScrollToCaret();
             LogMessage.Debug(Message);
         }
-
         #region tcpclient 代码
         private TcpClient? client;
         private NetworkStream stream;
         private volatile bool isConnected;
         private IPEndPoint _remoteEndPoint;
         private readonly byte[] buffer = new byte[4096];
-        //private readonly ThreadSafeLogger logger = ThreadSafeLogger.Instance;
         private readonly StringBuilder _messageBuffer = new StringBuilder();
         private readonly object _lock = new object();
         private CancellationTokenSource _cts;
-        //public event Action<string> MessageReceived;
         public event Action<string> ConnectionStatusChanged;
         private IPAddress serverIP;
         private int serverPort;
@@ -612,9 +618,6 @@ namespace ModelTest
         public new void Dispose() => Disconnect();
 
         #endregion
-        #region tcpServer代码
-
-        #endregion
 
         private void btn_cilentSocket_Close_Click(object sender, EventArgs e)
         {
@@ -625,18 +628,22 @@ namespace ModelTest
 
         private void checkBox1_CheckedChanged(object sender, EventArgs e)
         {
-            if (checkBox1.Checked)
+            // 初始化设置
+            checkBox1.CheckedChanged += (s, e) =>
             {
-                checkBox2.Checked = false;
-            }
-        }
+                if (checkBox1.Checked)
+                {
+                    checkBox2.Checked = false;
+                }
+            };
 
-        private void checkBox2_CheckedChanged(object sender, EventArgs e)
-        {
-            if (checkBox2.Checked)
+            checkBox2.CheckedChanged += (s, e) =>
             {
-                checkBox1.Checked = false;
-            }
+                if (checkBox2.Checked)
+                {
+                    checkBox1.Checked = false;
+                }
+            };
         }
         /// <summary>
         /// 国网广播报文
@@ -1475,21 +1482,47 @@ namespace ModelTest
             }
         }
         /// <summary>
-        /// 切换版上电
+        /// 切换版上电 0x41
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-        private void btn_changePCBUPAC_Click(object sender, EventArgs e)
+        private async void btn_changePCBUPAC_Click(object sender, EventArgs e)
+        {
+            LogMessage.Info(sender.ToString());
+            MCUAddr = tbxTerminalAdds.Text;//地址
+            var sourcestatus = TerminalModel.GetTerminalSourceType(cbx_changePCBUPAC.SelectedIndex);
+            var Terminal_ChangePCBUpAC = TerminalModel.TerminalByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUCtrl, "41", $"{sourcestatus}01", MCUStopByte);//07 00 01 00 41 01 00
+            await SeedMethod(Terminal_ChangePCBUpAC);
+        }
+        /// <summary>
+        /// 切换版下电 0x41
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+
+        private async void btn_changePCBDownAC_Click(object sender, EventArgs e)
+        {
+            LogMessage.Info(sender.ToString());
+            MCUAddr = tbxTerminalAdds.Text;//地址
+            var sourcestatus = TerminalModel.GetTerminalSourceType(cbx_changePCBUPAC.SelectedIndex);
+            var Terminal_ChangePCBDownAC = TerminalModel.TerminalByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUCtrl, "41", $"{sourcestatus}00", MCUStopByte);//07 00 01 00 41 01 00
+            await SeedMethod(Terminal_ChangePCBDownAC);
+        }
+        /// <summary>
+        /// 标准表切换源 0x42 0x00 切换标准表源
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void btnstandardSource_Click(object sender, EventArgs e)
         {
 
         }
         /// <summary>
-        /// 切换版下电
+        /// 电工源切换源 0x42 0x01 切换电工源
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-
-        private void btn_changePCBDownAC_Click(object sender, EventArgs e)
+        private void btnelectriciansource_Click(object sender, EventArgs e)
         {
 
         }
@@ -2092,7 +2125,7 @@ namespace ModelTest
             if (e.Index == this.tabControl1.SelectedIndex)    //当前Tab页的样式
             {
                 fntTab = e.Font;
-                bshBack = new SolidBrush(Color.FromArgb(255, 255, 0)); //选中的标签颜色变为红色
+                bshBack = new SolidBrush(Color.FromArgb(88, 149, 127)); //选中的标签颜色变为国网绿色
                 bshFore = new SolidBrush(Color.Black);
             }
             else    //其余Tab页的样式
@@ -2435,6 +2468,388 @@ namespace ModelTest
             {
                 e.Handled = true;//不能输入
             }
+        }
+        /// <summary>
+        /// 启动tcp侦听服务器
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private Socket_DLL.Socket_DLL server;
+        //获取客户端名称字典
+        private readonly Dictionary<string, string> _clientNames = new Dictionary<string, string>();
+        private void TCPServerConnent_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                string ServerIp = cbxIp.Text;
+                int ServerPort = int.Parse(cbxPort.Text);
+                server = new Socket_DLL.Socket_DLL(ServerIp, ServerPort);
+                if (ServerPort < 1 || ServerPort > 65535)
+                {
+                    AddLog(ServerIp + "端口号输入不正确，请输入1-65535之间的数字！");
+                    return;
+                }
+                switch (TCPServerConnent.Text)
+                {
+                    case "TCP服务器侦听":
+                        //启动服务
+                        var serverTask = Task.Run(() => server.StartAsync());
+                        // 订阅服务器事件
+                        server.MessageReceived += OnMessageReceived;
+                        server.ClientConnected += OnClientConnected;
+                        server.ClientDisconnected += OnClientDisconnected;
+                        server.ServerError += OnServerError;
+                        server.ServerStatusChanged += OnServerStatusChanged;
+                        AddLog("启动TCP侦听服务器成功，监听IP：" + ServerIp + "，端口：" + ServerPort);
+                        TCPServerConnent.Text = "关闭TCP服务器";
+                        break;
+                    case "关闭TCP服务器":
+                        //关闭服务
+                        server.Stop();
+                        server.Dispose();
+                        AddLog("关闭TCP侦听服务器成功");
+                        TCPServerConnent.Text = "TCP服务器侦听";
+                        break;
+                    case "TCP客户端连接":
+                        break;
+                    case "关闭TCP客户端":
+                        break;
+                    case "UDP服务器侦听":
+                        break;
+                    case "关闭UDP服务器":
+                        break;
+                    default:
+                        break;
+                }
+#if false 
+                if (TCPServerConnent.Text == "TCP服务器侦听")
+                {
+                    //启动服务
+                    var serverTask = Task.Run(() => server.StartAsync());
+                    // 订阅服务器事件
+                    server.MessageReceived += OnMessageReceived;
+                    server.ClientConnected += OnClientConnected;
+                    server.ClientDisconnected += OnClientDisconnected;
+                    server.ServerError += OnServerError;
+                    server.ServerStatusChanged += OnServerStatusChanged;
+                    AddLog("启动TCP侦听服务器成功，监听IP：" + ServerIp + "，端口：" + ServerPort);
+                    TCPServerConnent.Text = "关闭TCP服务器";
+                }
+                else if (TCPServerConnent.Text == "关闭TCP服务器")
+                {
+                    //关闭服务
+                    server.Stop();
+                    server.Dispose();
+                    AddLog("关闭TCP侦听服务器成功");
+                    TCPServerConnent.Text = "TCP服务器侦听";
+                } 
+#endif
+            }
+            catch (Exception ex)
+            {
+                LogMessage.Error(ex);
+            }
+        }
+        /// <summary>
+        /// 发送消息
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void btnSendData_Click(object sender, EventArgs e)
+        {
+            if (server == null || !server.IsRunning)
+            {
+                AddLog("错误，服务器未启动");
+                return;
+            }
+            if (!cbxIsBroadcastMessage.Checked)
+            {
+                _ = SendMessage(cbxClientConnc.Text, rtbxSendData.Text);
+            }
+            else
+            {
+                _ = BroadcastMessage(rtbxSendData.Text);
+            }
+
+        }
+        /// <summary>
+        /// 发送消息到指定客户端
+        /// </summary>
+        /// <param name="clientId"></param>
+        /// <param name="message"></param>
+        /// <returns></returns>
+        private async Task SendMessage(string clientId, string message)
+        {
+            bool success;
+            if (string.IsNullOrEmpty(clientId))
+            {
+                AddLog("错误,请选择或输入客户端ID");
+                return;
+            }
+
+            if (string.IsNullOrEmpty(message))
+            {
+                AddLog("错误消息不能为空");
+                return;
+            }
+            if (cbxSendHEX.Checked)
+            {
+                success = await server.SendAsync(clientId, message, true);
+            }
+            else
+            {
+                success = await server.SendAsync(clientId, message, false);
+            }
+            if (success)
+            {
+                LogMessage.SocketLog($"发送消息--> {message} 至客户端 {clientId}");
+                rtbxRevcData.AppendText($"[{DateTime.Now:HH:mm:ss.fff}]发送消息--> {message} 至客户端 {clientId}\r\n");
+            }
+            else
+            {
+                //AddLog($"发送失败,无法发送消息到客户端 {clientId}");
+                rtbxRevcData.AppendText($"[{DateTime.Now:HH:mm:ss.fff}]\"发送失败,无法发送消息到客户端{clientId}\r\n");
+            }
+        }
+        /// <summary>
+        /// 广播消息
+        /// </summary>
+        /// <param name="message"></param>
+        /// <returns></returns>
+        private async Task BroadcastMessage(string message)
+        {
+            bool success;
+            if (string.IsNullOrEmpty(message))
+            {
+                rtbxRevcData.AppendText("错误，消息不能为空");
+                return;
+            }
+            if (cbxSendHEX.Checked)
+            {
+                success = await server.BroadcastAsync(message, true);
+            }
+            else
+            {
+                success = await server.BroadcastAsync(message, false);
+            }
+            rtbxRevcData.AppendText(success ? "广播消息成功" : "广播消息失败");
+        }
+
+        private void UpdateUI(Action action)
+        {
+            if (InvokeRequired)
+            {
+                Invoke(action);
+            }
+            else
+            {
+                action();
+            }
+        }
+        private void OnServerStatusChanged(object? sender, string statusMessage)
+        {
+            UpdateUI(() =>
+            {
+                AddLog($"[状态] {statusMessage}");
+            });
+        }
+
+        private void OnServerError(object? sender, string error)
+        {
+            UpdateUI(() =>
+            {
+                AddLog($"[错误] {error}");
+            });
+        }
+
+        private void OnClientDisconnected(object sender, ClientStatusChangedEventArgs e)
+        {
+            UpdateUI(() =>
+            {
+                _clientNames.Remove(e.ClientId);
+                UpdateClientList();
+                AddLog($"[{e.ChangeTime:HH:mm:ss}] 客户端断开: {e.ClientEndpoint}");
+            });
+        }
+
+        private void OnClientConnected(object sender, ClientStatusChangedEventArgs e)
+        {
+            UpdateUI(() =>
+            {
+                _clientNames[e.ClientId] = $"客户端 {e.ClientId.Substring(0, 8)}";
+                UpdateClientList();
+                AddLog($"[{e.ChangeTime:HH:mm:ss}] 客户端连接: {e.ClientEndpoint}");
+            });
+        }
+        private void OnMessageReceived(object sender, MessageReceivedEventArgs e)
+        {
+            StringBuilder sb = new StringBuilder();
+            UpdateUI(() =>
+            {
+                // 更新客户端列表活动状态
+                UpdateClientList();
+
+                // 添加到日志
+                LogMessage.SocketLog($"接受消息<-- {e.ClientEndpoint} 的数据: {e.Message}");
+                //转换成byte数组数据
+                byte[] dataBytes = System.Text.Encoding.Default.GetBytes(e.Message);
+                if (cbxRevcHEX.Checked)
+                {
+                    foreach (byte b in dataBytes)
+                    {
+                        sb.Append(b.ToString("X2") + ' ');//将byte型数据转化为2位16进制文本显示,用空格隔开
+                    }
+                }
+                else
+                {
+                    sb.Append(Encoding.ASCII.GetString(dataBytes));  //将整个数组解码为ASCII数组
+                    //var log = $"[{e.ReceivedTime:HH:mm:ss}] 来自 {e.ClientEndpoint} 的数据: {e.Message}";
+                    //rtbxRevcData.AppendText(log + "\r\n");
+                }
+                var log = $"[{e.ReceivedTime:HH:mm:ss}] 来自 {e.ClientEndpoint} 的数据: {sb.ToString()}";
+                rtbxRevcData.AppendText(log + "\r\n");
+                // 可以在这里处理特定消息并返回给特定控件
+            });
+        }
+        private void UpdateClientList()
+        {
+            cbxClientConnc.Items.Clear();
+            foreach (var clientInfo in server.GetAllClientInfos())
+            {
+                var displayName = _clientNames.ContainsKey(clientInfo.Id)
+                    ? _clientNames[clientInfo.Id]
+                    : clientInfo.Endpoint;
+
+                var item = $"{clientInfo.Id.ToString()}";
+                cbxClientConnc.Items.Add(item);
+            }
+        }
+        /// <summary>
+        /// 网络类型选择改变
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void cbxSocketClass_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            //UDP
+            //TCPClient
+            //TCPServer
+            string SocketType = cbxSocketClass.Text;
+
+            switch (SocketType)
+            {
+                case "UDP":
+                    SelectNet();
+                    TCPServerConnent.Text = "UDP服务器侦听";
+                    break;
+                case "TCPClient":
+                    SelectNet();
+                    TCPServerConnent.Text = "TCP客户端连接";
+                    break;
+                case "TCPServer":
+                    SelectNet();
+                    TCPServerConnent.Text = "TCP服务器侦听";
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        private void SelectNet()
+        {
+            var localIPs = GetLocalIPv4Addresses();
+            cbxIp.Items.Clear();
+            label23.Text = "（2）远程主机地址";
+            label120.Text = "（3）远程主机端口";
+            foreach (var ip in localIPs)
+            {
+                cbxIp.Items.Add(ip.ToString());
+            }
+            cbxIp.SelectedIndex = 0;
+        }
+
+        static string[] GetLocalIPv4Addresses()
+        {
+            var host = Dns.GetHostEntry(Dns.GetHostName());
+            return host.AddressList
+                .Where(ip => ip.AddressFamily == AddressFamily.InterNetwork)
+                .Select(ip => ip.ToString())
+                .ToArray();
+        }
+
+        private void button2_Click(object sender, EventArgs e)
+        {
+            rtbxRevcData.Text = "";
+        }
+
+        private void button8_Click(object sender, EventArgs e)
+        {
+            rtbxSendData.Text = "";
+        }
+
+        private void cbxRevcHEX_CheckedChanged(object sender, EventArgs e)
+        {
+            // 初始化设置
+            cbxRevcHEX.CheckedChanged += (s, e) =>
+            {
+                if (cbxRevcHEX.Checked)
+                {
+                    cbxRevcASCII.Checked = false;
+                }
+            };
+
+            cbxRevcASCII.CheckedChanged += (s, e) =>
+            {
+                if (cbxRevcASCII.Checked)
+                {
+                    cbxRevcHEX.Checked = false;
+                }
+            };
+        }
+
+        private void cbxSendHEX_CheckedChanged(object sender, EventArgs e)
+        {
+            // 初始化设置
+            cbxSendHEX.CheckedChanged += (s, e) =>
+            {
+                if (cbxSendHEX.Checked)
+                {
+                    cbxSendASCII.Checked = false;
+                }
+            };
+
+            cbxSendASCII.CheckedChanged += (s, e) =>
+            {
+                if (cbxSendASCII.Checked)
+                {
+                    cbxSendHEX.Checked = false;
+                }
+            };
+        }
+        /// <summary>
+        /// 终端检测
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+
+        private void tsbtnTerminalTest_Click(object sender, EventArgs e)
+        {
+            TerminalTest terminalTest = new TerminalTest();
+            terminalTest.OwnerForm = this;
+            this.Hide();
+            terminalTest.Show();
+        }
+        /// <summary>
+        /// 电表检测
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void tsbtnMeterTest_Click(object sender, EventArgs e)
+        {
+            MeterTest.MeterTest meterTest = new MeterTest.MeterTest();
+            meterTest.OwnerForm = this;
+            this.Hide();
+            meterTest.Show();
         }
     }
 }
