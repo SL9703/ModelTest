@@ -21,6 +21,7 @@ namespace ModelTest.Socket_DLL.Socket_Client
         private const int DEFAULT_RECONNECT_INTERVAL = 5000;  // 5秒
         private const int DEFAULT_RECEIVE_TIMEOUT = 30000;    // 30秒
         private const int DEFAULT_SEND_TIMEOUT = 30000;       // 30秒
+        public const bool DEFAULT_IsHexOrAscii = false; // 确定展示hex数据还是ascii数据
         #endregion
         #region 事件
         public event TcpClientMessageHandler MessageReceived;
@@ -320,12 +321,12 @@ namespace ModelTest.Socket_DLL.Socket_Client
                             });
                             break;
                         }
-
+                        //更新统计数据
                         _lastReceiveTime = DateTime.Now;
                         _totalBytesReceived += bytesRead;
 
                         // 处理接收到的数据
-                        await ProcessReceivedData(buffer, bytesRead, messageBuffer);
+                        await ProcessReceivedData(buffer, bytesRead);
                     }
                     catch (OperationCanceledException)
                     {
@@ -364,54 +365,25 @@ namespace ModelTest.Socket_DLL.Socket_Client
             }
         }
 
-        private async Task ProcessReceivedData(byte[] buffer, int bytesRead, MemoryStream messageBuffer)
+        private async Task ProcessReceivedData(byte[] buffer, int bytesRead)
         {
-            // 将数据写入缓冲区
-            messageBuffer.Write(buffer, 0, bytesRead);
-
-            // 尝试解析完整消息（假设以换行符分隔）
-            messageBuffer.Position = 0;
-            using (var reader = new StreamReader(messageBuffer, _encoding, false, 1024, true))
+            // 将数据复制到新的数组
+            byte[] receivedData = new byte[bytesRead];
+            Array.Copy(buffer, 0, receivedData, 0, bytesRead);
+            // 触发消息接收事件
+            OnMessageReceived(new TcpClientMessageEventArgs
             {
-                string content = reader.ReadToEnd();
-
-                // 查找完整消息
-                int newLineIndex;
-                while ((newLineIndex = content.IndexOf('\n')) >= 0)
-                {
-                    string message = content.Substring(0, newLineIndex).TrimEnd('\r');
-
-                    if (!string.IsNullOrEmpty(message))
-                    {
-                        // 触发消息接收事件
-                        OnMessageReceived(new TcpClientMessageEventArgs
-                        {
-                            Message = message,
-                            RawData = _encoding.GetBytes(message),
-                            Timestamp = DateTime.Now,
-                            Direction = TcpClientMessageEventArgs.MessageDirection.Received
-                        });
-
-                        // 处理特殊消息
-                        await ProcessSpecialMessage(message);
-                    }
-
-                    // 移除已处理的消息
-                    content = content.Substring(newLineIndex + 1);
-                }
-
-                // 重置缓冲区，保留未处理的剩余数据
-                messageBuffer.SetLength(0);
-                if (content.Length > 0)
-                {
-                    byte[] remainingData = _encoding.GetBytes(content);
-                    messageBuffer.Write(remainingData, 0, remainingData.Length);
-                }
-            }
+                Message = _encoding.GetString(receivedData,0, receivedData.Length),
+                RawData = receivedData,
+                Timestamp = DateTime.Now,
+                Direction = TcpClientMessageEventArgs.MessageDirection.Received
+            });
+            await ProcessSpecialMessage(receivedData);
         }
 
-        private async Task ProcessSpecialMessage(string message)
+        private async Task ProcessSpecialMessage(byte[] data)
         {
+            string message = _encoding.GetString(data).Trim();
             // 处理心跳响应
             if (message.Equals("PONG", StringComparison.OrdinalIgnoreCase) ||
                 message.Equals("HEARTBEAT_ACK", StringComparison.OrdinalIgnoreCase))
@@ -703,7 +675,7 @@ namespace ModelTest.Socket_DLL.Socket_Client
             int delay = baseDelay * (int)Math.Pow(2, _reconnectAttempts - 1);
             return Math.Min(delay, maxDelay);
         }
-     
+
         private async void OnReconnectTimerElapsed(object sender, ElapsedEventArgs e)
         {
             StopReconnectTimer();
@@ -862,7 +834,7 @@ namespace ModelTest.Socket_DLL.Socket_Client
                 _disposed = true;
             }
         }
-        
+
         public void Dispose()
         {
             Dispose(true);

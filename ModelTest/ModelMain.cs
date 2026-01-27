@@ -6,11 +6,7 @@ using System.Net.Sockets;
 using System.Text;
 using ModelTest.SerialPortImp;
 using ModelTest.Socket_DLL;
-using ModelTest.MeterTest;
 using ModelTest.Socket_DLL.Socket_Client;
-using System.Net.Http;
-using System.Threading.Tasks;
-using System.Windows.Forms;
 namespace ModelTest
 {
     public partial class ModelMain : Form
@@ -206,45 +202,90 @@ namespace ModelTest
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
+        private EnhancedTcpClient client;
         private async void btn_clientSocket_Click(object sender, EventArgs e)
         {
-            IPAddress ip = IPAddress.Parse(textBoxIP.Text);
+            string ip = textBoxIP.Text;
             int port = int.Parse(textBoxPort.Text);
-            bool success = false;
             try
             {
                 if (client == null)
                 {
-                    client = new TcpClient();
-                    ConnectionStatusChanged += status => this.BeginInvoke((Action)(() => lblconnectStatus.Text = $"状态：{status}"));
-                    success = await ConnectAsync(
-                      ip,
-                      port);
-                    //btn_cilentSocket.Enabled = false;
-                    //btn_cilentSocket_Close.Enabled = true;
+                    client = new EnhancedTcpClient();
+                    // 订阅事件
+                    client.MessageReceived += OnMCUMessageReceived;//监听服务器传来的消息事件
+                    client.MessageSent += OnMessageSent;//传输文件事件
+                    client.ConnectionStatusChanged += OnMCUConnectionStatusChanged;//连接状态改变事件
+                    client.ErrorOccurred += OnErrorOccurred;
+                    client.BytesTransferred += OnBytesTransferred;
+                    bool connected = await client.ConnectAsync(ip, port);
+                    if (connected)
+                    {
+                        btn_cilentSocket.Text = "关闭";
+                        lblconnectStatus.Text = "TCP客户端状态：已连接";
+                        lblconnectStatus.ForeColor = Color.Green;
+                    }
+                    else
+                    {
+                        AddLog($"TCP客户端 - 连接 {ip}:{port} 失败");
+                        btn_cilentSocket.Text = "连接";
+                        lblconnectStatus.Text = "TCP客户端状态：未连接";
+                        lblconnectStatus.ForeColor = Color.Red;
+                    }
                 }
                 else
                 {
-                    Disconnect();
+                    client.Disconnect();
                     client = null;
                     AddLog("状态：已断开");
+                    lblconnectStatus.Text = "TCP客户端状态：未连接";
                     lblconnectStatus.ForeColor = Color.Red;
-                    //btn_cilentSocket_Close.Enabled = false;
-                    //btn_cilentSocket.Enabled = true;
                 }
             }
             catch (Exception ex)
             {
                 AddLog($"Error: {ex.Message}");
             }
-            if (!success)
+        }
+        private void OnMCUMessageReceived(object sender, TcpClientMessageEventArgs e)
+        {
+
+            UpdateUI(() =>
             {
-                client = null;
-                lblconnectStatus.Text = "状态：连接失败";
-                lblconnectStatus.ForeColor = Color.Red;
-                btn_cilentSocket_Close.Enabled = false;
-                btn_cilentSocket.Enabled = true;
-            }
+                //显示原始数据
+                string hexData = BitConverter.ToString(e.RawData).Replace("-", " ");
+                string asciiData = Encoding.ASCII.GetString(e.RawData);
+                // 更新状态显示
+                if (cbxRevcASCII.Checked)
+                {
+                    AddLog($"接收消息成功[PC<--MCU]: {asciiData}",Color.Lime);
+                    LogMessage.Debug($"接受消息成功[PC<-- MCU]的数据: {asciiData}");
+                }
+                else
+                {
+                    AddLog($"接收消息成功[PC<--MCU] : {hexData}", Color.Lime);
+                    LogMessage.Debug($"接受消息成功[PC<-- MCU]的数据: {hexData}");
+                }
+            });
+        }
+        private void OnMCUConnectionStatusChanged(object sender, TcpClientStatusEventArgs e)
+        {
+            UpdateUI(() =>
+            {
+                string statusText = e.IsConnected ? "✅ 已连接" : "❌ 已断开";
+                string color = e.IsConnected ? "Green" : "Red";
+
+                AddLog($"[{e.Timestamp:HH:mm:ss}] {statusText}: {e.Status}");
+                // 更新窗体标题
+                if (e.IsConnected)
+                {
+                    this.Text = $"TCP客户端 - 已连接到 {client.ServerEndpoint}";
+                }
+                else if (client.Status == "Disconnected")
+                {
+                    this.Text = "TCP客户端 - 未连接";
+                }
+            });
         }
         /// <summary>
         /// 判断空方法
@@ -261,11 +302,19 @@ namespace ModelTest
                     {
                         if (mCU != null)
                         {
-                            if (!cbxIsNoPortSeed.Checked)
+                            if (!cbxIsNoPortSeed.Checked && client !=null)
                             {
-                                await SendHexAsync(mCU);
+                                bool send = await client.SendBytesAsync(ModelTool.HexStringToByteArray(mCU));
+                                if (send)
+                                {
+                                    AddLog($"发送消息成功[PC-->MCU] : {BitConverter.ToString(ModelTool.HexStringToByteArray(mCU)).Replace("-"," ")}",Color.Red);
+                                }
+                                else
+                                {
+                                    AddLog($"发送消息成功[PC-->MCU] : {BitConverter.ToString(ModelTool.HexStringToByteArray(mCU)).Replace("-", " ")}",Color.Red);
+                                }
                             }
-                            else
+                            else if (buttonOpen.Text == "CLOSE")
                             {
                                 portSocket.SerialPortSendACSIIDataOrHexData(mCU, true);
                             }
@@ -444,171 +493,20 @@ namespace ModelTest
             textBoxlog.ScrollToCaret();
             LogMessage.Debug(Message);
         }
-        #region tcpclient 代码
-        private TcpClient? client;
-        private NetworkStream stream;
-        private volatile bool isConnected;
-        private IPEndPoint _remoteEndPoint;
-        private readonly byte[] buffer = new byte[4096];
-        private readonly StringBuilder _messageBuffer = new StringBuilder();
-        private readonly object _lock = new object();
-        private CancellationTokenSource _cts;
-        public event Action<string> ConnectionStatusChanged;
-        private IPAddress serverIP;
-        private int serverPort;
-        public async Task<bool> ConnectAsync(IPAddress ip, int port, int timeout = 3000)
-        {
-            serverIP = ip;
-            serverPort = port;
-            try
-            {
-                client = new TcpClient();
-                _remoteEndPoint = new IPEndPoint(ip, port);
-                _cts = new CancellationTokenSource();
-
-                var connectTask = client.ConnectAsync(ip, port);
-                // client.Connect(ip, port);
-                btn_cilentSocket.Enabled = false;
-                btn_cilentSocket_Close.Enabled = true;
-                // 设置连接超时
-                if (await Task.WhenAny(connectTask, Task.Delay(timeout)) != connectTask)
-                {
-                    AddLog($"连接超时 ({ip}:{port})");
-                    ConnectionStatusChanged?.Invoke("连接超时");
-                    return false;
-                }
-                await connectTask; // 确保异常被捕获
-                stream = client.GetStream();
-                //_ = ReceiveHexAsync(); // 启动接收线程
-                isConnected = true;
-                ConnectionStatusChanged?.Invoke("已连接");
-                AddLog($"成功连接到TCP服务器 {ip}:{port}");
-                await Task.Run(ReceiveHexAsync);
-                return true;
-            }
-            catch (SocketException ex)
-            {
-                HandleConnectionError(ex, ip, port);
-                return false;
-            }
-            catch (Exception ex)
-            {
-                AddLog($"连接异常: {ex.GetType().Name} - {ex.Message}");
-                ConnectionStatusChanged?.Invoke("连接异常");
-                return false;
-            }
-        }
-        private void HandleConnectionError(SocketException ex, IPAddress ip, int port)
-        {
-            string errorMsg;
-            if (ex.SocketErrorCode == SocketError.ConnectionRefused)
-            {
-                errorMsg = "服务器拒绝连接";
-            }
-            else if (ex.SocketErrorCode == SocketError.TimedOut)
-            {
-                errorMsg = "连接超时";
-            }
-            else if (ex.SocketErrorCode == SocketError.HostUnreachable)
-            {
-                errorMsg = "主机不可达";
-            }
-            else if (ex.SocketErrorCode == SocketError.NetworkUnreachable)
-            {
-                errorMsg = "网络不可达";
-            }
-            else
-            {
-                errorMsg = $"Socket错误: {ex.SocketErrorCode}";
-            }
-            string fullError = $"{errorMsg} ({ip}:{port})";
-            AddLog(fullError);
-            ConnectionStatusChanged?.Invoke(errorMsg);
-        }
-        // byte[] CheckMCUData = new byte[1024];
         /// <summary>
-        /// 接收16进制数据
+        /// 带颜色的日志输出
         /// </summary>
-        public async Task ReceiveHexAsync()
+        /// <param name="Message"></param>
+        /// <param name="color"></param>
+        private void AddLog(string Message,Color? color = null)
         {
-            int bytesRead = 0;
-            string message = string.Empty;
-            while (!_cts.IsCancellationRequested && isConnected)
-            {
-                try
-                {
-                    bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length);
-                    if (bytesRead == 0)
-                    {
-                        AddLog("服务器主动断开连接");
-                        break;
-                    }
-                    // message = System.Text.Encoding.UTF8.GetString(buffer, 0, bytesRead);
-                    message = ModelTool.ByteArrayToHex(buffer, false);
-                    // AddLog($"服务器消息ACSII：{message}");
-                    lock (_lock)
-                    {
-                        _messageBuffer.Clear();
-                        _messageBuffer.Append(message.TrimEnd('0'));
-                    }
-                }
-                catch (IOException ex)
-                {
-                    AddLog($"网络错误: {ex.Message}");
-                    break;
-                }
-                catch (Exception ex)
-                {
-                    AddLog($"接收异常: {ex.GetType().Name} - {ex.Message}");
-                    break;
-                }
-                AddLog($"MCU-->PC：{_messageBuffer.Replace("-", " ")}\r\n");
-            }
-            Disconnect();
+            textBoxlog.SelectionLength = 0;
+            textBoxlog.SelectionColor = color.Value;
+            textBoxlog.AppendText($"[{DateTime.Now:HH:mm:ss.fff}] {Message}+{Environment.NewLine}");
+            textBoxlog.SelectionColor = textBoxlog.ForeColor;
+            //textBoxlog.ScrollToCaret();
+            LogMessage.Debug(Message);
         }
-
-        byte[] SendMCUData = new byte[1024];
-        public async Task SendHexAsync(string hexString)
-        {
-            if (client == null || !client.Connected)
-            {
-                AddLog("尝试发送数据但连接已断开");
-                ConnectionStatusChanged?.Invoke("发送失败: 连接未建立");
-                return;
-            }
-            try
-            {
-                SendMCUData = ModelTool.HexStringToByteArray(hexString);
-                await stream.WriteAsync(SendMCUData, 0, SendMCUData.Length);
-                AddLog($"[PC-->MCU成功] {BitConverter.ToString(SendMCUData).Replace("-", " ")}");
-            }
-            catch (Exception ex)
-            {
-                AddLog($"Hex发送失败: {ex.Message}");
-                throw;
-            }
-        }
-
-        public void Disconnect()
-        {
-            if (!isConnected) return;
-            isConnected = false;
-            try
-            {
-                stream?.Close();
-                client?.Close();
-                AddLog("TCP连接已主动断开");
-                ConnectionStatusChanged?.Invoke("已断开");
-            }
-            catch (Exception ex)
-            {
-                AddLog($"断开连接时出错: {ex.Message}");
-            }
-        }
-        public new void Dispose() => Disconnect();
-
-        #endregion
-
         private void btn_cilentSocket_Close_Click(object sender, EventArgs e)
         {
             Dispose();
@@ -986,21 +884,21 @@ namespace ModelTest
             {
                 var Terminal_RedLoop = TerminalModel.TerminalByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUAddr, "2A", "20", MCUStopByte);
                 await SeedMethod(Terminal_RedLoop);
-                if (Terminal_RedLoop.Contains(BitConverter.ToString(buffer)))
-                {
-                    this.pictureBoxRed.Image = Image.FromFile(Application.StartupPath + "\\png\\" + "红灯.png");
-                    REDFlas = true;
-                }
+                //if (Terminal_RedLoop.Contains(BitConverter.ToString(buffer)))
+                //{
+                //    this.pictureBoxRed.Image = Image.FromFile(Application.StartupPath + "\\png\\" + "红灯.png");
+                //    REDFlas = true;
+                //}
             }
             else
             {
                 var Terminal_RedLoop = TerminalModel.TerminalByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUAddr, "2A", "10", MCUStopByte);
                 await SeedMethod(Terminal_RedLoop);
-                if (Terminal_RedLoop.Contains(BitConverter.ToString(buffer)))
-                {
-                    this.pictureBoxRed.Image = Image.FromFile(Application.StartupPath + "\\png\\" + "灰灯.png");
-                    REDFlas = false;
-                }
+                //if (Terminal_RedLoop.Contains(BitConverter.ToString(buffer)))
+                //{
+                //    this.pictureBoxRed.Image = Image.FromFile(Application.StartupPath + "\\png\\" + "灰灯.png");
+                //    REDFlas = false;
+                //}
             }
 
         }
@@ -1018,21 +916,21 @@ namespace ModelTest
             {
                 var Terminal_GreenLoop = TerminalModel.TerminalByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUAddr, "2A", "40", MCUStopByte);
                 await SeedMethod(Terminal_GreenLoop);
-                if (Terminal_GreenLoop.Contains(BitConverter.ToString(buffer)))
-                {
-                    this.pictureBoxRed.Image = Image.FromFile(Application.StartupPath + "\\png\\" + "绿灯.png");
-                    GreenFlas = true;
-                }
+                //if (Terminal_GreenLoop.Contains(BitConverter.ToString(buffer)))
+                //{
+                //    this.pictureBoxRed.Image = Image.FromFile(Application.StartupPath + "\\png\\" + "绿灯.png");
+                //    GreenFlas = true;
+                //}
             }
             else
             {
                 var Terminal_GreenLoop = TerminalModel.TerminalByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUAddr, "2A", "10", MCUStopByte);
                 await SeedMethod(Terminal_GreenLoop);
-                if (Terminal_GreenLoop.Contains(BitConverter.ToString(buffer)))
-                {
-                    this.pictureBoxRed.Image = Image.FromFile(Application.StartupPath + "\\png\\" + "灰灯.png");
-                    GreenFlas = false;
-                }
+                //if (Terminal_GreenLoop.Contains(BitConverter.ToString(buffer)))
+                //{
+                //    this.pictureBoxRed.Image = Image.FromFile(Application.StartupPath + "\\png\\" + "灰灯.png");
+                //    GreenFlas = false;
+                //}
 
             }
         }
@@ -1081,21 +979,21 @@ namespace ModelTest
             {
                 var Terminal_TaiTiRed = TerminalModel.TerminalByte(MCUStartByte, A0800_DataLength, MCUAddr, MCUCtrl, "2C", "0101", MCUStopByte);
                 await SeedMethod(Terminal_TaiTiRed);
-                if (Terminal_TaiTiRed.Contains(BitConverter.ToString(buffer)))
-                {
-                    this.pictureBoxRed.Image = Image.FromFile(Application.StartupPath + "\\png\\" + "红灯.png");
-                    GreenFlas = true;
-                }
+                //if (Terminal_TaiTiRed.Contains(BitConverter.ToString(buffer)))
+                //{
+                //    this.pictureBoxRed.Image = Image.FromFile(Application.StartupPath + "\\png\\" + "红灯.png");
+                //    GreenFlas = true;
+                //}
             }
             else
             {
                 var Terminal_TaiTiRed = TerminalModel.TerminalByte(MCUStartByte, A0800_DataLength, MCUAddr, MCUCtrl, "2C", "0100", MCUStopByte);
                 await SeedMethod(Terminal_TaiTiRed);
-                if (Terminal_TaiTiRed.Contains(BitConverter.ToString(buffer)))
-                {
-                    this.pictureBoxRed.Image = Image.FromFile(Application.StartupPath + "\\png\\" + "灰灯.png");
-                    GreenFlas = true;
-                }
+                //if (Terminal_TaiTiRed.Contains(BitConverter.ToString(buffer)))
+                //{
+                //    this.pictureBoxRed.Image = Image.FromFile(Application.StartupPath + "\\png\\" + "灰灯.png");
+                //    GreenFlas = true;
+                //}
             }
         }
         /// <summary>
@@ -1111,21 +1009,21 @@ namespace ModelTest
             {
                 var Terminal_TaiTiGreen = TerminalModel.TerminalByte(MCUStartByte, A0800_DataLength, MCUAddr, MCUCtrl, "2C", "0201", MCUStopByte);
                 await SeedMethod(Terminal_TaiTiGreen);
-                if (Terminal_TaiTiGreen.Contains(BitConverter.ToString(buffer)))
-                {
-                    this.pictureBoxRed.Image = Image.FromFile(Application.StartupPath + "\\png\\" + "绿灯.png");
-                    GreenFlas = true;
-                }
+                //if (Terminal_TaiTiGreen.Contains(BitConverter.ToString(buffer)))
+                //{
+                //    this.pictureBoxRed.Image = Image.FromFile(Application.StartupPath + "\\png\\" + "绿灯.png");
+                //    GreenFlas = true;
+                //}
             }
             else
             {
                 var Terminal_TaiTiGreen = TerminalModel.TerminalByte(MCUStartByte, A0800_DataLength, MCUAddr, MCUCtrl, "2C", "0200", MCUStopByte);
                 await SeedMethod(Terminal_TaiTiGreen);
-                if (Terminal_TaiTiGreen.Contains(BitConverter.ToString(buffer)))
-                {
-                    this.pictureBoxRed.Image = Image.FromFile(Application.StartupPath + "\\png\\" + "灰灯.png");
-                    GreenFlas = true;
-                }
+                //if (Terminal_TaiTiGreen.Contains(BitConverter.ToString(buffer)))
+                //{
+                //    this.pictureBoxRed.Image = Image.FromFile(Application.StartupPath + "\\png\\" + "灰灯.png");
+                //    GreenFlas = true;
+                //}
             }
         }
         /// <summary>
@@ -1141,21 +1039,21 @@ namespace ModelTest
             {
                 var Terminal_TaiTiYellow = TerminalModel.TerminalByte(MCUStartByte, A0800_DataLength, MCUAddr, MCUCtrl, "2C", "0301", MCUStopByte);
                 await SeedMethod(Terminal_TaiTiYellow);
-                if (Terminal_TaiTiYellow.Contains(BitConverter.ToString(buffer)))
-                {
-                    this.pictureBoxRed.Image = Image.FromFile(Application.StartupPath + "\\png\\" + "红灯.png");
-                    GreenFlas = true;
-                }
+                //if (Terminal_TaiTiYellow.Contains(BitConverter.ToString(buffer)))
+                //{
+                //    this.pictureBoxRed.Image = Image.FromFile(Application.StartupPath + "\\png\\" + "红灯.png");
+                //    GreenFlas = true;
+                //}
             }
             else
             {
                 var Terminal_TaiTiYellow = TerminalModel.TerminalByte(MCUStartByte, A0800_DataLength, MCUAddr, MCUCtrl, "2C", "0300", MCUStopByte);
                 await SeedMethod(Terminal_TaiTiYellow);
-                if (Terminal_TaiTiYellow.Contains(BitConverter.ToString(buffer)))
-                {
-                    this.pictureBoxRed.Image = Image.FromFile(Application.StartupPath + "\\png\\" + "灰灯.png");
-                    GreenFlas = true;
-                }
+                //if (Terminal_TaiTiYellow.Contains(BitConverter.ToString(buffer)))
+                //{
+                //    this.pictureBoxRed.Image = Image.FromFile(Application.StartupPath + "\\png\\" + "灰灯.png");
+                //    GreenFlas = true;
+                //}
             }
         }
         /// <summary>
@@ -1279,11 +1177,6 @@ namespace ModelTest
                 STAPINREAD = TerminalModel.TerminalByte(MCUStartByte, A0600_DataLength, MCUAddr, MCUCtrl, "87", null, MCUStopByte);//读取sta1状态
             }
             await SeedMethod(STAPINREAD);
-            if (BitConverter.ToString(buffer) != string.Empty)
-            {
-                AddLog("开始解析读取状态……");
-                //不知道怎么数据是什么样子，暂时不解析
-            }
         }
         /// <summary>
         /// led1点灯
@@ -2593,14 +2486,14 @@ namespace ModelTest
         /// <param name="sender"></param>
         /// <param name="e"></param>
         /// <exception cref="NotImplementedException"></exception>
-        private async Task SendClienttMessage(string message)
+        private async Task SendClienttMessage(string message, bool IsASCIIorHex)
         {
             bool sent = false;
-            if (cbxSendASCII.Checked)
+            if (IsASCIIorHex)
             {
                 sent = await _tcpClient.SendAsync(message);//发送acsii消息
             }
-            else if (cbxSendHEX.Checked)
+            else
             {
                 sent = await _tcpClient.SendBytesAsync(ModelTool.HexStringToByteArray(message));//发送hex消息
             }
@@ -2633,7 +2526,7 @@ namespace ModelTest
                         AddLog("错误，客户端未连接");
                         return;
                     }
-                    _ = SendClienttMessage(rtbxSendData.Text);
+                    _ = SendClienttMessage(rtbxSendData.Text, cbxSendASCII.Checked);
                     break;
                 case "关闭TCP服务器":
                     if (server == null || !server.IsRunning)
@@ -2726,9 +2619,20 @@ namespace ModelTest
 
             UpdateUI(() =>
             {
+                //显示原始数据
+                string hexData = BitConverter.ToString(e.RawData).Replace("-", " ");
+                string asciiData = Encoding.ASCII.GetString(e.RawData);
                 // 更新状态显示
-                rtbxRevcData.AppendText($"接收 [{e.Timestamp:HH:mm:ss.fff}]: {e.Message}\r\n");
-                LogMessage.SocketLog($"接受消息<-- 服务器 的数据: {e.Message}");
+                if (cbxRevcASCII.Checked)
+                {
+                    rtbxRevcData.AppendText($"接收 [{e.Timestamp:HH:mm:ss.fff}]: {asciiData}\r\n");
+                    LogMessage.SocketLog($"接受消息<-- 服务器 的数据: {asciiData}");
+                }
+                else
+                {
+                    rtbxRevcData.AppendText($"接收 [{e.Timestamp:HH:mm:ss.fff}]: {hexData}\r\n");
+                    LogMessage.SocketLog($"接受消息<-- 服务器 的数据: {hexData}");
+                }
                 UpdateStatusDisplay();
             });
         }
@@ -2769,6 +2673,7 @@ namespace ModelTest
                 UpdateStatusDisplay();
             });
         }
+
         private void OnErrorOccurred(object sender, string errorMessage)
         {
             UpdateUI(() =>
