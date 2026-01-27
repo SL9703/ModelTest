@@ -345,15 +345,17 @@ namespace ModelTest
             tabPage22 = new TabPage();
             panel14 = new Panel();
             groupBox23 = new GroupBox();
+            button10 = new Button();
+            button9 = new Button();
             richTextBox3 = new RichTextBox();
             panel13 = new Panel();
             groupBox22 = new GroupBox();
-            richTextBox2 = new RichTextBox();
             panel12 = new Panel();
             groupBox21 = new GroupBox();
             groupBox20 = new GroupBox();
             tabPage24 = new TabPage();
             groupBox18 = new GroupBox();
+            label124 = new Label();
             btnSendData = new Button();
             rtbxSendData = new RichTextBox();
             panel11 = new Panel();
@@ -466,7 +468,6 @@ namespace ModelTest
             panel14.SuspendLayout();
             groupBox23.SuspendLayout();
             panel13.SuspendLayout();
-            groupBox22.SuspendLayout();
             panel12.SuspendLayout();
             tabPage24.SuspendLayout();
             groupBox18.SuspendLayout();
@@ -4173,29 +4174,57 @@ namespace ModelTest
             // panel14
             // 
             panel14.Controls.Add(groupBox23);
-            panel14.Dock = DockStyle.Top;
-            panel14.Location = new Point(362, 293);
+            panel14.Dock = DockStyle.Fill;
+            panel14.Location = new Point(362, 382);
             panel14.Name = "panel14";
-            panel14.Size = new Size(1537, 290);
+            panel14.Size = new Size(1537, 206);
             panel14.TabIndex = 2;
             // 
             // groupBox23
             // 
+            groupBox23.Controls.Add(button10);
+            groupBox23.Controls.Add(button9);
             groupBox23.Controls.Add(richTextBox3);
             groupBox23.Dock = DockStyle.Fill;
             groupBox23.Location = new Point(0, 0);
             groupBox23.Name = "groupBox23";
-            groupBox23.Size = new Size(1537, 290);
+            groupBox23.Size = new Size(1537, 206);
             groupBox23.TabIndex = 0;
             groupBox23.TabStop = false;
             groupBox23.Text = "发送消息";
+            // 
+            // button10
+            // 
+            button10.Dock = DockStyle.Left;
+            button10.Font = new Font("Microsoft YaHei UI", 14.1428576F, FontStyle.Bold, GraphicsUnit.Point, 134);
+            button10.ForeColor = Color.Green;
+            button10.Location = new Point(348, 143);
+            button10.Margin = new Padding(6, 5, 6, 5);
+            button10.Name = "button10";
+            button10.Size = new Size(345, 60);
+            button10.TabIndex = 4;
+            button10.Text = "清空发送区";
+            button10.UseVisualStyleBackColor = true;
+            // 
+            // button9
+            // 
+            button9.Dock = DockStyle.Left;
+            button9.Font = new Font("Microsoft YaHei UI", 14.1428576F, FontStyle.Bold, GraphicsUnit.Point, 134);
+            button9.ForeColor = Color.Green;
+            button9.Location = new Point(3, 143);
+            button9.Margin = new Padding(6, 5, 6, 5);
+            button9.Name = "button9";
+            button9.Size = new Size(345, 60);
+            button9.TabIndex = 3;
+            button9.Text = "发送";
+            button9.UseVisualStyleBackColor = true;
             // 
             // richTextBox3
             // 
             richTextBox3.Dock = DockStyle.Top;
             richTextBox3.Location = new Point(3, 30);
             richTextBox3.Name = "richTextBox3";
-            richTextBox3.Size = new Size(1531, 138);
+            richTextBox3.Size = new Size(1531, 113);
             richTextBox3.TabIndex = 1;
             richTextBox3.Text = "";
             // 
@@ -4205,29 +4234,18 @@ namespace ModelTest
             panel13.Dock = DockStyle.Top;
             panel13.Location = new Point(362, 3);
             panel13.Name = "panel13";
-            panel13.Size = new Size(1537, 290);
+            panel13.Size = new Size(1537, 379);
             panel13.TabIndex = 1;
             // 
             // groupBox22
             // 
-            groupBox22.Controls.Add(richTextBox2);
             groupBox22.Dock = DockStyle.Fill;
             groupBox22.Location = new Point(0, 0);
             groupBox22.Name = "groupBox22";
-            groupBox22.Size = new Size(1537, 290);
+            groupBox22.Size = new Size(1537, 379);
             groupBox22.TabIndex = 0;
             groupBox22.TabStop = false;
-            groupBox22.Text = "接受数据";
-            // 
-            // richTextBox2
-            // 
-            richTextBox2.Dock = DockStyle.Fill;
-            richTextBox2.Location = new Point(3, 30);
-            richTextBox2.Name = "richTextBox2";
-            richTextBox2.ReadOnly = true;
-            richTextBox2.Size = new Size(1531, 257);
-            richTextBox2.TabIndex = 0;
-            richTextBox2.Text = "";
+            groupBox22.Text = "数据展示";
             // 
             // panel12
             // 
@@ -4274,6 +4292,7 @@ namespace ModelTest
             // 
             // groupBox18
             // 
+            groupBox18.Controls.Add(label124);
             groupBox18.Controls.Add(btnSendData);
             groupBox18.Controls.Add(rtbxSendData);
             groupBox18.Controls.Add(panel11);
@@ -4285,15 +4304,27 @@ namespace ModelTest
             groupBox18.TabStop = false;
             groupBox18.Text = "发送数据";
             // 
+            // label124
+            // 
+            label124.AutoSize = true;
+            label124.Dock = DockStyle.Right;
+            label124.ForeColor = Color.Red;
+            label124.Location = new Point(1539, 183);
+            label124.Margin = new Padding(6, 0, 6, 0);
+            label124.Name = "label124";
+            label124.Size = new Size(75, 28);
+            label124.TabIndex = 30;
+            label124.Text = "状态：";
+            // 
             // btnSendData
             // 
-            btnSendData.Dock = DockStyle.Fill;
+            btnSendData.Dock = DockStyle.Left;
             btnSendData.Font = new Font("Microsoft YaHei UI", 14.1428576F, FontStyle.Bold, GraphicsUnit.Point, 134);
             btnSendData.ForeColor = Color.Green;
             btnSendData.Location = new Point(3, 183);
             btnSendData.Margin = new Padding(6, 5, 6, 5);
             btnSendData.Name = "btnSendData";
-            btnSendData.Size = new Size(1611, 53);
+            btnSendData.Size = new Size(277, 53);
             btnSendData.TabIndex = 2;
             btnSendData.Text = "发送";
             btnSendData.UseVisualStyleBackColor = true;
@@ -5097,10 +5128,10 @@ namespace ModelTest
             panel14.ResumeLayout(false);
             groupBox23.ResumeLayout(false);
             panel13.ResumeLayout(false);
-            groupBox22.ResumeLayout(false);
             panel12.ResumeLayout(false);
             tabPage24.ResumeLayout(false);
             groupBox18.ResumeLayout(false);
+            groupBox18.PerformLayout();
             panel11.ResumeLayout(false);
             panel11.PerformLayout();
             groupBox17.ResumeLayout(false);
@@ -5514,7 +5545,6 @@ namespace ModelTest
         private Panel panel14;
         private Panel panel13;
         private GroupBox groupBox22;
-        private RichTextBox richTextBox2;
         private GroupBox groupBox23;
         private RichTextBox richTextBox3;
         private Panel panel15;
@@ -5526,5 +5556,8 @@ namespace ModelTest
         private Button BtnMeterTest;
         private ToolStripButton tsbtnTerminalTest;
         private ToolStripButton tsbtnMeterTest;
+        private Button button10;
+        private Button button9;
+        private Label label124;
     }
 }

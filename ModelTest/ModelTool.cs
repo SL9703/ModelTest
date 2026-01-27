@@ -96,5 +96,20 @@ namespace ModelTest
             }
             return list.ToArray();
         }
+        public static string ByteArrayToHex(byte[] bytes, bool upperCase = true)
+        {
+            char[] hexChars = upperCase
+                ? "0123456789ABCDEF".ToCharArray()
+                : "0123456789abcdef".ToCharArray();
+
+            char[] result = new char[bytes.Length * 2];
+            for (int i = 0; i < bytes.Length; i++)
+            {
+                int value = bytes[i];
+                result[2 * i] = hexChars[value >> 4];    // 高4位
+                result[2 * i + 1] = hexChars[value & 0xF]; // 低4位
+            }
+            return new string(result);
+        }
     }
 }

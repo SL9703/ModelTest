@@ -226,6 +226,24 @@ namespace ModelTest
             }
         }
 
+        [DllImport("WinSocketServer.dll")]
+        private static extern int Obj_Terminal_Formal_InitSession([In, Out] int iKeyVersion, string cTESAMID,string cASCTR, string cFLG, string cMasterCert,  [Out] byte[] cOutRandHost, [Out] byte[] cOutSessionInit, [Out] byte[] cOutSign);
+        public int Obj_Terminal_Formal_InitSessionEx(int iKeyVersion, string cTESAMID, string cASCTR, string cFLG, string cMasterCert, [Out] byte[] cOutRandHost, [Out] byte[] cOutSessionInit, [Out] byte[] cOutSign)
+        {
+            try
+            {
+                res = Obj_Terminal_Formal_InitSession(iKeyVersion, cTESAMID, cASCTR, cFLG, cMasterCert, cOutRandHost, cOutSessionInit, cOutSign);
+                LogMessage.Debug(System.Text.Encoding.Default.GetString(cOutRandHost));
+                LogMessage.Debug(System.Text.Encoding.Default.GetString(cOutSessionInit));
+                LogMessage.Debug(System.Text.Encoding.Default.GetString(cOutSign));
+                return res;
+            }
+            catch (Exception ex)
+            {
+                HandleException(ex);
+                return res;
+            }
+        }
 
         /// <summary>
         /// 加密机所有的接口方法名称

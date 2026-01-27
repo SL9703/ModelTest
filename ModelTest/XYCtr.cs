@@ -14,7 +14,7 @@ namespace ModelTest
     /// </summary>
     public class XYCtr
     {
-        public static int iResult; //降源接口返回值
+       // public static int iResult; //降源接口返回值
         /// <summary>
         /// 降源接口 0-----电压、电流同时停止输出1-----电压停止输出 2-----电流停止输出
         /// </summary>
@@ -24,7 +24,7 @@ namespace ModelTest
         private static extern int ShutPowerSource([In] int ShutPowerSource);
         public static int CallShutPowerSource(int shutPowerSource)
         {
-
+            int iResult = -1;
             Thread thread = new Thread(() =>
             {
                 try
@@ -58,7 +58,7 @@ namespace ModelTest
 
         public static int CallOpenComm(int Port)
         {
-
+            int iResult = -1;
             Thread thread = new Thread(() =>
             {
                 try
@@ -116,6 +116,7 @@ namespace ModelTest
         private static extern int ReadStandValue([In, Out] string StandModel, [Out] byte[] StandValue);
         public static int CallReadStandValue(string standModel, byte[] sStandValue)
         {
+            int iResult = -1;
             object lockObject = new object();
             lock (lockObject)
             {
@@ -155,6 +156,7 @@ namespace ModelTest
         private static extern int AnyUIOutput(string StrUICommand, int iPulse);
         public static int CallAnyUIOutput(string StrUICommand, int iPulse)
         {
+            int iResult = -1;
             Thread thread = new Thread(() =>
             {
                 try
@@ -189,6 +191,7 @@ namespace ModelTest
         private static extern int ReadTestData([In, Out] int ReadType, int iPosition, [Out] byte[] sResultData);
         public static int CallReadTestData(int readtype, int iposition, byte[] sresultdata)
         {
+            int iResult = -1;
             Thread thread = new Thread(() =>
             {
                 try
@@ -223,6 +226,7 @@ namespace ModelTest
 
         public static int CallReadStandConst(byte[] constanst)
         {
+            int iResult = -1;
             Thread thread = new Thread(() =>
             {
                 try
@@ -256,6 +260,7 @@ namespace ModelTest
         private static extern int SendCommand(string Cmd, bool AdjTags);
         public static int CallSendCommand(string cmd, bool AdjTags)
         {
+            int iResult = -1;
             Thread thread = new Thread(() =>
             {
                 try
@@ -288,6 +293,7 @@ namespace ModelTest
         private static extern int Set_BlueTooth_Channel(int IchanngelNo);
         public static int CallSet_BlueTooth_Channel(int IchanngelNo)
         {
+            int iResult = -1;
             Thread thread = new Thread(() =>
             {
                 try
@@ -321,6 +327,7 @@ namespace ModelTest
         private static extern int Clock_Start(int iPulse);
         public static int Call_Clock_Start(int iPulse)
         {
+            int iResult = -1;
             Thread thread = new Thread(() =>
             {
                 try
@@ -354,6 +361,7 @@ namespace ModelTest
         private static extern int Read_Test([In, Out] int iMeterNo, [Out] byte[] MeterError);
         public static int Call_Read_TestError(int iMeterNo, byte[] MeterError)
         {
+            int iResult = -1;
             Thread thread = new Thread(() =>
             {
                 try
@@ -389,6 +397,7 @@ namespace ModelTest
         /// <param name="e"></param>
         public static int Call_Error_Start(string meterConstant, int iMeterCount, int iPulse)
         {
+            int iResult = -1;
             Thread thread = new Thread(() =>
             {
                 try
@@ -421,6 +430,7 @@ namespace ModelTest
 
         public static int Call_Stop_Test()
         {
+            int iResult = -1;
             Thread thread = new Thread(() =>
             {
                 try
@@ -449,6 +459,7 @@ namespace ModelTest
         private static extern int Error_Start();
         public static int Call_Error_Start()
         {
+            int iResult = -1;
             Thread thread = new Thread(() =>
             {
                 try
@@ -482,6 +493,7 @@ namespace ModelTest
         private static extern int Read_Pulse([In, Out] int iMeterNo, [Out] byte[] MeterError);
         public static int Call_Read_Pulse(int iMeterNo, byte[] MeterError)
         {
+            int iResult = -1;
             Thread thread = new Thread(() =>
             {
                 try
@@ -515,6 +527,7 @@ namespace ModelTest
         private static extern int FunctionReadVersion([Out] byte[] StrVer);
         public static int CallFunctionReadVersion(byte[] StrVer)
         {
+            int iResult = -1;
             Thread thread = new Thread(() =>
             {
                 try
@@ -549,6 +562,7 @@ namespace ModelTest
         private static extern int SetUIRange(int iUI, int iValue);
         public static int CallSetUIRange(int iui,int ivalue)
         {
+            int iResult = -1;
             Thread thread = new Thread(() =>
             {
 
@@ -582,6 +596,7 @@ namespace ModelTest
         private static extern int RangeOutputUI(string StrUICommand);
         public static int CallRangeOutputUI(string StrUICommand)
         {
+            int iResult = -1;
             Thread thread = new Thread(() =>
             {
 

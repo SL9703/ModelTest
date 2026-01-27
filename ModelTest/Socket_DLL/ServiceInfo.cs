@@ -6,7 +6,10 @@ using System.Threading.Tasks;
 
 namespace ModelTest.Socket_DLL
 {
-    internal class Socket_Client
+    /// <summary>
+    /// 服务器端信息类
+    /// </summary>
+    internal class ServiceInfo
     {
 
     }
