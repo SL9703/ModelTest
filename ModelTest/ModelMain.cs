@@ -1844,7 +1844,7 @@ namespace ModelTest
         private void bttn_ClearError_Click(object sender, EventArgs e)
         {
             LogMessage.Info(sender.ToString());
-            XYIresult = XYCtr.Call_Error_Start();
+            XYIresult = XYCtr.Call_Error_Clear();
             if (XYIresult == 1)
             {
                 AddLog("清除误差接口正常" + XYIresult);
