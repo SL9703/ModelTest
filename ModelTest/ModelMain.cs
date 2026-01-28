@@ -3,6 +3,7 @@ using System.Data;
 using System.IO.Ports;
 using System.Net;
 using System.Net.Sockets;
+using System.Runtime.InteropServices;
 using System.Text;
 using ModelTest.SerialPortImp;
 using ModelTest.Socket_DLL;
@@ -504,7 +505,7 @@ namespace ModelTest
             textBoxlog.SelectionColor = color.Value;
             textBoxlog.AppendText($"[{DateTime.Now:HH:mm:ss.fff}] {Message}+{Environment.NewLine}");
             textBoxlog.SelectionColor = textBoxlog.ForeColor;
-            //textBoxlog.ScrollToCaret();
+            textBoxlog.ScrollToCaret();
             LogMessage.Debug(Message);
         }
         private void btn_cilentSocket_Close_Click(object sender, EventArgs e)
@@ -1439,7 +1440,7 @@ namespace ModelTest
                 AddLog("降源异常，请检查串口是否链接");
             }
         }
-
+       
         /// <summary>
         /// 初始化源的串口
         /// </summary>

@@ -14,7 +14,7 @@ namespace ModelTest
     /// </summary>
     public class XYCtr
     {
-       // public static int iResult; //降源接口返回值
+        // public static int iResult; //降源接口返回值
         /// <summary>
         /// 降源接口 0-----电压、电流同时停止输出1-----电压停止输出 2-----电流停止输出
         /// </summary>
@@ -58,29 +58,16 @@ namespace ModelTest
 
         public static int CallOpenComm(int Port)
         {
-            int iResult = -1;
-            Thread thread = new Thread(() =>
+            int iResult = OpenComm(Port);
+            if (iResult == 1)
             {
-                try
-                {
-                    iResult = OpenComm(Port);
-                    if (iResult == 1)
-                    {
-                        LogMessage.Debug("打开源串口正常" + iResult);
-                    }
-                    else
-                    {
-                        LogMessage.Debug("调用打开源串口接口异常" + iResult);
-                    }
+                LogMessage.Debug("打开源串口正常" + iResult);
+            }
+            else
+            {
+                LogMessage.Debug("调用打开源串口接口异常" + iResult);
+            }
 
-                }
-                catch (Exception ex)
-                {
-                    LogMessage.Error(ex);
-                }
-            });
-            thread.IsBackground = true;
-            thread.Start();
             return iResult;
         }
         /// <summary>
@@ -112,11 +99,12 @@ namespace ModelTest
         /// <param name="StandModel"></param>
         /// <param name="StandValue"></param>
         /// <returns></returns>
+       private static int ReadStandMeter_data;
         [DllImport("xyctr.dll")]
         private static extern int ReadStandValue([In, Out] string StandModel, [Out] byte[] StandValue);
         public static int CallReadStandValue(string standModel, byte[] sStandValue)
         {
-            int iResult = -1;
+            
             object lockObject = new object();
             lock (lockObject)
             {
@@ -124,15 +112,15 @@ namespace ModelTest
                 {
                     try
                     {
-                        iResult = ReadStandValue(standModel, sStandValue);
-                        if (iResult == 1)
+                        ReadStandMeter_data = ReadStandValue(standModel, sStandValue);
+                        if (ReadStandMeter_data == 1)
                         {
                             LogMessage.Debug("标准表数据返回成功");
                             LogMessage.Debug("新跃源标准表数据：" + System.Text.Encoding.Default.GetString(sStandValue));
                         }
                         else
                         {
-                            LogMessage.Debug("标准表数据返回失败，错误代码：" + iResult);
+                            LogMessage.Debug("标准表数据返回失败，错误代码：" + ReadStandMeter_data);
                         }
                     }
                     catch (Exception ex)
@@ -142,7 +130,7 @@ namespace ModelTest
                 });
                 thread.IsBackground = true;
                 thread.Start();
-                return iResult;
+                return ReadStandMeter_data;
             }
         }
 
@@ -152,23 +140,23 @@ namespace ModelTest
         /// <param name="StrUICommand">控源参数</param>
         /// <param name="iPulse">脉冲数</param>
         /// <returns></returns>
+        private static int AnyUIOutput_Result;
         [DllImport("xyctr.dll")]
         private static extern int AnyUIOutput(string StrUICommand, int iPulse);
         public static int CallAnyUIOutput(string StrUICommand, int iPulse)
         {
-            int iResult = -1;
             Thread thread = new Thread(() =>
             {
                 try
                 {
-                    iResult = AnyUIOutput(StrUICommand, iPulse);
-                    if (iResult == 1)
+                    AnyUIOutput_Result = AnyUIOutput(StrUICommand, iPulse);
+                    if (AnyUIOutput_Result == 1)
                     {
-                        LogMessage.Debug("控源正常" + iResult);
+                        LogMessage.Debug("控源正常" + AnyUIOutput_Result);
                     }
                     else
                     {
-                        LogMessage.Debug("调用控源接口异常" + iResult);
+                        LogMessage.Debug("调用控源接口异常" + AnyUIOutput_Result);
                     }
                 }
                 catch (Exception ex)
@@ -178,7 +166,7 @@ namespace ModelTest
             });
             thread.IsBackground = true;
             thread.Start();
-            return iResult;
+            return AnyUIOutput_Result;
         }
         /// <summary>
         /// 读取装置信息
@@ -187,23 +175,23 @@ namespace ModelTest
         /// <param name="iPosition"></param>
         /// <param name="sResultData"></param>
         /// <returns></returns>
+        private static int ReadTestData_Result;
         [DllImport("xyctr.dll")]
         private static extern int ReadTestData([In, Out] int ReadType, int iPosition, [Out] byte[] sResultData);
         public static int CallReadTestData(int readtype, int iposition, byte[] sresultdata)
         {
-            int iResult = -1;
             Thread thread = new Thread(() =>
             {
                 try
                 {
-                    iResult = ReadTestData(readtype, iposition, sresultdata);
-                    if (iResult == 1)
+                    ReadTestData_Result = ReadTestData(readtype, iposition, sresultdata);
+                    if (ReadTestData_Result == 1)
                     {
-                        LogMessage.Debug("读取装置信息成功" + iResult);
+                        LogMessage.Debug("读取装置信息成功" + ReadTestData_Result);
                     }
                     else
                     {
-                        LogMessage.Debug("调用装置信息接口异常" + iResult);
+                        LogMessage.Debug("调用装置信息接口异常" + ReadTestData_Result);
                     }
                 }
                 catch (Exception ex)
@@ -213,7 +201,7 @@ namespace ModelTest
             });
             thread.IsBackground = true;
             thread.Start();
-            return iResult;
+            return ReadTestData_Result;
         }
 
         /// <summary>
@@ -221,24 +209,24 @@ namespace ModelTest
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
+        private static int ReadStandConst_Result;
         [DllImport("xyctr.dll")]
         private static extern int ReadStandConst([Out] byte[] constanst);
-
         public static int CallReadStandConst(byte[] constanst)
         {
-            int iResult = -1;
+           
             Thread thread = new Thread(() =>
             {
                 try
                 {
-                    iResult = ReadStandConst(constanst);
-                    if (iResult == 1)
+                    ReadStandConst_Result = ReadStandConst(constanst);
+                    if (ReadStandConst_Result == 1)
                     {
-                        LogMessage.Debug("读取常数成功" + iResult);
+                        LogMessage.Debug("读取常数成功" + ReadStandConst_Result);
                     }
                     else
                     {
-                        LogMessage.Debug("调用读取常数接口异常" + iResult);
+                        LogMessage.Debug("调用读取常数接口异常" + ReadStandConst_Result);
                     }
                 }
                 catch (Exception ex)
@@ -248,7 +236,7 @@ namespace ModelTest
             });
             thread.IsBackground = true;
             thread.Start();
-            return iResult;
+            return ReadStandConst_Result;
         }
         /// <summary>
         /// 初始化电表参数
@@ -256,23 +244,23 @@ namespace ModelTest
         /// <param name="Cmd"></param>
         /// <param name="AdjTags"></param>
         /// <returns></returns>
+        private static int SendCommand_Result;
         [DllImport("xyctr.dll")]
         private static extern int SendCommand(string Cmd, bool AdjTags);
         public static int CallSendCommand(string cmd, bool AdjTags)
         {
-            int iResult = -1;
             Thread thread = new Thread(() =>
             {
                 try
                 {
-                    iResult = SendCommand(cmd, AdjTags);
-                    if (iResult == 1)
+                    SendCommand_Result = SendCommand(cmd, AdjTags);
+                    if (SendCommand_Result == 1)
                     {
-                        LogMessage.Debug("SendCommand接口正常" + iResult);
+                        LogMessage.Debug("SendCommand接口正常" + SendCommand_Result);
                     }
                     else
                     {
-                        LogMessage.Debug("调用SendCommand接口异常" + iResult);
+                        LogMessage.Debug("调用SendCommand接口异常" + SendCommand_Result);
                     }
                 }
                 catch (Exception ex)
@@ -282,30 +270,31 @@ namespace ModelTest
             });
             thread.IsBackground = true;
             thread.Start();
-            return iResult;
+            return SendCommand_Result;
         }
         /// <summary>
         /// 设置蓝牙模式和通道
         /// </summary>
         /// <param name="IchanngelNo"></param>
         /// <returns></returns>
+        private static int SetBlueToothChannel_Result;
         [DllImport("xyctr.dll")]
         private static extern int Set_BlueTooth_Channel(int IchanngelNo);
         public static int CallSet_BlueTooth_Channel(int IchanngelNo)
         {
-            int iResult = -1;
+          
             Thread thread = new Thread(() =>
             {
                 try
                 {
-                    iResult = Set_BlueTooth_Channel(IchanngelNo);
-                    if (iResult == 1)
+                    SetBlueToothChannel_Result = Set_BlueTooth_Channel(IchanngelNo);
+                    if (SetBlueToothChannel_Result == 1)
                     {
-                        LogMessage.Debug("设置Set_BlueTooth_Channel接口正常" + iResult);
+                        LogMessage.Debug("设置Set_BlueTooth_Channel接口正常" + SetBlueToothChannel_Result);
                     }
                     else
                     {
-                        LogMessage.Debug("调用设置Set_BlueTooth_Channel接口异常" + iResult);
+                        LogMessage.Debug("调用设置Set_BlueTooth_Channel接口异常" + SetBlueToothChannel_Result);
                     }
                 }
                 catch (Exception ex)
@@ -315,7 +304,7 @@ namespace ModelTest
             });
             thread.IsBackground = true;
             thread.Start();
-            return iResult;
+            return SetBlueToothChannel_Result;
         }
 
         /// <summary>
@@ -323,23 +312,24 @@ namespace ModelTest
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
+        private static int Clock_Start_Result;
         [DllImport("xyctr.dll")]
         private static extern int Clock_Start(int iPulse);
         public static int Call_Clock_Start(int iPulse)
         {
-            int iResult = -1;
+            
             Thread thread = new Thread(() =>
             {
                 try
                 {
-                    iResult = Clock_Start(iPulse);
-                    if (iResult == 1)
+                    Clock_Start_Result = Clock_Start(iPulse);
+                    if (Clock_Start_Result == 1)
                     {
-                        LogMessage.Debug("调用设置Clock_Start接口正常" + iResult);
+                        LogMessage.Debug("调用设置Clock_Start接口正常" + Clock_Start_Result);
                     }
                     else
                     {
-                        LogMessage.Debug("调用设置Clock_Start接口异常" + iResult);
+                        LogMessage.Debug("调用设置Clock_Start接口异常" + Clock_Start_Result);
                     }
                 }
                 catch (Exception ex)
@@ -349,7 +339,7 @@ namespace ModelTest
             });
             thread.IsBackground = true;
             thread.Start();
-            return iResult;
+            return Clock_Start_Result;
         }
         /// <summary>
         /// 读取误差
@@ -357,17 +347,17 @@ namespace ModelTest
         /// <param name="iMeterNo"></param>
         /// <param name="MeterError"></param>
         /// <returns></returns>
+        private static int Read_Test_Result;
         [DllImport("xyctr.dll")]
         private static extern int Read_Test([In, Out] int iMeterNo, [Out] byte[] MeterError);
         public static int Call_Read_TestError(int iMeterNo, byte[] MeterError)
         {
-            int iResult = -1;
             Thread thread = new Thread(() =>
             {
                 try
                 {
-                    iResult = Read_Test(iMeterNo, MeterError);
-                    if (iResult == 1)
+                    Read_Test_Result = Read_Test(iMeterNo, MeterError);
+                    if (Read_Test_Result == 1)
                     {
                         // int.TryParse(System.Text.Encoding.Default.GetString(MeterError), out double resut);
 
@@ -375,7 +365,7 @@ namespace ModelTest
                     }
                     else
                     {
-                        LogMessage.Debug($"读取{iMeterNo}误差数据失败，错误代码：" + iResult);
+                        LogMessage.Debug($"读取{iMeterNo}误差数据失败，错误代码：" + Read_Test_Result);
                     }
                 }
                 catch (Exception ex)
@@ -385,9 +375,16 @@ namespace ModelTest
             });
             thread.IsBackground = true;
             thread.Start();
-            return iResult;
+            return Read_Test_Result;
         }
-
+        /// <summary>
+        /// 开始误差试验
+        /// </summary>
+        /// <param name="MeterConstant"></param>
+        /// <param name="iMeterCount"></param>
+        /// <param name="iPulse"></param>
+        /// <returns></returns>
+        private static int Error_Start_Result;
         [DllImport("xyctr.dll")]
         private static extern int Error_Start(string MeterConstant, int iMeterCount, int iPulse);
         /// <summary>
@@ -397,19 +394,18 @@ namespace ModelTest
         /// <param name="e"></param>
         public static int Call_Error_Start(string meterConstant, int iMeterCount, int iPulse)
         {
-            int iResult = -1;
             Thread thread = new Thread(() =>
             {
                 try
                 {
-                    iResult = Error_Start(meterConstant, iMeterCount, iPulse);
-                    if (iResult == 1)
+                    Error_Start_Result = Error_Start(meterConstant, iMeterCount, iPulse);
+                    if (Error_Start_Result == 1)
                     {
-                        LogMessage.Debug("调用设置Error_Start(误差试验)接口正常" + iResult);
+                        LogMessage.Debug("调用设置Error_Start(误差试验)接口正常" + Error_Start_Result);
                     }
                     else
                     {
-                        LogMessage.Debug("调用设置Error_Start(误差试验)接口异常" + iResult);
+                        LogMessage.Debug("调用设置Error_Start(误差试验)接口异常" + Error_Start_Result);
                     }
                 }
                 catch (Exception ex)
@@ -419,59 +415,30 @@ namespace ModelTest
             });
             thread.IsBackground = true;
             thread.Start();
-            return iResult;
+            return Error_Start_Result;
         }
         /// <summary>
         /// 停止测试
         /// </summary>
         /// <returns></returns>
+        private static int Stop_Test_Result;
         [DllImport("xyctr.dll")]
         private static extern int Stop_Test();
 
         public static int Call_Stop_Test()
         {
-            int iResult = -1;
             Thread thread = new Thread(() =>
             {
                 try
                 {
-                    iResult = Stop_Test();
-                    if (iResult == 1)
+                    Stop_Test_Result = Stop_Test();
+                    if (Stop_Test_Result == 1)
                     {
-                        LogMessage.Debug("调用设置Stop_Test(停止误差)接口正常" + iResult);
+                        LogMessage.Debug("调用设置Stop_Test(停止误差)接口正常" + Stop_Test_Result);
                     }
                     else
                     {
-                        LogMessage.Debug("调用设置Stop_Test(停止误差)接口异常" + iResult);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    LogMessage.Error (ex);
-                }
-            });
-            thread.IsBackground = true;
-            thread.Start();
-            return iResult;
-        }
-
-        [DllImport("xyctr.dll")]
-        private static extern int Error_Start();
-        public static int Call_Error_Start()
-        {
-            int iResult = -1;
-            Thread thread = new Thread(() =>
-            {
-                try
-                {
-                    iResult = Error_Start();
-                    if (iResult == 1)
-                    {
-                        LogMessage.Debug("调用设置Error_Start(清除误差)接口正常" + iResult);
-                    }
-                    else
-                    {
-                        LogMessage.Debug("调用设置Error_Start(清除误差)接口异常" + iResult);
+                        LogMessage.Debug("调用设置Stop_Test(停止误差)接口异常" + Stop_Test_Result);
                     }
                 }
                 catch (Exception ex)
@@ -481,7 +448,39 @@ namespace ModelTest
             });
             thread.IsBackground = true;
             thread.Start();
-            return iResult;
+            return Stop_Test_Result;
+        }
+        /// <summary>
+        /// 清除误差
+        /// </summary>
+        /// <returns></returns>
+        private static int Error_Clear_Result;
+        [DllImport("xyctr.dll")]
+        private static extern int Error_Clear();
+        public static int Call_Error_Clear()
+        {
+            Thread thread = new Thread(() =>
+            {
+                try
+                {
+                    Error_Clear_Result = Error_Clear();
+                    if (Error_Clear_Result == 1)
+                    {
+                        LogMessage.Debug("调用设置Error_Clear(清除误差)接口正常" + Error_Clear_Result);
+                    }
+                    else
+                    {
+                        LogMessage.Debug("调用设置Error_Clear(清除误差)接口异常" + Error_Clear_Result);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    LogMessage.Error(ex);
+                }
+            });
+            thread.IsBackground = true;
+            thread.Start();
+            return Error_Clear_Result;
         }
         /// <summary>
         /// 读取脉冲数
@@ -489,24 +488,24 @@ namespace ModelTest
         /// <param name="iMeterNo"></param>
         /// <param name="MeterError"></param>
         /// <returns></returns>
+        private static int Read_Pulse_Result;
         [DllImport("xyctr.dll")]
         private static extern int Read_Pulse([In, Out] int iMeterNo, [Out] byte[] MeterError);
         public static int Call_Read_Pulse(int iMeterNo, byte[] MeterError)
         {
-            int iResult = -1;
             Thread thread = new Thread(() =>
             {
                 try
                 {
-                    iResult = Read_Pulse(iMeterNo, MeterError);
-                    if (iResult == 1)
+                    Read_Pulse_Result = Read_Pulse(iMeterNo, MeterError);
+                    if (Read_Pulse_Result == 1)
                     {
-                        LogMessage.Debug("调用设置Read_Pulse(读取脉冲数)接口正常" + iResult);
+                        LogMessage.Debug("调用设置Read_Pulse(读取脉冲数)接口正常" + Read_Pulse_Result);
                         LogMessage.Debug($"读取表位{iMeterNo}脉冲数数为：{MeterError}");
                     }
                     else
                     {
-                        LogMessage.Debug("调用设置Read_Pulse(读取脉冲数)接口异常" + iResult);
+                        LogMessage.Debug("调用设置Read_Pulse(读取脉冲数)接口异常" + Read_Pulse_Result);
                     }
                 }
                 catch (Exception ex)
@@ -516,31 +515,31 @@ namespace ModelTest
             });
             thread.IsBackground = true;
             thread.Start();
-            return iResult;
+            return Read_Pulse_Result;
         }
         /// <summary>
         /// 读取版本号
         /// </summary>
         /// <param name="StrVer"></param>
         /// <returns></returns>
+        private static int Read_Version_Result;
         [DllImport("xyctr.dll")]
         private static extern int FunctionReadVersion([Out] byte[] StrVer);
         public static int CallFunctionReadVersion(byte[] StrVer)
         {
-            int iResult = -1;
             Thread thread = new Thread(() =>
             {
                 try
                 {
-                    iResult = FunctionReadVersion(StrVer);
-                    if (iResult == 1)
+                    Read_Version_Result = FunctionReadVersion(StrVer);
+                    if (Read_Version_Result == 1)
                     {
-                        LogMessage.Debug("调用设置FunctionReadVersion(读取版本号)接口正常" + iResult);
+                        LogMessage.Debug("调用设置FunctionReadVersion(读取版本号)接口正常" + Read_Version_Result);
                         LogMessage.Debug("版本号为：" + System.Text.Encoding.Default.GetString(StrVer));
                     }
                     else
                     {
-                        LogMessage.Debug("调用设置FunctionReadVersion(读取版本号)接口异常" + iResult);
+                        LogMessage.Debug("调用设置FunctionReadVersion(读取版本号)接口异常" + Read_Version_Result);
                     }
                 }
                 catch (Exception ex)
@@ -550,7 +549,7 @@ namespace ModelTest
             });
             thread.IsBackground = true;
             thread.Start();
-            return iResult;
+            return Read_Version_Result;
         }
         /// <summary>
         /// 设置电压电流量程
@@ -558,24 +557,24 @@ namespace ModelTest
         /// <param name="iUI"></param>
         /// <param name="iValue"></param>
         /// <returns></returns>
+        private static int SetUIRange_Result;
         [DllImport("xyctr.dll")]
         private static extern int SetUIRange(int iUI, int iValue);
-        public static int CallSetUIRange(int iui,int ivalue)
+        public static int CallSetUIRange(int iui, int ivalue)
         {
-            int iResult = -1;
             Thread thread = new Thread(() =>
             {
 
                 try
                 {
-                    iResult = SetUIRange(iui, ivalue);
-                    if (iResult > 0)
+                    SetUIRange_Result = SetUIRange(iui, ivalue);
+                    if (SetUIRange_Result > 0)
                     {
-                        LogMessage.Debug("SetUIRange设置电压和电流量程接口正常" + iResult);
+                        LogMessage.Debug("SetUIRange设置电压和电流量程接口正常" + SetUIRange_Result);
                     }
                     else if (true)
                     {
-                        LogMessage.Debug("SetUIRange设置电压和电流量程接口异常" + iResult);
+                        LogMessage.Debug("SetUIRange设置电压和电流量程接口异常" + SetUIRange_Result);
                     }
                 }
                 catch (Exception ex)
@@ -585,31 +584,31 @@ namespace ModelTest
             });
             thread.IsBackground = true;
             thread.Start();
-            return iResult;
+            return SetUIRange_Result;
         }
         /// <summary>
         /// rangeoutoutui
         /// </summary>
         /// <param name="StrUICommand"></param>
         /// <returns></returns>
+        private static int RangeOutputUI_Result;
         [DllImport("xyctr.dll")]
         private static extern int RangeOutputUI(string StrUICommand);
         public static int CallRangeOutputUI(string StrUICommand)
         {
-            int iResult = -1;
             Thread thread = new Thread(() =>
             {
 
                 try
                 {
-                    iResult = RangeOutputUI(StrUICommand);
-                    if (iResult == 1)
+                    RangeOutputUI_Result = RangeOutputUI(StrUICommand);
+                    if (RangeOutputUI_Result == 1)
                     {
-                        LogMessage.Debug("RangeOutputUI设置电压和电流量程接口正常" + iResult);
+                        LogMessage.Debug("RangeOutputUI设置电压和电流量程接口正常" + RangeOutputUI_Result);
                     }
                     else
                     {
-                        LogMessage.Debug("RangeOutputUI设置电压和电流量程接口异常" + iResult);
+                        LogMessage.Debug("RangeOutputUI设置电压和电流量程接口异常" + RangeOutputUI_Result);
                     }
                 }
                 catch (Exception ex)
@@ -619,7 +618,7 @@ namespace ModelTest
             });
             thread.IsBackground = true;
             thread.Start();
-            return iResult;
+            return RangeOutputUI_Result;
         }
         /// <summary>
         /// 电表参数转换
