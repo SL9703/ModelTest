@@ -18,7 +18,7 @@ namespace ModelTest
         {
             EnsureLogDirectoryExists();
             string logPath = Path.Combine(_logDirectory, $"Debuglog_{logDateTime}.log");
-            string logMessage = $"[{DateTime.Now:yyyy-MM-dd HH:mm:sss}] - {ex?.ToString()}";
+            string logMessage = $"[{DateTime.Now:yyyy-MM-dd HH:mm:fff}] - {ex?.ToString()}";
             try
             {
                 File.AppendAllText(logPath, logMessage + Environment.NewLine);
@@ -37,7 +37,7 @@ namespace ModelTest
         {
             EnsureLogDirectoryExists();
             string logPath = Path.Combine(_logDirectory, $"Infolog_{logDateTime}.log");
-            string logMessage = $"[{DateTime.Now:yyyy-MM-dd HH:mm:sss}] - {ex?.ToString()}";
+            string logMessage = $"[{DateTime.Now:yyyy-MM-dd HH:mm:fff}] - {ex?.ToString()}";
             try
             {
                 File.AppendAllText(logPath, logMessage + Environment.NewLine);
@@ -56,7 +56,22 @@ namespace ModelTest
         {
             EnsureLogDirectoryExists();
             string logPath = Path.Combine(_logDirectory, $"Errorlog_{logDateTime}.log");
-            string logMessage = $"[{DateTime.Now:yyyy-MM-dd HH:mm:sss}] - {ex?.ToString()}";
+            string logMessage = $"[{DateTime.Now:yyyy-MM-dd HH:mm:fff}] - {ex?.ToString()}";
+
+            try
+            {
+                File.AppendAllText(logPath, logMessage + Environment.NewLine);
+            }
+            catch
+            {
+                // 如果日志写入失败，忽略异常避免循环
+            }
+        }
+        public static void Error(string errlog ,Exception? ex)
+        {
+            EnsureLogDirectoryExists();
+            string logPath = Path.Combine(_logDirectory, $"Errorlog_{logDateTime}.log");
+            string logMessage = $"[{DateTime.Now:yyyy-MM-dd HH:mm:fff}] - +{errlog}+{ex?.ToString()}";
 
             try
             {
@@ -75,7 +90,7 @@ namespace ModelTest
         {
             EnsureLogDirectoryExists();
             string logPath = Path.Combine(_logDirectory, $"SocketLog_{logDateTime}.log");
-            string logMessage = $"[{DateTime.Now:yyyy-MM-dd HH:mm:sss}] - {ex?.ToString()}";
+            string logMessage = $"[{DateTime.Now:yyyy-MM-dd HH:mm:fff}] - {ex?.ToString()}";
             try
             {
                 File.AppendAllText(logPath, logMessage + Environment.NewLine);
@@ -89,7 +104,7 @@ namespace ModelTest
         {
             EnsureLogDirectoryExists();
             string logPath = Path.Combine(_logDirectory, $"{testName}TestLog_{logDateTime}.log");
-            string logMessage = $"[{DateTime.Now:yyyy-MM-dd HH:mm:sss}] - {ex?.ToString()}";
+            string logMessage = $"[{DateTime.Now:yyyy-MM-dd HH:mm:fff}] - {ex?.ToString()}";
             try
             {
                 File.AppendAllText(logPath, logMessage + Environment.NewLine);

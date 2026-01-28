@@ -12,41 +12,65 @@ namespace ModelTest
     /// <summary>
     /// 新跃源接口调用
     /// </summary>
-    public class XYCtr
+    public class XYCtr : IDisposable
     {
+        private readonly object lockObject = new object();//lock对象
+        private static int AnyUIOutput_Result;//控源输出接口返回值
+        private static int OpenComm_Result;//打开源串口接口返回值
+        private static int ShutPowerSource_Result;//降源接口返回值
+        private static int ReadStandMeter_data;//读取标准表接口返回值
+        private static int ReadTestData_Result;//读取装置信息接口返回值
+        private static int SetBlueToothChannel_Result;//设置蓝牙模式和通道接口返回值
+        private static int SendCommand_Result;//初始化电表参数接口返回值
+        private static int ReadStandConst_Result;//读取常数接口返回值
+        private static int Clock_Start_Result;//测试时钟误差接口返回值
         // public static int iResult; //降源接口返回值
         /// <summary>
         /// 降源接口 0-----电压、电流同时停止输出1-----电压停止输出 2-----电流停止输出
         /// </summary>
         /// <param name="ShutPowerSource"></param>
         /// <returns></returns>
+
         [DllImport("xyctr.dll")]
         private static extern int ShutPowerSource([In] int ShutPowerSource);
-        public static int CallShutPowerSource(int shutPowerSource)
+        public (bool Success, int Result) CallShutPowerSource(int shutPowerSource)
         {
-            int iResult = -1;
-            Thread thread = new Thread(() =>
+            if (_disposed)
+            {
+                throw new ObjectDisposedException(nameof(XYCtr));
+            }
+            lock (lockObject)
             {
                 try
                 {
-                    iResult = ShutPowerSource(shutPowerSource);
-                    if (iResult == 1)
+                    ShutPowerSource_Result = ShutPowerSource(shutPowerSource);
+                    if (ShutPowerSource_Result == 1)
                     {
-                        LogMessage.Debug("降源正常" + iResult);
+                        LogMessage.Debug("降源正常" + ShutPowerSource_Result);
+                        return (true, ShutPowerSource_Result);
                     }
                     else
                     {
-                        LogMessage.Debug("调用降源接口异常" + iResult);
+                        LogMessage.Debug("调用降源接口异常" + ShutPowerSource_Result);
+                        return (false, ShutPowerSource_Result);
                     }
+                }
+                catch (AccessViolationException ex)
+                {
+                    LogMessage.Error("内存访问冲突", ex);
+                    return (false, -1);
+                }
+                catch (BadImageFormatException ex)
+                {
+                    LogMessage.Error("DLL格式错误", ex);
+                    return (false, -1);
                 }
                 catch (Exception ex)
                 {
-                    LogMessage.Error(ex);
+                    LogMessage.Error("DLL调用异常", ex);
+                    return (false, -1);
                 }
-            });
-            thread.IsBackground = true;
-            thread.Start();
-            return iResult;
+            }
         }
         /// <summary>
         /// 打开源串口
@@ -55,20 +79,45 @@ namespace ModelTest
         /// <returns></returns>
         [DllImport("xyctr.dll")]
         private static extern int OpenComm(int Port);
-
-        public static int CallOpenComm(int Port)
+        public (bool Success, int Result) CallOpenComm(int Port)
         {
-            int iResult = OpenComm(Port);
-            if (iResult == 1)
+            if (_disposed)
             {
-                LogMessage.Debug("打开源串口正常" + iResult);
+                throw new ObjectDisposedException(nameof(XYCtr));
             }
-            else
+            lock (lockObject)
             {
-                LogMessage.Debug("调用打开源串口接口异常" + iResult);
+                try
+                {
+                    OpenComm_Result = OpenComm(Port);
+                    if (OpenComm_Result == 1)
+                    {
+                        LogMessage.Debug("打开源串口正常" + OpenComm_Result);
+                        return (true, OpenComm_Result);
+                    }
+                    else
+                    {
+                        LogMessage.Debug("调用打开源串口接口异常" + OpenComm_Result);
+                        return (false, OpenComm_Result);
+                    }
+                }
+                catch (AccessViolationException ex)
+                {
+                    LogMessage.Error("内存访问冲突", ex);
+                    return (false, -1);
+                }
+                catch (BadImageFormatException ex)
+                {
+                    LogMessage.Error("DLL格式错误", ex);
+                    return (false, -1);
+                }
+                catch (Exception ex)
+                {
+                    LogMessage.Error("DLL调用异常", ex);
+                    return (false, -1);
+                }
             }
 
-            return iResult;
         }
         /// <summary>
         /// 关闭源串口
@@ -93,46 +142,73 @@ namespace ModelTest
             thread.IsBackground = true;
             thread.Start();
         }
+        #region 读取标准表接口
         /// <summary>
         /// 读取标准表数据接口
         /// </summary>
         /// <param name="StandModel"></param>
         /// <param name="StandValue"></param>
         /// <returns></returns>
-       private static int ReadStandMeter_data;
+
+
         [DllImport("xyctr.dll")]
         private static extern int ReadStandValue([In, Out] string StandModel, [Out] byte[] StandValue);
-        public static int CallReadStandValue(string standModel, byte[] sStandValue)
+        public (bool Success, int Result) CallReadStandValue(string standModel, byte[] sStandValue)
         {
-            
-            object lockObject = new object();
+            if (_disposed)
+            {
+                throw new ObjectDisposedException(nameof(XYCtr));
+            }
             lock (lockObject)
             {
-                Thread thread = new Thread(() =>
+                try
                 {
-                    try
+                    ReadStandMeter_data = ReadStandValue(standModel, sStandValue);
+                    if (IsValidResult(ReadStandMeter_data, sStandValue))
                     {
-                        ReadStandMeter_data = ReadStandValue(standModel, sStandValue);
-                        if (ReadStandMeter_data == 1)
-                        {
-                            LogMessage.Debug("标准表数据返回成功");
-                            LogMessage.Debug("新跃源标准表数据：" + System.Text.Encoding.Default.GetString(sStandValue));
-                        }
-                        else
-                        {
-                            LogMessage.Debug("标准表数据返回失败，错误代码：" + ReadStandMeter_data);
-                        }
+                        LogMessage.Debug($"DLL返回有效内容:{ReadStandMeter_data.ToString()}");
+                        return (true, ReadStandMeter_data);
+
                     }
-                    catch (Exception ex)
+                    else
                     {
-                        LogMessage.Error(ex);
+                        LogMessage.Debug($"DLL返回无效内容:{ReadStandMeter_data.ToString()}");
+                        return (false, ReadStandMeter_data);
                     }
-                });
-                thread.IsBackground = true;
-                thread.Start();
-                return ReadStandMeter_data;
+                }
+                catch (AccessViolationException ex)
+                {
+                    LogMessage.Error("内存访问冲突", ex);
+                    return (false, -1);
+                }
+                catch (BadImageFormatException ex)
+                {
+                    LogMessage.Error("DLL格式错误", ex);
+                    return (false, -1);
+                }
+                catch (Exception ex)
+                {
+                    LogMessage.Error("DLL调用异常", ex);
+                    return (false, -1);
+                }
             }
         }
+
+        private bool IsValidResult(int readStandMeter_data, byte[] sStandValue)
+        {
+            if (readStandMeter_data == 1)
+            {
+                LogMessage.Debug("标准表数据返回成功");
+                LogMessage.Debug("新跃源标准表数据：" + System.Text.Encoding.Default.GetString(sStandValue));
+                return true;
+            }
+            else
+            {
+                LogMessage.Debug("标准表数据返回失败，错误代码：" + readStandMeter_data);
+                return false;
+            }
+        }
+        #endregion
 
         /// <summary>
         /// 控源输出接口
@@ -140,33 +216,48 @@ namespace ModelTest
         /// <param name="StrUICommand">控源参数</param>
         /// <param name="iPulse">脉冲数</param>
         /// <returns></returns>
-        private static int AnyUIOutput_Result;
+
         [DllImport("xyctr.dll")]
         private static extern int AnyUIOutput(string StrUICommand, int iPulse);
-        public static int CallAnyUIOutput(string StrUICommand, int iPulse)
+        public (bool Success, int Result) CallAnyUIOutput(string StrUICommand, int iPulse)
         {
-            Thread thread = new Thread(() =>
+            if (_disposed)
+            {
+                throw new ObjectDisposedException(nameof(XYCtr));
+            }
+            lock (lockObject)
             {
                 try
                 {
                     AnyUIOutput_Result = AnyUIOutput(StrUICommand, iPulse);
                     if (AnyUIOutput_Result == 1)
                     {
-                        LogMessage.Debug("控源正常" + AnyUIOutput_Result);
+                        LogMessage.Debug("控源输出接口正常" + AnyUIOutput_Result);
+                        return (true, AnyUIOutput_Result);
                     }
                     else
                     {
-                        LogMessage.Debug("调用控源接口异常" + AnyUIOutput_Result);
+                        LogMessage.Debug("调用控源输出接口异常" + AnyUIOutput_Result);
+                        return (false, AnyUIOutput_Result);
                     }
+                }
+                catch (AccessViolationException ex)
+                {
+                    LogMessage.Error("内存访问冲突", ex);
+                    return (false, -1);
+                }
+                catch (BadImageFormatException ex)
+                {
+                    LogMessage.Error("DLL格式错误", ex);
+                    return (false, -1);
                 }
                 catch (Exception ex)
                 {
-                    LogMessage.Error(ex);
+                    LogMessage.Error("DLL调用异常", ex);
+                    return (false, -1);
                 }
-            });
-            thread.IsBackground = true;
-            thread.Start();
-            return AnyUIOutput_Result;
+            }
+
         }
         /// <summary>
         /// 读取装置信息
@@ -175,12 +266,16 @@ namespace ModelTest
         /// <param name="iPosition"></param>
         /// <param name="sResultData"></param>
         /// <returns></returns>
-        private static int ReadTestData_Result;
+
         [DllImport("xyctr.dll")]
         private static extern int ReadTestData([In, Out] int ReadType, int iPosition, [Out] byte[] sResultData);
-        public static int CallReadTestData(int readtype, int iposition, byte[] sresultdata)
+        public (bool Success, int Result) CallReadTestData(int readtype, int iposition, byte[] sresultdata)
         {
-            Thread thread = new Thread(() =>
+            if (_disposed)
+            {
+                throw new ObjectDisposedException(nameof(XYCtr));
+            }
+            lock (lockObject)
             {
                 try
                 {
@@ -188,34 +283,46 @@ namespace ModelTest
                     if (ReadTestData_Result == 1)
                     {
                         LogMessage.Debug("读取装置信息成功" + ReadTestData_Result);
+                        return (true, ReadTestData_Result);
                     }
                     else
                     {
                         LogMessage.Debug("调用装置信息接口异常" + ReadTestData_Result);
+                        return (false, ReadTestData_Result);
                     }
+                }
+                catch (AccessViolationException ex)
+                {
+                    LogMessage.Error("内存访问冲突", ex);
+                    return (false, -1);
+                }
+                catch (BadImageFormatException ex)
+                {
+                    LogMessage.Error("DLL格式错误", ex);
+                    return (false, -1);
                 }
                 catch (Exception ex)
                 {
-                    LogMessage.Error(ex);
+                    LogMessage.Error("DLL调用异常", ex);
+                    return (false, -1);
                 }
-            });
-            thread.IsBackground = true;
-            thread.Start();
-            return ReadTestData_Result;
+            }
         }
-
         /// <summary>
         /// 读取常数
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-        private static int ReadStandConst_Result;
+
         [DllImport("xyctr.dll")]
         private static extern int ReadStandConst([Out] byte[] constanst);
-        public static int CallReadStandConst(byte[] constanst)
+        public (bool Success, int Result) CallReadStandConst(byte[] constanst)
         {
-           
-            Thread thread = new Thread(() =>
+            if (_disposed)
+            {
+                throw new ObjectDisposedException(nameof(XYCtr));
+            }
+            lock (lockObject)
             {
                 try
                 {
@@ -223,20 +330,30 @@ namespace ModelTest
                     if (ReadStandConst_Result == 1)
                     {
                         LogMessage.Debug("读取常数成功" + ReadStandConst_Result);
+                        return (true, ReadStandConst_Result);
                     }
                     else
                     {
                         LogMessage.Debug("调用读取常数接口异常" + ReadStandConst_Result);
+                        return (false, ReadStandConst_Result);
                     }
+                }
+                catch (AccessViolationException ex)
+                {
+                    LogMessage.Error("内存访问冲突", ex);
+                    return (false, -1);
+                }
+                catch (BadImageFormatException ex)
+                {
+                    LogMessage.Error("DLL格式错误", ex);
+                    return (false, -1);
                 }
                 catch (Exception ex)
                 {
-                    LogMessage.Error(ex);
+                    LogMessage.Error("DLL调用异常", ex);
+                    return (false, -1);
                 }
-            });
-            thread.IsBackground = true;
-            thread.Start();
-            return ReadStandConst_Result;
+            }
         }
         /// <summary>
         /// 初始化电表参数
@@ -244,12 +361,16 @@ namespace ModelTest
         /// <param name="Cmd"></param>
         /// <param name="AdjTags"></param>
         /// <returns></returns>
-        private static int SendCommand_Result;
+
         [DllImport("xyctr.dll")]
         private static extern int SendCommand(string Cmd, bool AdjTags);
-        public static int CallSendCommand(string cmd, bool AdjTags)
+        public (bool Success, int Result) CallSendCommand(string cmd, bool AdjTags)
         {
-            Thread thread = new Thread(() =>
+            if (_disposed)
+            {
+                throw new ObjectDisposedException(nameof(XYCtr));
+            }
+            lock (lockObject)
             {
                 try
                 {
@@ -257,33 +378,46 @@ namespace ModelTest
                     if (SendCommand_Result == 1)
                     {
                         LogMessage.Debug("SendCommand接口正常" + SendCommand_Result);
+                        return (true, SendCommand_Result);
                     }
                     else
                     {
                         LogMessage.Debug("调用SendCommand接口异常" + SendCommand_Result);
+                        return (false, SendCommand_Result);
                     }
+                }
+                catch (AccessViolationException ex)
+                {
+                    LogMessage.Error("内存访问冲突", ex);
+                    return (false, -1);
+                }
+                catch (BadImageFormatException ex)
+                {
+                    LogMessage.Error("DLL格式错误", ex);
+                    return (false, -1);
                 }
                 catch (Exception ex)
                 {
-                    LogMessage.Error(ex);
+                    LogMessage.Error("DLL调用异常", ex);
+                    return (false, -1);
                 }
-            });
-            thread.IsBackground = true;
-            thread.Start();
-            return SendCommand_Result;
+            }
         }
         /// <summary>
         /// 设置蓝牙模式和通道
         /// </summary>
         /// <param name="IchanngelNo"></param>
         /// <returns></returns>
-        private static int SetBlueToothChannel_Result;
+
         [DllImport("xyctr.dll")]
         private static extern int Set_BlueTooth_Channel(int IchanngelNo);
-        public static int CallSet_BlueTooth_Channel(int IchanngelNo)
+        public (bool Success, int Result) CallSet_BlueTooth_Channel(int IchanngelNo)
         {
-          
-            Thread thread = new Thread(() =>
+            if (_disposed)
+            {
+                throw new ObjectDisposedException(nameof(XYCtr));
+            }
+            lock (lockObject)
             {
                 try
                 {
@@ -291,20 +425,30 @@ namespace ModelTest
                     if (SetBlueToothChannel_Result == 1)
                     {
                         LogMessage.Debug("设置Set_BlueTooth_Channel接口正常" + SetBlueToothChannel_Result);
+                        return (true, SetBlueToothChannel_Result);
                     }
                     else
                     {
                         LogMessage.Debug("调用设置Set_BlueTooth_Channel接口异常" + SetBlueToothChannel_Result);
+                        return (false, SetBlueToothChannel_Result);
                     }
+                }
+                catch (AccessViolationException ex)
+                {
+                    LogMessage.Error("内存访问冲突", ex);
+                    return (false, -1);
+                }
+                catch (BadImageFormatException ex)
+                {
+                    LogMessage.Error("DLL格式错误", ex);
+                    return (false, -1);
                 }
                 catch (Exception ex)
                 {
-                    LogMessage.Error(ex);
+                    LogMessage.Error("DLL调用异常", ex);
+                    return (false, -1);
                 }
-            });
-            thread.IsBackground = true;
-            thread.Start();
-            return SetBlueToothChannel_Result;
+            }
         }
 
         /// <summary>
@@ -312,13 +456,16 @@ namespace ModelTest
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-        private static int Clock_Start_Result;
+
         [DllImport("xyctr.dll")]
         private static extern int Clock_Start(int iPulse);
-        public static int Call_Clock_Start(int iPulse)
+        public (bool Success, int Result) Call_Clock_Start(int iPulse)
         {
-            
-            Thread thread = new Thread(() =>
+            if (_disposed)
+            {
+                throw new ObjectDisposedException(nameof(XYCtr));
+            }
+            lock (lockObject)
             {
                 try
                 {
@@ -326,20 +473,30 @@ namespace ModelTest
                     if (Clock_Start_Result == 1)
                     {
                         LogMessage.Debug("调用设置Clock_Start接口正常" + Clock_Start_Result);
+                        return (true, Clock_Start_Result);
                     }
                     else
                     {
                         LogMessage.Debug("调用设置Clock_Start接口异常" + Clock_Start_Result);
+                        return (false, Clock_Start_Result);
                     }
+                }
+                catch (AccessViolationException ex)
+                {
+                    LogMessage.Error("内存访问冲突", ex);
+                    return (false, -1);
+                }
+                catch (BadImageFormatException ex)
+                {
+                    LogMessage.Error("DLL格式错误", ex);
+                    return (false, -1);
                 }
                 catch (Exception ex)
                 {
-                    LogMessage.Error(ex);
+                    LogMessage.Error("DLL调用异常", ex);
+                    return (false, -1);
                 }
-            });
-            thread.IsBackground = true;
-            thread.Start();
-            return Clock_Start_Result;
+            }
         }
         /// <summary>
         /// 读取误差
@@ -350,9 +507,13 @@ namespace ModelTest
         private static int Read_Test_Result;
         [DllImport("xyctr.dll")]
         private static extern int Read_Test([In, Out] int iMeterNo, [Out] byte[] MeterError);
-        public static int Call_Read_TestError(int iMeterNo, byte[] MeterError)
+        public (bool Success, int Result) Call_Read_TestError(int iMeterNo, byte[] MeterError)
         {
-            Thread thread = new Thread(() =>
+            if (_disposed)
+            {
+                throw new ObjectDisposedException(nameof(XYCtr));
+            }
+            lock (lockObject)
             {
                 try
                 {
@@ -362,20 +523,30 @@ namespace ModelTest
                         // int.TryParse(System.Text.Encoding.Default.GetString(MeterError), out double resut);
 
                         LogMessage.Debug($"读取{iMeterNo}表位误差数据成功：" + MeterError);
+                        return (true, Read_Test_Result);
                     }
                     else
                     {
                         LogMessage.Debug($"读取{iMeterNo}误差数据失败，错误代码：" + Read_Test_Result);
+                        return (false, Read_Test_Result);
                     }
+                }
+                catch (AccessViolationException ex)
+                {
+                    LogMessage.Error("内存访问冲突", ex);
+                    return (false, -1);
+                }
+                catch (BadImageFormatException ex)
+                {
+                    LogMessage.Error("DLL格式错误", ex);
+                    return (false, -1);
                 }
                 catch (Exception ex)
                 {
-                    LogMessage.Error(ex);
+                    LogMessage.Error("DLL调用异常", ex);
+                    return (false, -1);
                 }
-            });
-            thread.IsBackground = true;
-            thread.Start();
-            return Read_Test_Result;
+            }
         }
         /// <summary>
         /// 开始误差试验
@@ -387,14 +558,13 @@ namespace ModelTest
         private static int Error_Start_Result;
         [DllImport("xyctr.dll")]
         private static extern int Error_Start(string MeterConstant, int iMeterCount, int iPulse);
-        /// <summary>
-        /// 误差试验
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        public static int Call_Error_Start(string meterConstant, int iMeterCount, int iPulse)
+        public (bool Success, int Result) Call_Error_Start(string meterConstant, int iMeterCount, int iPulse)
         {
-            Thread thread = new Thread(() =>
+            if (_disposed)
+            {
+                throw new ObjectDisposedException(nameof(XYCtr));
+            }
+            lock (lockObject)
             {
                 try
                 {
@@ -402,20 +572,30 @@ namespace ModelTest
                     if (Error_Start_Result == 1)
                     {
                         LogMessage.Debug("调用设置Error_Start(误差试验)接口正常" + Error_Start_Result);
+                        return (true, Error_Start_Result);
                     }
                     else
                     {
                         LogMessage.Debug("调用设置Error_Start(误差试验)接口异常" + Error_Start_Result);
+                        return (false, Error_Start_Result);
                     }
+                }
+                catch (AccessViolationException ex)
+                {
+                    LogMessage.Error("内存访问冲突", ex);
+                    return (false, -1);
+                }
+                catch (BadImageFormatException ex)
+                {
+                    LogMessage.Error("DLL格式错误", ex);
+                    return (false, -1);
                 }
                 catch (Exception ex)
                 {
-                    LogMessage.Error(ex);
+                    LogMessage.Error("DLL调用异常", ex);
+                    return (false, -1);
                 }
-            });
-            thread.IsBackground = true;
-            thread.Start();
-            return Error_Start_Result;
+            }
         }
         /// <summary>
         /// 停止测试
@@ -425,9 +605,13 @@ namespace ModelTest
         [DllImport("xyctr.dll")]
         private static extern int Stop_Test();
 
-        public static int Call_Stop_Test()
+        public (bool Success, int Result) Call_Stop_Test()
         {
-            Thread thread = new Thread(() =>
+            if (_disposed)
+            {
+                throw new ObjectDisposedException(nameof(XYCtr));
+            }
+            lock (lockObject)
             {
                 try
                 {
@@ -435,20 +619,30 @@ namespace ModelTest
                     if (Stop_Test_Result == 1)
                     {
                         LogMessage.Debug("调用设置Stop_Test(停止误差)接口正常" + Stop_Test_Result);
+                        return (true, Stop_Test_Result);
                     }
                     else
                     {
                         LogMessage.Debug("调用设置Stop_Test(停止误差)接口异常" + Stop_Test_Result);
+                        return (false, Stop_Test_Result);
                     }
+                }
+                catch (AccessViolationException ex)
+                {
+                    LogMessage.Error("内存访问冲突", ex);
+                    return (false, -1);
+                }
+                catch (BadImageFormatException ex)
+                {
+                    LogMessage.Error("DLL格式错误", ex);
+                    return (false, -1);
                 }
                 catch (Exception ex)
                 {
-                    LogMessage.Error(ex);
+                    LogMessage.Error("DLL调用异常", ex);
+                    return (false, -1);
                 }
-            });
-            thread.IsBackground = true;
-            thread.Start();
-            return Stop_Test_Result;
+            }
         }
         /// <summary>
         /// 清除误差
@@ -457,9 +651,13 @@ namespace ModelTest
         private static int Error_Clear_Result;
         [DllImport("xyctr.dll")]
         private static extern int Error_Clear();
-        public static int Call_Error_Clear()
+        public (bool Success, int Result) Call_Error_Clear()
         {
-            Thread thread = new Thread(() =>
+            if (_disposed)
+            {
+                throw new ObjectDisposedException(nameof(XYCtr));
+            }
+            lock (lockObject)
             {
                 try
                 {
@@ -467,20 +665,30 @@ namespace ModelTest
                     if (Error_Clear_Result == 1)
                     {
                         LogMessage.Debug("调用设置Error_Clear(清除误差)接口正常" + Error_Clear_Result);
+                        return (true, Error_Clear_Result);
                     }
                     else
                     {
                         LogMessage.Debug("调用设置Error_Clear(清除误差)接口异常" + Error_Clear_Result);
+                        return (false, Error_Clear_Result);
                     }
+                }
+                catch (AccessViolationException ex)
+                {
+                    LogMessage.Error("内存访问冲突", ex);
+                    return (false, -1);
+                }
+                catch (BadImageFormatException ex)
+                {
+                    LogMessage.Error("DLL格式错误", ex);
+                    return (false, -1);
                 }
                 catch (Exception ex)
                 {
-                    LogMessage.Error(ex);
+                    LogMessage.Error("DLL调用异常", ex);
+                    return (false, -1);
                 }
-            });
-            thread.IsBackground = true;
-            thread.Start();
-            return Error_Clear_Result;
+            }
         }
         /// <summary>
         /// 读取脉冲数
@@ -491,9 +699,13 @@ namespace ModelTest
         private static int Read_Pulse_Result;
         [DllImport("xyctr.dll")]
         private static extern int Read_Pulse([In, Out] int iMeterNo, [Out] byte[] MeterError);
-        public static int Call_Read_Pulse(int iMeterNo, byte[] MeterError)
+        public (bool Success, int Result) Call_Read_Pulse(int iMeterNo, byte[] MeterError)
         {
-            Thread thread = new Thread(() =>
+            if (_disposed)
+            {
+                throw new ObjectDisposedException(nameof(XYCtr));
+            }
+            lock (lockObject)
             {
                 try
                 {
@@ -502,20 +714,30 @@ namespace ModelTest
                     {
                         LogMessage.Debug("调用设置Read_Pulse(读取脉冲数)接口正常" + Read_Pulse_Result);
                         LogMessage.Debug($"读取表位{iMeterNo}脉冲数数为：{MeterError}");
+                        return (true, Read_Pulse_Result);
                     }
                     else
                     {
                         LogMessage.Debug("调用设置Read_Pulse(读取脉冲数)接口异常" + Read_Pulse_Result);
+                        return (false, Read_Pulse_Result);
                     }
+                }
+                catch (AccessViolationException ex)
+                {
+                    LogMessage.Error("内存访问冲突", ex);
+                    return (false, -1);
+                }
+                catch (BadImageFormatException ex)
+                {
+                    LogMessage.Error("DLL格式错误", ex);
+                    return (false, -1);
                 }
                 catch (Exception ex)
                 {
-                    LogMessage.Error(ex);
+                    LogMessage.Error("DLL调用异常", ex);
+                    return (false, -1);
                 }
-            });
-            thread.IsBackground = true;
-            thread.Start();
-            return Read_Pulse_Result;
+            }
         }
         /// <summary>
         /// 读取版本号
@@ -525,9 +747,13 @@ namespace ModelTest
         private static int Read_Version_Result;
         [DllImport("xyctr.dll")]
         private static extern int FunctionReadVersion([Out] byte[] StrVer);
-        public static int CallFunctionReadVersion(byte[] StrVer)
+        public (bool Success, int Result) CallFunctionReadVersion(byte[] StrVer)
         {
-            Thread thread = new Thread(() =>
+            if (_disposed)
+            {
+                throw new ObjectDisposedException(nameof(XYCtr));
+            }
+            lock (lockObject)
             {
                 try
                 {
@@ -536,20 +762,30 @@ namespace ModelTest
                     {
                         LogMessage.Debug("调用设置FunctionReadVersion(读取版本号)接口正常" + Read_Version_Result);
                         LogMessage.Debug("版本号为：" + System.Text.Encoding.Default.GetString(StrVer));
+                        return (true, Read_Version_Result);
                     }
                     else
                     {
                         LogMessage.Debug("调用设置FunctionReadVersion(读取版本号)接口异常" + Read_Version_Result);
+                        return (false, Read_Version_Result);
                     }
+                }
+                catch (AccessViolationException ex)
+                {
+                    LogMessage.Error("内存访问冲突", ex);
+                    return (false, -1);
+                }
+                catch (BadImageFormatException ex)
+                {
+                    LogMessage.Error("DLL格式错误", ex);
+                    return (false, -1);
                 }
                 catch (Exception ex)
                 {
-                    LogMessage.Error(ex);
+                    LogMessage.Error("DLL调用异常", ex);
+                    return (false, -1);
                 }
-            });
-            thread.IsBackground = true;
-            thread.Start();
-            return Read_Version_Result;
+            }
         }
         /// <summary>
         /// 设置电压电流量程
@@ -560,31 +796,44 @@ namespace ModelTest
         private static int SetUIRange_Result;
         [DllImport("xyctr.dll")]
         private static extern int SetUIRange(int iUI, int iValue);
-        public static int CallSetUIRange(int iui, int ivalue)
+        public (bool Success, int Result) CallSetUIRange(int iui, int ivalue)
         {
-            Thread thread = new Thread(() =>
+            if (_disposed)
             {
-
+                throw new ObjectDisposedException(nameof(XYCtr));
+            }
+            lock (lockObject)
+            {
                 try
                 {
                     SetUIRange_Result = SetUIRange(iui, ivalue);
                     if (SetUIRange_Result > 0)
                     {
                         LogMessage.Debug("SetUIRange设置电压和电流量程接口正常" + SetUIRange_Result);
+                        return (true, SetUIRange_Result);
                     }
                     else if (true)
                     {
                         LogMessage.Debug("SetUIRange设置电压和电流量程接口异常" + SetUIRange_Result);
+                        return (false, SetUIRange_Result);
                     }
+                }
+                catch (AccessViolationException ex)
+                {
+                    LogMessage.Error("内存访问冲突", ex);
+                    return (false, -1);
+                }
+                catch (BadImageFormatException ex)
+                {
+                    LogMessage.Error("DLL格式错误", ex);
+                    return (false, -1);
                 }
                 catch (Exception ex)
                 {
-                    LogMessage.Error(ex);
+                    LogMessage.Error("DLL调用异常", ex);
+                    return (false, -1);
                 }
-            });
-            thread.IsBackground = true;
-            thread.Start();
-            return SetUIRange_Result;
+            }
         }
         /// <summary>
         /// rangeoutoutui
@@ -594,31 +843,44 @@ namespace ModelTest
         private static int RangeOutputUI_Result;
         [DllImport("xyctr.dll")]
         private static extern int RangeOutputUI(string StrUICommand);
-        public static int CallRangeOutputUI(string StrUICommand)
+        public (bool Success, int Result) CallRangeOutputUI(string StrUICommand)
         {
-            Thread thread = new Thread(() =>
+            if (_disposed)
             {
-
+                throw new ObjectDisposedException(nameof(XYCtr));
+            }
+            lock (lockObject)
+            {
                 try
                 {
                     RangeOutputUI_Result = RangeOutputUI(StrUICommand);
                     if (RangeOutputUI_Result == 1)
                     {
                         LogMessage.Debug("RangeOutputUI设置电压和电流量程接口正常" + RangeOutputUI_Result);
+                        return (true, RangeOutputUI_Result);
                     }
                     else
                     {
                         LogMessage.Debug("RangeOutputUI设置电压和电流量程接口异常" + RangeOutputUI_Result);
+                        return (false, RangeOutputUI_Result);
                     }
+                }
+                catch (AccessViolationException ex)
+                {
+                    LogMessage.Error("内存访问冲突", ex);
+                    return (false, -1);
+                }
+                catch (BadImageFormatException ex)
+                {
+                    LogMessage.Error("DLL格式错误", ex);
+                    return (false, -1);
                 }
                 catch (Exception ex)
                 {
-                    LogMessage.Error(ex);
+                    LogMessage.Error("DLL调用异常", ex);
+                    return (false, -1);
                 }
-            });
-            thread.IsBackground = true;
-            thread.Start();
-            return RangeOutputUI_Result;
+            }
         }
         /// <summary>
         /// 电表参数转换
@@ -809,6 +1071,15 @@ namespace ModelTest
                 return 4;
             }
             return -1;
+        }
+        private bool _disposed = false;
+        public void Dispose()
+        {
+            if (!_disposed)
+            {
+                // 清理资源
+                _disposed = true;
+            }
         }
     }
 }

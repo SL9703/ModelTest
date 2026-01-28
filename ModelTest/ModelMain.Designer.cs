@@ -344,7 +344,6 @@ namespace ModelTest
             tabControl6 = new TabControl();
             tabPage24 = new TabPage();
             groupBox18 = new GroupBox();
-            label124 = new Label();
             btnSendData = new Button();
             rtbxSendData = new RichTextBox();
             panel11 = new Panel();
@@ -3932,7 +3931,6 @@ namespace ModelTest
             // 
             // groupBox18
             // 
-            groupBox18.Controls.Add(label124);
             groupBox18.Controls.Add(btnSendData);
             groupBox18.Controls.Add(rtbxSendData);
             groupBox18.Controls.Add(panel11);
@@ -3943,18 +3941,6 @@ namespace ModelTest
             groupBox18.TabIndex = 2;
             groupBox18.TabStop = false;
             groupBox18.Text = "发送数据";
-            // 
-            // label124
-            // 
-            label124.AutoSize = true;
-            label124.Dock = DockStyle.Right;
-            label124.ForeColor = Color.Red;
-            label124.Location = new Point(1297, 158);
-            label124.Margin = new Padding(5, 0, 5, 0);
-            label124.Name = "label124";
-            label124.Size = new Size(64, 24);
-            label124.TabIndex = 30;
-            label124.Text = "状态：";
             // 
             // btnSendData
             // 
@@ -4745,7 +4731,6 @@ namespace ModelTest
             tabControl6.ResumeLayout(false);
             tabPage24.ResumeLayout(false);
             groupBox18.ResumeLayout(false);
-            groupBox18.PerformLayout();
             panel11.ResumeLayout(false);
             panel11.PerformLayout();
             groupBox17.ResumeLayout(false);
@@ -5159,7 +5144,6 @@ namespace ModelTest
         private Button BtnMeterTest;
         private ToolStripButton tsbtnTerminalTest;
         private ToolStripButton tsbtnMeterTest;
-        private Label label124;
         private RichTextBox textBoxlog;
     }
 }
