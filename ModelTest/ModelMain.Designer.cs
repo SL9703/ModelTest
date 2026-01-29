@@ -410,6 +410,7 @@ namespace ModelTest
             tsbtnMeterTest = new ToolStripButton();
             panel2 = new Panel();
             panel3 = new Panel();
+            groupBox20 = new GroupBox();
             tabControl1.SuspendLayout();
             tabPage1.SuspendLayout();
             TestUnit.SuspendLayout();
@@ -1007,6 +1008,7 @@ namespace ModelTest
             tableLayoutPanel1.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
             tableLayoutPanel1.Controls.Add(groupBox10, 0, 0);
             tableLayoutPanel1.Controls.Add(groupBox11, 1, 0);
+            tableLayoutPanel1.Controls.Add(groupBox20, 0, 1);
             tableLayoutPanel1.Dock = DockStyle.Fill;
             tableLayoutPanel1.Location = new Point(495, 0);
             tableLayoutPanel1.Name = "tableLayoutPanel1";
@@ -4648,6 +4650,16 @@ namespace ModelTest
             panel3.Size = new Size(1628, 107);
             panel3.TabIndex = 5;
             // 
+            // groupBox20
+            // 
+            groupBox20.Dock = DockStyle.Fill;
+            groupBox20.Location = new Point(3, 250);
+            groupBox20.Name = "groupBox20";
+            groupBox20.Size = new Size(545, 241);
+            groupBox20.TabIndex = 2;
+            groupBox20.TabStop = false;
+            groupBox20.Text = "误差仪";
+            // 
             // ModelMain
             // 
             AutoScaleDimensions = new SizeF(11F, 24F);
@@ -5145,5 +5157,6 @@ namespace ModelTest
         private ToolStripButton tsbtnTerminalTest;
         private ToolStripButton tsbtnMeterTest;
         private RichTextBox textBoxlog;
+        private GroupBox groupBox20;
     }
 }
