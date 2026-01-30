@@ -109,6 +109,9 @@ namespace ModelTest
             button_SETLED4 = new Button();
             button_SETLED2 = new Button();
             button_SETLED3 = new Button();
+            groupBox20 = new GroupBox();
+            errorTestControl1 = new ModelTest.CustomControl.ErrorTestControl();
+            ultrSimpleDisplay1 = new ModelTest.CustomControl.UltrSimpleDisplay();
             panel5 = new Panel();
             groupBox5 = new GroupBox();
             label30 = new Label();
@@ -379,6 +382,7 @@ namespace ModelTest
             切换背景色ToolStripMenuItem = new ToolStripMenuItem();
             statusStrip1 = new StatusStrip();
             lblconnectStatus = new ToolStripStatusLabel();
+            toolStripStatusLabel1 = new ToolStripStatusLabel();
             socketUnit = new GroupBox();
             groupBox14 = new GroupBox();
             label119 = new Label();
@@ -410,7 +414,6 @@ namespace ModelTest
             tsbtnMeterTest = new ToolStripButton();
             panel2 = new Panel();
             panel3 = new Panel();
-            groupBox20 = new GroupBox();
             tabControl1.SuspendLayout();
             tabPage1.SuspendLayout();
             TestUnit.SuspendLayout();
@@ -426,6 +429,7 @@ namespace ModelTest
             panel15.SuspendLayout();
             panel9.SuspendLayout();
             panel6.SuspendLayout();
+            groupBox20.SuspendLayout();
             panel5.SuspendLayout();
             groupBox5.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)pBTaiti_yellow).BeginInit();
@@ -1328,6 +1332,34 @@ namespace ModelTest
             button_SETLED3.Text = "LED3";
             button_SETLED3.UseVisualStyleBackColor = true;
             button_SETLED3.Click += button_SETLED3_Click;
+            // 
+            // groupBox20
+            // 
+            groupBox20.Controls.Add(errorTestControl1);
+            groupBox20.Controls.Add(ultrSimpleDisplay1);
+            groupBox20.Dock = DockStyle.Fill;
+            groupBox20.Location = new Point(3, 250);
+            groupBox20.Name = "groupBox20";
+            groupBox20.Size = new Size(545, 241);
+            groupBox20.TabIndex = 2;
+            groupBox20.TabStop = false;
+            groupBox20.Text = "误差仪";
+            // 
+            // errorTestControl1
+            // 
+            errorTestControl1.Dock = DockStyle.Fill;
+            errorTestControl1.Location = new Point(3, 181);
+            errorTestControl1.Name = "errorTestControl1";
+            errorTestControl1.Size = new Size(539, 57);
+            errorTestControl1.TabIndex = 12;
+            // 
+            // ultrSimpleDisplay1
+            // 
+            ultrSimpleDisplay1.Dock = DockStyle.Top;
+            ultrSimpleDisplay1.Location = new Point(3, 26);
+            ultrSimpleDisplay1.Name = "ultrSimpleDisplay1";
+            ultrSimpleDisplay1.Size = new Size(539, 155);
+            ultrSimpleDisplay1.TabIndex = 0;
             // 
             // panel5
             // 
@@ -4304,7 +4336,7 @@ namespace ModelTest
             // statusStrip1
             // 
             statusStrip1.ImageScalingSize = new Size(24, 24);
-            statusStrip1.Items.AddRange(new ToolStripItem[] { lblconnectStatus });
+            statusStrip1.Items.AddRange(new ToolStripItem[] { lblconnectStatus, toolStripStatusLabel1 });
             statusStrip1.Location = new Point(0, 878);
             statusStrip1.Name = "statusStrip1";
             statusStrip1.Padding = new Padding(2, 0, 22, 0);
@@ -4318,6 +4350,12 @@ namespace ModelTest
             lblconnectStatus.Name = "lblconnectStatus";
             lblconnectStatus.Size = new Size(64, 24);
             lblconnectStatus.Text = "未连接";
+            // 
+            // toolStripStatusLabel1
+            // 
+            toolStripStatusLabel1.Name = "toolStripStatusLabel1";
+            toolStripStatusLabel1.Size = new Size(195, 24);
+            toolStripStatusLabel1.Text = "toolStripStatusLabel1";
             // 
             // socketUnit
             // 
@@ -4650,16 +4688,6 @@ namespace ModelTest
             panel3.Size = new Size(1628, 107);
             panel3.TabIndex = 5;
             // 
-            // groupBox20
-            // 
-            groupBox20.Dock = DockStyle.Fill;
-            groupBox20.Location = new Point(3, 250);
-            groupBox20.Name = "groupBox20";
-            groupBox20.Size = new Size(545, 241);
-            groupBox20.TabIndex = 2;
-            groupBox20.TabStop = false;
-            groupBox20.Text = "误差仪";
-            // 
             // ModelMain
             // 
             AutoScaleDimensions = new SizeF(11F, 24F);
@@ -4700,6 +4728,7 @@ namespace ModelTest
             panel9.PerformLayout();
             panel6.ResumeLayout(false);
             panel6.PerformLayout();
+            groupBox20.ResumeLayout(false);
             panel5.ResumeLayout(false);
             groupBox5.ResumeLayout(false);
             groupBox5.PerformLayout();
@@ -5158,5 +5187,8 @@ namespace ModelTest
         private ToolStripButton tsbtnMeterTest;
         private RichTextBox textBoxlog;
         private GroupBox groupBox20;
+        private CustomControl.UltrSimpleDisplay ultrSimpleDisplay1;
+        private ToolStripStatusLabel toolStripStatusLabel1;
+        private CustomControl.ErrorTestControl errorTestControl1;
     }
 }

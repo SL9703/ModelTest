@@ -36,11 +36,11 @@ namespace ModelTest.CustomControl
             //格式化显示值
             string dispalyStr = FormatForDispaly(_displaydouble);
             //计算数码管尺寸和位置
-            int digitwidth = 80;
-            int digitheight = 150;
+            int digitwidth = 50;
+            int digitheight = 80;
             int totalwidth = dispalyStr.Length * (digitwidth + digitSpcing) - digitSpcing;
-            int startX = (this.ClientSize.Width - digitwidth) / 2;
-            int startY = (this.ClientSize.Height - digitwidth) / 2 + 40;
+            int startX = (this.ClientSize.Width - digitwidth) / 2 - 300;
+            int startY = (this.ClientSize.Height - digitwidth) / 2 -10;
 
             //绘制每个数码管
             for (int i = 0; i < dispalyStr.Length; i++)
@@ -52,9 +52,9 @@ namespace ModelTest.CustomControl
                 //显示原始值和相关信息
                 using (Font infoFont = new Font("Arial", 10))
                 {
-                    g.DrawString($"显示值:{_displaydouble}", infoFont, Brushes.White, 10, this.ClientSize.Height - 40);
-                    g.DrawString($"显示内容:{dispalyStr}", infoFont, Brushes.White, 200, this.ClientSize.Height - 40);
-                    g.DrawString($"模拟显示", infoFont, Brushes.Gray, this.ClientSize.Width - 50, this.ClientSize.Height - 40);
+                    g.DrawString($"显示值:{_displaydouble}", infoFont, Brushes.White, 10, 10);
+                    g.DrawString($"显示内容:{dispalyStr}", infoFont, Brushes.White, 250, 10);
+                    g.DrawString($"模拟显示", infoFont, Brushes.Gray, 500, 10);
                 }
             }
         }
@@ -123,10 +123,10 @@ namespace ModelTest.CustomControl
         public string FormatForDispaly(double value)
         {
             //
-            string str = value.ToString("F2");//固定2位小数
+            string str = value.ToString("F4");//固定4位小数
             if (str.Length > digitCount)
             {
-                str = value.ToString("E2");//如果太长，使用科学计数法
+                str = value.ToString("E4");//如果太长，使用科学计数法
             }
             return str;
         }
