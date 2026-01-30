@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Data;
 using System.Drawing;
 using System.Linq;
+using System.Reflection.Metadata;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -12,6 +13,10 @@ namespace ModelTest.CustomControl
 {
     public partial class ErrorTestControl : UserControl
     {
+        private ComboBox comboBox1;
+        private TextBox tbxBZB;
+        private TextBox tbxDNB;
+        private TextBox quanshu;
         public ErrorTestControl()
         {
             InitializeComponent();
@@ -31,11 +36,11 @@ namespace ModelTest.CustomControl
                 Text = "实验类型",
             };
 
-            ComboBox comboBox1 = new ComboBox
+            comboBox1 = new ComboBox
             {
                 Location = new Point(0, 30),
                 Size = new Size(100, 40),
-                Items = { "有功", "无功", "日计时", "启动实验", "启动实验", "潜动实验", "常数实验" },
+                Items = { "有功", "无功", "日计时" },
                 SelectedIndex = 0,
             };
             Label label2 = new Label
@@ -60,12 +65,12 @@ namespace ModelTest.CustomControl
                 Location = new Point(220, 30),
                 Text = "电能表常数",
             };
-            TextBox tbxBZB = new TextBox
+            tbxBZB = new TextBox
             {
                 Location = new Point(330, 0),
                 Size = new Size(130, 20)
             };
-            TextBox tbxDNB = new TextBox
+            tbxDNB = new TextBox
             {
                 Location = new Point(330, 30),
                 Size = new Size(130, 20)
@@ -76,7 +81,7 @@ namespace ModelTest.CustomControl
                 Text = "圈数",
                 Size = new Size(60, 20)
             };
-            TextBox quanshu = new TextBox
+            quanshu = new TextBox
             {
                 Location = new Point(520, 0),
                 Size = new Size(60, 20)
@@ -141,9 +146,49 @@ namespace ModelTest.CustomControl
         /// <param name="sender"></param>
         /// <param name="e"></param>
         /// <exception cref="NotImplementedException"></exception>
+        private double BZBYG;
+        private double DNBYG;
+        private double BZBWG;
+        private double DNBWG;
+        private double RJSHZ;
         private void StartErrorClick(object? sender, EventArgs e)
         {
-            
+            constantSet();//常数频率相关从参数获取
+
+        }
+        /// <summary>
+        /// 常数设置
+        /// </summary>
+        /// <exception cref="NotImplementedException"></exception>
+        private void constantSet()
+        {
+            //55 07 00 01 00 32 字节1 ，字节2 AA
+            //设置标准表常数,分有功无功 01 标准表有功脉冲常数 02标准表无功脉冲常数
+            bool BZBConstant = double.TryParse(tbxBZB.Text,out double _bzbc);//标准表常数 字节2
+            bool DNBBConstant = double.TryParse(tbxDNB.Text,out double _dnbc);//电能表常数 字节2
+            bool  RJSHZConstant = double.TryParse(quanshu.Text,out double _rjsc);//日计时圈数
+                                         //设置电能表常数，分有功无功 03 电能表有功脉冲常数 04电能表有功脉冲常数
+            ModelMain modelMain = new();
+            //日计时实验需要设置频率
+            switch (comboBox1.Text)
+            {
+                case "有功":
+                    BZBYG = 01;
+                    DNBYG = 03;
+                    modelMain.SetErrorConstant(BZBYG, _bzbc, DNBYG, _dnbc, 1);
+                    break;
+                case "无功":
+                    BZBWG = 02;
+                    DNBWG = 04;
+                    modelMain.SetErrorConstant(BZBWG, _bzbc, DNBWG, _dnbc, 2);
+                    break;
+                case "日计时":
+                    RJSHZ = 05;
+                    modelMain.SetErrorConstant(RJSHZ, _rjsc, 0, 0, 3);
+                    break;
+                default:
+                    break;
+            }
         }
     }
 }

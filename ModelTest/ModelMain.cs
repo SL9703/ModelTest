@@ -489,9 +489,10 @@ namespace ModelTest
             var MCUACDown = ModuleModel.ModuleByte(MCUStartByte, A0800_DataLength, MCUAddr, MCUCtrl, "21", MCUData_1 + "00", MCUStopByte);
             await SeedMethod(MCUACDown);
         }
-        private void AddLog(string Message)
+        public void AddLog(string Message)
         {
-            textBoxlog.AppendText($"[{DateTime.Now:HH:mm:ss.fff}] {Message}\r\n");
+            textBoxlog.SelectionLength = 0;
+            textBoxlog.AppendText($"[{DateTime.Now:HH:mm:ss.fff}] {Message}+{Environment.NewLine}");
             textBoxlog.ScrollToCaret();
             LogMessage.Debug(Message);
         }
@@ -500,7 +501,7 @@ namespace ModelTest
         /// </summary>
         /// <param name="Message"></param>
         /// <param name="color"></param>
-        private void AddLog(string Message, Color? color = null)
+        public void AddLog(string Message, Color? color = null)
         {
             textBoxlog.SelectionLength = 0;
             textBoxlog.SelectionColor = color.Value;
@@ -1411,6 +1412,39 @@ namespace ModelTest
         private void btnelectriciansource_Click(object sender, EventArgs e)
         {
 
+        }
+        /// <summary>
+        /// 设置标准表常数，电能表常数，发给总控
+        /// </summary>
+        /// <param name="BZB">标准表字节，兼容时钟</param>
+        /// <param name="BZBC">标准表常数</param>
+        /// <param name="DNB">电能表字节</param>
+        /// <param name="DNBC">电能表常数</param>
+        /// <param name="ErrorClass">1设置有功，2设置无功，3设置时钟</param>
+        public void SetErrorConstant(double BZB, double BZBC, double DNB, double DNBC, int ErrorClass)
+        {
+            var SetBZBEroor = string.Empty;
+            var SetDNBError = string.Empty;
+            //55 07 00 01 00 32 字节1 ，字节2 AA
+            //设置标准表常数,分有功无功 01 标准表有功脉冲常数 02标准表无功脉冲常数
+            MCUAddr = tbxTerminalAdds.Text;//地址
+            //32常数设置命令字
+            SetBZBEroor = MCUAddr + MCUCtrl + "32" + BZB + BZBC;
+            SetDNBError = MCUAddr + MCUCtrl + "32" + DNB + DNBC;
+            if (ErrorClass == 1)
+            {
+                AddLog("标准表命令"+SetBZBEroor.ToString());
+                AddLog("电能表命令"+SetDNBError.ToString());
+                return;
+            }
+            else if (ErrorClass == 2)
+            {
+
+            }
+            else if (ErrorClass == 3)
+            {
+
+            }
         }
         #region 控源XY
         // 修复：实例化 XYCtr 对象以调用实例方法
@@ -2952,6 +2986,6 @@ namespace ModelTest
             this.Hide();
             meterTest.Show();
         }
-        
+
     }
 }
