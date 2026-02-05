@@ -6,6 +6,8 @@ using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows.Forms;
+using ModelTest.CustomControl;
 using ModelTest.SerialPortImp;
 using ModelTest.Socket_DLL;
 using ModelTest.Socket_DLL.Socket_Client;
@@ -29,7 +31,6 @@ namespace ModelTest
         private SerialPortSocket portSocket = new SerialPortSocket();
         // 获取UI线程的SynchronizationContext
         private readonly SynchronizationContext _uiContext;
-
         // 定义字典来存储所有控件的初始信息
         private Dictionary<System.Windows.Forms.Control, ControlInfo> _originalControlsInfo = new Dictionary<System.Windows.Forms.Control, ControlInfo>();
         private System.Drawing.Size _originalFormSize;
@@ -129,6 +130,7 @@ namespace ModelTest
             checkBox1_CheckedChanged(sender, e);//初始化模组0x01 0x31命令选择状态
             cbxRevcHEX_CheckedChanged(sender, e);//初始化接收HEX状态。tcpserver用到
             cbxSendHEX_CheckedChanged(sender, e);//初始化发送HEX状态。tcpserver用到
+            //订阅误差测试控件事件
             AddLog("应用程序已启动成功");
             LogMessage.Info("应用程序已启动成功");
         }
@@ -192,7 +194,8 @@ namespace ModelTest
             cbxSTAModePinStatus.SelectedIndex = 0;//sta模块引脚状态
             comboBoxSTAStutas.SelectedIndex = 0;//读取sta模块状态用到
             cbxSocketClass.SelectedIndex = 1;//socket类型选择 tcpclient
-
+            cbxErrorTest.SelectedIndex = 0;//误差测试类型
+            cbxErrorTextClass.SelectedIndex = 0;//误差方式
             cbxTerminalV1.DataSource = Enum.GetValues(typeof(TerminalV1CLASS)).Cast<TerminalV1CLASS>().Select(x => new
             {
                 终端类型 = ModelTool.GetDescription(x)
@@ -240,6 +243,7 @@ namespace ModelTest
                     client.Disconnect();
                     client = null;
                     AddLog("状态：已断开");
+                    btn_cilentSocket.Text = "连接";
                     lblconnectStatus.Text = "TCP客户端状态：未连接";
                     lblconnectStatus.ForeColor = Color.Red;
                 }
@@ -281,11 +285,11 @@ namespace ModelTest
                 // 更新窗体标题
                 if (e.IsConnected)
                 {
-                    this.Text = $"TCP客户端 - 已连接到 {client.ServerEndpoint}";
+                    this.Text = $"习承科技测试    TCP客户端 - 已连接到 {client.ServerEndpoint}";
                 }
                 else if (client.Status == "Disconnected")
                 {
-                    this.Text = "TCP客户端 - 未连接";
+                    this.Text = "习承科技测试    TCP客户端 - 未连接";
                 }
             });
         }
@@ -337,7 +341,7 @@ namespace ModelTest
                 AddLog("地址不能为空");
             }
         }
-
+        string TerminalDataLength = string.Empty;
         string A0600_DataLength = "0600";
         string A0700_DataLength = "0700";
         string A0800_DataLength = "0800";
@@ -510,6 +514,11 @@ namespace ModelTest
             textBoxlog.ScrollToCaret();
             LogMessage.Debug(Message);
         }
+        /// <summary>
+        /// 关闭连接
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void btn_cilentSocket_Close_Click(object sender, EventArgs e)
         {
             Dispose();
@@ -1409,8 +1418,52 @@ namespace ModelTest
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-        private void btnelectriciansource_Click(object sender, EventArgs e)
+        private async void btnelectriciansource_Click(object sender, EventArgs e)
         {
+
+        }
+        /// <summary>
+        /// 开始误差
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+
+        private async void btnStartError_Terminal_Click(object sender, EventArgs e)
+        {
+            //设置标准表常数
+            LogMessage.Info(sender.ToString());
+            bool a = double.TryParse(tbxBZBC.Text, out double tbxbzb);
+            bool b = double.TryParse(tbxDNBC.Text, out double tbxdnb);
+            bool c = double.TryParse(tbxRJSC.Text, out double tbxrjs);
+            if (cbxErrorTextClass.SelectedIndex == 0)
+            {
+                string Terminal_SetBZBContants = SetErrorConstant("01", tbxbzb);
+                AddLog("设置标准表有功常数命令：" + Terminal_SetBZBContants);
+                await SeedMethod(Terminal_SetBZBContants);
+                await Task.Delay(3000); // 延迟3秒，不阻塞UI
+                //设置电能表常数
+                string Terminal_SetDNBContants = SetErrorConstant("03", tbxdnb);
+                AddLog("设置电能表有功常数命令：" + Terminal_SetDNBContants);
+                await SeedMethod(Terminal_SetDNBContants);
+            }
+            else if (cbxErrorTextClass.SelectedIndex == 1)//设置无功
+            {
+                string Terminal_SetBZBContants = SetErrorConstant("02", tbxbzb);
+                AddLog("设置标准表无功常数命令：" + Terminal_SetBZBContants);
+                await SeedMethod(Terminal_SetBZBContants);
+                await Task.Delay(3000); // 延迟3秒，不阻塞UI
+                //设置电能表常数
+                string Terminal_SetDNBContants = SetErrorConstant("04", tbxdnb);
+                AddLog("设置电能表无功常数命令：" + Terminal_SetDNBContants);
+                await SeedMethod(Terminal_SetDNBContants);
+            }
+            else if (cbxErrorTextClass.SelectedIndex == 2) //设置日记时
+            {
+                string Terminal_SetRJS = SetErrorConstant("05", tbxrjs);
+                AddLog("设置日记时圈数命令：" + Terminal_SetRJS);
+                await SeedMethod((Terminal_SetRJS));
+            }
+            await Task.Delay(3000); // 延迟3秒，不阻塞UI，开始启动误差实验
 
         }
         /// <summary>
@@ -1420,34 +1473,29 @@ namespace ModelTest
         /// <param name="BZBC">标准表常数</param>
         /// <param name="DNB">电能表字节</param>
         /// <param name="DNBC">电能表常数</param>
-        /// <param name="ErrorClass">1设置有功，2设置无功，3设置时钟</param>
-        public void SetErrorConstant(double BZB, double BZBC, double DNB, double DNBC, int ErrorClass)
+        /// <param name="ErrorClass">1,2设置标准表有功无功，3,4设置电能表有功无功，5设置时钟</param>
+        public string SetErrorConstant(string DNB_BZBbyte, double DNB_BZBC)
         {
-            var SetBZBEroor = string.Empty;
-            var SetDNBError = string.Empty;
+            MCUAddr = tbxTerminalAdds.Text;//地址
+            int DNB_BZBCbytelength = ModelTool.CalculateByteLengthExact(ModelTool.ToHex(DNB_BZBC));//标准表常数字节长度
+            var DNB_BZBCstr = HexConverter.ConvertHex(ModelTool.ToHex(DNB_BZBC));//标准表常数16进制字符串,电能表常数16进制字符串
             //55 07 00 01 00 32 字节1 ，字节2 AA
             //设置标准表常数,分有功无功 01 标准表有功脉冲常数 02标准表无功脉冲常数
-            MCUAddr = tbxTerminalAdds.Text;//地址
-            //32常数设置命令字
-            SetBZBEroor = MCUAddr + MCUCtrl + "32" + BZB + BZBC;
-            SetDNBError = MCUAddr + MCUCtrl + "32" + DNB + DNBC;
-            if (ErrorClass == 1)
-            {
-                AddLog("标准表命令"+SetBZBEroor.ToString());
-                AddLog("电能表命令"+SetDNBError.ToString());
-                return;
-            }
-            else if (ErrorClass == 2)
-            {
-
-            }
-            else if (ErrorClass == 3)
-            {
-
-            }
+            //32常数设置命令字SetBZBEroor = MCUAddr + MCUCtrl + "32" + BZB + BZBC;SetDNBError = MCUAddr + MCUCtrl + "32" + DNB + DNBC;
+            //计算命令长度 +2 01 00 32 字节1 +字节2（变量）+校验码
+            TerminalDataLength = HexConverter.ConvertHex(ModelTool.ToHex(((2 + 3 + DNB_BZBCbytelength + 1))));
+            var SetDNBBZBError = TerminalModel.TerminalByte(
+                MCUStartByte,
+                TerminalDataLength + "00",
+                MCUAddr,
+                MCUCtrl,
+                "32", DNB_BZBbyte + DNB_BZBCstr, MCUStopByte); //电能表常数设置命令校验完整的命令
+            TerminalDataLength = HexConverter.ConvertHex(ModelTool.ToHex(((2 + 3 + DNB_BZBCbytelength + 1))));
+            return SetDNBBZBError;
         }
         #region 控源XY
         // 修复：实例化 XYCtr 对象以调用实例方法
+        ShowStandValueUserControl standValueUserControl = new ShowStandValueUserControl();
         XYCtr xyCtr = new XYCtr();
         int OpenComm_data = 0;
         //private static int XYIresult; //源接口返回值
@@ -1560,39 +1608,39 @@ namespace ModelTest
             try
             {
                 //电压
-                tb_UA.Text = processedParts[0];
-                tb_UB.Text = processedParts[1];
-                tb_UC.Text = processedParts[2];
+                standValueUserControl.UA = processedParts[0];
+                standValueUserControl.UB = processedParts[1];
+                standValueUserControl.UC = processedParts[2];
                 //电流       
-                tb_IA.Text = processedParts[3];
-                tb_IB.Text = processedParts[4];
-                tb_IC.Text = processedParts[5];
+                standValueUserControl.IA = processedParts[3];
+                standValueUserControl.IB = processedParts[4];
+                standValueUserControl.IC = processedParts[5];
                 //相位角     
-                tb_XA.Text = processedParts[6];
-                tb_XB.Text = processedParts[7];
-                tb_XC.Text = processedParts[8];
+                standValueUserControl.Xa = processedParts[6];
+                standValueUserControl.Xb = processedParts[7];
+                standValueUserControl.Xc = processedParts[8];
                 //有功       
-                tb_PA.Text = processedParts[9];
-                tb_PB.Text = processedParts[10];
-                tb_PC.Text = processedParts[11];
+                standValueUserControl.PA = processedParts[9];
+                standValueUserControl.PB = processedParts[10];
+                standValueUserControl.PC = processedParts[11];
                 //无功       
-                tb_QA.Text = processedParts[12];
-                tb_QB.Text = processedParts[13];
-                tb_QC.Text = processedParts[14];
+                standValueUserControl.QA = processedParts[12];
+                standValueUserControl.QB = processedParts[13];
+                standValueUserControl.QC = processedParts[14];
                 //频率       
-                tb_HZ.Text = processedParts[15];
+                standValueUserControl.Freq = processedParts[15];
                 //报警
-                tb_Alarm.Text = processedParts[16];
+                standValueUserControl.Alarm = processedParts[16];
                 //uba
-                tb_Uba.Text = processedParts[17];
+                standValueUserControl.Uab = processedParts[17];
                 //uca
-                tb_Uca.Text = processedParts[18];
+                standValueUserControl.Uca = processedParts[18];
                 //相线
-                tb_xx.Text = processedParts[19];
+                standValueUserControl.XX = processedParts[19];
                 //电压量程
-                tb_V_LC.Text = processedParts[20];
+                standValueUserControl.VLC = processedParts[20];
                 //电流量程
-                tb_A_LC.Text = processedParts[21];
+                standValueUserControl.ALC = processedParts[21];
                 //
                 //tb_SA.Text = processedParts[0];
                 //tb_SB.Text = processedParts[0];
@@ -1676,7 +1724,7 @@ namespace ModelTest
             if (result.Result == 1)
             {
                 AddLog("读取常数接口正常" + result.Result);
-                tb_contans.Text = System.Text.Encoding.Default.GetString(constas);
+                standValueUserControl.Contans = System.Text.Encoding.Default.GetString(constas);
             }
             else
             {
@@ -2721,11 +2769,11 @@ namespace ModelTest
                 // 更新窗体标题
                 if (e.IsConnected)
                 {
-                    this.Text = $"TCP客户端 - 已连接到 {_tcpClient.ServerEndpoint}";
+                    this.Text = $"习承科技测试    TCP客户端 - 已连接到 {_tcpClient.ServerEndpoint}";
                 }
                 else if (_tcpClient.Status == "Disconnected")
                 {
-                    this.Text = "TCP客户端 - 未连接";
+                    this.Text = "习承科技测试    TCP客户端 - 未连接";
                 }
 
                 // 更新状态显示
@@ -2986,6 +3034,7 @@ namespace ModelTest
             this.Hide();
             meterTest.Show();
         }
+
 
     }
 }

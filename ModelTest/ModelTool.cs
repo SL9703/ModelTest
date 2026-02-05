@@ -96,6 +96,12 @@ namespace ModelTest
             }
             return list.ToArray();
         }
+        /// <summary>
+        /// 字符串数组转16进制字符串
+        /// </summary>
+        /// <param name="bytes"></param>
+        /// <param name="upperCase"></param>
+        /// <returns></returns>
         public static string ByteArrayToHex(byte[] bytes, bool upperCase = true)
         {
             char[] hexChars = upperCase
@@ -111,7 +117,132 @@ namespace ModelTest
             }
             return new string(result);
         }
+        // 十六进制字符表
+        private static readonly char[] hexDigitsUpper = "0123456789ABCDEF".ToCharArray();
+        private static readonly char[] hexDigitsLower = "0123456789abcdef".ToCharArray();
+        /// <summary>
+        /// 十进制转十六进制（快速算法）
+        /// </summary>
+        public static string ToHex(this double value, bool uppercase = true, int minLength = 1)
+        {
+            return ToHex((long)value, uppercase, minLength);
+        }
+        public static string ToHex(this int value, bool uppercase = true, int minLength = 1)
+        {
+            return ToHex((long)value, uppercase, minLength);
+        }
 
+        public static string ToHex(this long value, bool uppercase = true, int minLength = 1)
+        {
+            if (value == 0) return new string('0', Math.Max(1, minLength));
 
+            bool isNegative = value < 0;
+            ulong number = isNegative ? (ulong)(-value) : (ulong)value;
+
+            char[] digits = uppercase ? hexDigitsUpper : hexDigitsLower;
+            char[] buffer = new char[16]; // long最大16位十六进制
+            int index = 15;
+
+            while (number > 0)
+            {
+                buffer[index--] = digits[number & 0xF];
+                number >>= 4;
+            }
+
+            int start = index + 1;
+            int length = 16 - start;
+
+            if (length < minLength)
+            {
+                char[] result = new char[minLength];
+                int padding = minLength - length;
+                Array.Fill(result, '0', 0, padding);
+                Array.Copy(buffer, start, result, padding, length);
+
+                if (isNegative)
+                {
+                    return "-" + new string(result);
+                }
+                return new string(result);
+            }
+
+            string hex = new string(buffer, start, length);
+
+            if (isNegative)
+            {
+                return "-" + hex;
+            }
+            return hex;
+        }
+        /// <summary>
+        /// 检查字符串是否为有效的十六进制
+        /// </summary>
+        public static bool IsValidHex(string hex)
+        {
+            if (string.IsNullOrEmpty(hex))
+                return false;
+
+            int startIndex = 0;
+            if (hex[0] == '-')
+                startIndex = 1;
+            else if (hex.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+                startIndex = 2;
+
+            if (startIndex >= hex.Length)
+                return false;
+
+            for (int i = startIndex; i < hex.Length; i++)
+            {
+                char c = hex[i];
+                if (!((c >= '0' && c <= '9') ||
+                      (c >= 'A' && c <= 'F') ||
+                      (c >= 'a' && c <= 'f')))
+                    return false;
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// 16进制算字节长度：更精确的计算（考虑奇偶性）
+        /// </summary>
+        public static int CalculateByteLengthExact(string hexString)
+        {
+            if (string.IsNullOrEmpty(hexString))
+                return 0;
+
+            hexString = NormalizeHexString(hexString);
+
+            if (hexString.Length == 0)
+                return 0;
+
+            // 检查是否为有效的十六进制字符串
+            if (!IsValidHex(hexString))
+                throw new ArgumentException("无效的十六进制字符串");
+
+            // 偶数长度：直接除以2
+            // 奇数长度：补0后除以2
+            if (hexString.Length % 2 == 0)
+            {
+                return hexString.Length / 2;
+            }
+            else
+            {
+                // 奇数长度可能需要补0，但字节长度需要包含第一个半字节
+                return (hexString.Length + 1) / 2;
+            }
+        }
+        private static string NormalizeHexString(string hex)
+        {
+            return hex?.Trim()
+                      .Replace("0x", "", StringComparison.OrdinalIgnoreCase)
+                      .Replace(" ", "")
+                      .Replace("\t", "")
+                      .Replace("\n", "")
+                      .Replace("\r", "")
+                      .Replace("-", "")
+                      .Replace(":", "")
+                      .ToUpper() ?? "";
+        }
     }
 }

@@ -378,7 +378,7 @@ namespace ModelTest.Socket_DLL.Socket_Client
                 Timestamp = DateTime.Now,
                 Direction = TcpClientMessageEventArgs.MessageDirection.Received
             });
-            await ProcessSpecialMessage(receivedData);
+            await ProcessSpecialMessage(receivedData);//处理相关数据
         }
 
         private async Task ProcessSpecialMessage(byte[] data)
