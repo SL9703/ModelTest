@@ -244,5 +244,33 @@ namespace ModelTest
                       .Replace(":", "")
                       .ToUpper() ?? "";
         }
+        /// <summary>
+        /// 绑定一组互斥的复选框（两个或三个）
+        /// </summary>
+        /// <param name="checkBoxes">要设为互斥的复选框数组（按顺序传入即可）</param>
+        public static void BindMutexCheckBoxes(params CheckBox[] checkBoxes)
+        {
+            if (checkBoxes == null || checkBoxes.Length < 2 || checkBoxes.Length > 3)
+                throw new ArgumentException("必须传入2个或3个复选框");
+
+            // 为每个复选框绑定相同的事件处理
+            foreach (var cb in checkBoxes)
+            {
+                cb.CheckedChanged += (sender, e) =>
+                {
+                    var currentCb = sender as CheckBox;
+                    if (currentCb == null || !currentCb.Checked) return; // 只有选中时才需要处理
+
+                    // 将其他复选框取消选中
+                    foreach (var other in checkBoxes)
+                    {
+                        if (other != currentCb && other.Checked)
+                        {
+                            other.Checked = false;
+                        }
+                    }
+                };
+            }
+        }
     }
 }

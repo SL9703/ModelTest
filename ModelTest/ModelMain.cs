@@ -34,6 +34,7 @@ namespace ModelTest
         // 定义字典来存储所有控件的初始信息
         private Dictionary<System.Windows.Forms.Control, ControlInfo> _originalControlsInfo = new Dictionary<System.Windows.Forms.Control, ControlInfo>();
         private System.Drawing.Size _originalFormSize;
+        private ShowStandValueUserControl standValueUserControl;
         public enum TerminalCLASS : byte
         {
             [Description("专变III")]
@@ -84,6 +85,11 @@ namespace ModelTest
         public ModelMain()
         {
             InitializeComponent();
+            //源界面初始化
+            standValueUserControl = new ShowStandValueUserControl();
+            standValueUserControl.OnUpdateRequested += MyControl_OnUpdateRequested;
+            panel13.Controls.Add(standValueUserControl);
+            standValueUserControl.Dock = DockStyle.Fill;
             _uiContext = SynchronizationContext.Current;
             // 处理UI线程异常
             Application.ThreadException += (sender, e) =>
@@ -130,12 +136,11 @@ namespace ModelTest
             checkBox1_CheckedChanged(sender, e);//初始化模组0x01 0x31命令选择状态
             cbxRevcHEX_CheckedChanged(sender, e);//初始化接收HEX状态。tcpserver用到
             cbxSendHEX_CheckedChanged(sender, e);//初始化发送HEX状态。tcpserver用到
-            //订阅误差测试控件事件
+            
             AddLog("应用程序已启动成功");
             LogMessage.Info("应用程序已启动成功");
         }
-
-
+       
         private void StoreControlInfo(Control parentCtrl)
         {
             foreach (Control ctrl in parentCtrl.Controls)
@@ -172,24 +177,6 @@ namespace ModelTest
             this.MainSerialPort.DataReceived += new System.IO.Ports.SerialDataReceivedEventHandler(this.MainSerialPort_DataReceived);
             btn_cilentSocket_Close.Enabled = false;
             btn_cilentSocket.Enabled = true;
-            //初始化新跃电压电流选择信息
-            comboBoxVA.SelectedIndex = 2;
-            comboBoxVB.SelectedIndex = 2;
-            comboBoxVC.SelectedIndex = 2;
-            comboBoxIA.SelectedIndex = 0;
-            comboBoxIB.SelectedIndex = 0;
-            comboBoxIC.SelectedIndex = 0;
-            cbxIAJ.SelectedIndex = 0;
-            cbxIBJ.SelectedIndex = 0;
-            cbxICJ.SelectedIndex = 0;
-            cbx_Connection.SelectedIndex = 1;
-            cbx_ratedcurrent.SelectedIndex = 1;
-            cbx_ratedvoltage.SelectedIndex = 2;
-            cbx_meterconstant.SelectedIndex = 3;
-            cbx_HABC.SelectedIndex = 0;
-            cbx_LC.SelectedIndex = 3;
-            cbbx_BlueTooth.SelectedIndex = 0;
-            cbbx_ToosNum.SelectedIndex = 0;
             cbbxSTAModel.SelectedIndex = 0;//选择sta模组
             cbxSTAModePinStatus.SelectedIndex = 0;//sta模块引脚状态
             comboBoxSTAStutas.SelectedIndex = 0;//读取sta模块状态用到
@@ -514,6 +501,21 @@ namespace ModelTest
             textBoxlog.ScrollToCaret();
             LogMessage.Debug(Message);
         }
+        /// <summary>
+        /// contaol x
+        /// </summary>
+        /// <param name="message"></param>
+        public void MyControl_OnUpdateRequested(string message)
+        {
+            // 确保在UI线程执行
+            if (this.InvokeRequired)
+            {
+                this.Invoke(new Action<string>(MyControl_OnUpdateRequested), message);
+                return;
+            }
+            AddLog(message);
+        }
+
         /// <summary>
         /// 关闭连接
         /// </summary>
@@ -1387,7 +1389,7 @@ namespace ModelTest
             LogMessage.Info(sender.ToString());
             MCUAddr = tbxTerminalAdds.Text;//地址
             var sourcestatus = TerminalModel.GetTerminalSourceType(cbx_changePCBUPAC.SelectedIndex);
-            var Terminal_ChangePCBUpAC = TerminalModel.TerminalByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUCtrl, "41", $"{sourcestatus}01", MCUStopByte);//07 00 01 00 41 01 00
+            var Terminal_ChangePCBUpAC = TerminalModel.TerminalByte(MCUStartByte, A0800_DataLength, MCUAddr, MCUCtrl, "41", $"{sourcestatus}01", MCUStopByte);//07 00 01 00 41 01 00
             await SeedMethod(Terminal_ChangePCBUpAC);
         }
         /// <summary>
@@ -1493,564 +1495,6 @@ namespace ModelTest
             TerminalDataLength = HexConverter.ConvertHex(ModelTool.ToHex(((2 + 3 + DNB_BZBCbytelength + 1))));
             return SetDNBBZBError;
         }
-        #region 控源XY
-        // 修复：实例化 XYCtr 对象以调用实例方法
-        ShowStandValueUserControl standValueUserControl = new ShowStandValueUserControl();
-        XYCtr xyCtr = new XYCtr();
-        int OpenComm_data = 0;
-        //private static int XYIresult; //源接口返回值
-        public byte[] sStandValue = new byte[1024];//标准表数据缓存
-        public string XYModel = "model1";//新跃源类型
-        /// <summary>
-        /// 降源按钮
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private void buttonXY_x0E_Click(object sender, EventArgs e)
-        {
-            LogMessage.Info(sender.ToString());
-            if (cbxShutdownUI0.Checked && OpenComm_data == 1)
-            {
-                int ShutDownUI = 0;
-                AddLog("输出给源电压电流参数：" + ShutDownUI);
-                var result = xyCtr.CallShutPowerSource(ShutDownUI);
-                if (result.Result == 1)
-                {
-                    AddLog("降源接口正常 返回值：" + result.Result.ToString());
-                }
-                else
-                {
-                    AddLog("降源失败，错误代码：" + result.Result.ToString());
-                }
-            }
-            else
-            {
-                AddLog("降源异常，请检查串口是否链接");
-            }
-        }
-
-        /// <summary>
-        /// 初始化源的串口
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private void btn_SourcePort_Click(object sender, EventArgs e)
-        {
-            LogMessage.Info(sender.ToString());
-            try
-            {
-                if (OpenComm_data == 1)
-                {
-                    //串口是打开的状态
-                    XYCtr.CallCloseComm();
-                    btn_SourcePort.Text = "OPEN";
-                    btn_SourcePort.BackColor = Color.YellowGreen;
-                    AddLog("源串口已关闭");
-                    OpenComm_data = 0;
-                }
-                else
-                {
-                    //初始化源串口
-                    var result = xyCtr.CallOpenComm(int.Parse(tbx_sourcePort.Text));
-                    if (result.Result == 1)
-                    {
-                        OpenComm_data = 1;
-                        AddLog("源串口打开成功");
-                        //串口已经关闭状态，需要设置好属性后打开
-                        AddLog("源串口已打开");
-                        btn_SourcePort.Text = "CLOSE";
-                        btn_SourcePort.BackColor = Color.IndianRed;
-                    }
-                    else
-                    {
-                        AddLog("源串口打开失败，错误代码：" + OpenComm_data);
-                        XYCtr.CallCloseComm();
-                        btn_SourcePort.Text = "OPEN";
-                        btn_SourcePort.BackColor = Color.YellowGreen;
-                    }
-                }
-            }
-            catch (Exception ex_prot)
-            {
-                SerialPortException(ex_prot);
-            }
-        }
-        /// <summary>
-        /// 读取标准表数据
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-
-        private void btn_ReadStandMeter_Click(object sender, EventArgs e)
-        {
-            LogMessage.Info(sender.ToString());
-            if (OpenComm_data == 1)
-            {
-
-                var result = xyCtr.CallReadStandValue(XYModel, sStandValue);
-                int ReadStandMeterResult = result.Result;
-                if (ReadStandMeterResult == 1)
-                {
-                    AddLog("读标准表接口正常 返回值：" + ReadStandMeterResult.ToString());
-                    var StandResult = ModelTool.SplitString(System.Text.Encoding.Default.GetString(sStandValue));
-                    ShowTextReadStandValue(StandResult);//winform显示标准表数据
-                    ModelTool.LogSplitResult(StandResult);
-                }
-                else
-                {
-                    AddLog("读标准表失败，错误代码：" + ReadStandMeterResult.ToString());
-                }
-            }
-        }
-        private void ShowTextReadStandValue(IList<string> processedParts)
-        {
-
-            try
-            {
-                //电压
-                standValueUserControl.UA = processedParts[0];
-                standValueUserControl.UB = processedParts[1];
-                standValueUserControl.UC = processedParts[2];
-                //电流       
-                standValueUserControl.IA = processedParts[3];
-                standValueUserControl.IB = processedParts[4];
-                standValueUserControl.IC = processedParts[5];
-                //相位角     
-                standValueUserControl.Xa = processedParts[6];
-                standValueUserControl.Xb = processedParts[7];
-                standValueUserControl.Xc = processedParts[8];
-                //有功       
-                standValueUserControl.PA = processedParts[9];
-                standValueUserControl.PB = processedParts[10];
-                standValueUserControl.PC = processedParts[11];
-                //无功       
-                standValueUserControl.QA = processedParts[12];
-                standValueUserControl.QB = processedParts[13];
-                standValueUserControl.QC = processedParts[14];
-                //频率       
-                standValueUserControl.Freq = processedParts[15];
-                //报警
-                standValueUserControl.Alarm = processedParts[16];
-                //uba
-                standValueUserControl.Uab = processedParts[17];
-                //uca
-                standValueUserControl.Uca = processedParts[18];
-                //相线
-                standValueUserControl.XX = processedParts[19];
-                //电压量程
-                standValueUserControl.VLC = processedParts[20];
-                //电流量程
-                standValueUserControl.ALC = processedParts[21];
-                //
-                //tb_SA.Text = processedParts[0];
-                //tb_SB.Text = processedParts[0];
-                //tb_SC.Text = processedParts[0];
-
-                //tb_PFA.Text = processedParts[0];
-                //tb_PFB.Text = processedParts[0];
-                //tb_PFC.Text = processedParts[0];
-
-                //tb_EP.Text = processedParts[0];
-                //tb_EQ.Text = processedParts[0];
-                //tb_ES.Text = processedParts[0];
-            }
-            catch (Exception ex)
-            {
-                AddLog("显示标准表信息异常:" + ex.ToString());
-            }
-        }
-        private void CmdReadMeterData_Click(object sender, EventArgs e)
-        {
-            byte[] sResultData;
-            sResultData = new byte[255];
-            var result = xyCtr.CallReadTestData(0, 0, sResultData);
-            if (result.Result == 1)
-            {
-                AddLog("读取装置信息成功：" + System.Text.Encoding.Default.GetString(sResultData));
-            }
-            else
-            {
-                AddLog("读取装置信息失败，错误代码：" + result.Result);
-            }
-        }
-        /// <summary>
-        /// 电压电流输出
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private void buttonCtrlUI_Click(object sender, EventArgs e)
-        {
-            LogMessage.Info(sender.ToString());
-            if (OpenComm_data == 1)
-            {
-                //源参数;电压电流 电压电流夹脚， uab uac夹脚
-                //byte[] U_I_F_Uab_Uac = new byte[1024];
-                string ui = comboBoxVA.Text + "_" +
-                comboBoxVB.Text + "_" +
-                comboBoxVC.Text + "_" +
-                comboBoxIA.Text + "_" +
-                comboBoxIB.Text + "_" +
-                comboBoxIC.Text + "_" +
-                cbxIAJ.Text + "_" +
-                cbxIBJ.Text + "_" +
-                cbxICJ.Text + "_" +
-                cbxUab.Text + "_" +
-                cbxUac.Text;
-                //合并数组
-                AddLog("输出给源电压电流参数：" + ui);
-                //是否进行误差仪计算
-                int iPulse = int.Parse(tbxiPulse.Text);
-                var result = xyCtr.CallAnyUIOutput(ui, iPulse);
-                if (result.Result == 1)
-                {
-                    AddLog("控源接口正常 返回值：" + result.Result.ToString());
-                }
-                else
-                {
-                    AddLog("控源失败，错误代码：" + result.Result.ToString());
-                }
-            }
-        }
-        /// <summary>
-        /// 读取常数
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private void btn_ReadContans_Click(object sender, EventArgs e)
-        {
-            LogMessage.Info(sender.ToString());
-            byte[] constas = new byte[1024];
-            var result = xyCtr.CallReadStandConst(constas);
-            if (result.Result == 1)
-            {
-                AddLog("读取常数接口正常" + result.Result);
-                standValueUserControl.Contans = System.Text.Encoding.Default.GetString(constas);
-            }
-            else
-            {
-                AddLog("调用读取常数接口异常" + result.Result);
-            }
-        }
-        /// <summary>
-        /// 初始化电表参数
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        string MeterConnection;
-        string MeterV;
-        string LC;
-        private void btn_Init_Click(object sender, EventArgs e)
-        {
-            LogMessage.Info(sender.ToString());
-            MeterConnection = XYCtr.Init_meterConnection(cbx_Connection.Text);
-            MeterV = XYCtr.Init_meterV(cbx_ratedvoltage.Text);
-            var MeterInit = $"Ini_{MeterConnection}_{MeterV}_{cbx_ratedcurrent.Text}_{cbx_meterconstant.Text}_E";
-            AddLog("初始化电表参数" + MeterInit);
-            var result = xyCtr.CallSendCommand(MeterInit, true);
-            if (result.Result == 1)
-            {
-                AddLog("初始化电表接口正常" + result.Result);
-            }
-            else
-            {
-                AddLog("初始化电表接口异常" + result.Result);
-            }
-        }
-        /// <summary>
-        /// adj 升源接口
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private void btn_XY_ADJ_Click(object sender, EventArgs e)
-        {
-            LogMessage.Info(sender.ToString());
-            LC = XYCtr.ADJLC_CHANGE(cbx_LC.Text);
-            var AdjCMD = $"Adj_{tbx_V_5.Text}_{tbx_A_5.Text}_{cbx_HABC.Text}_{LC}_{tbxiPulse.Text}_E";
-            AddLog("ADJ升源接口指令" + AdjCMD);
-            var result = xyCtr.CallSendCommand(AdjCMD, true);
-            if (result.Result == 1)
-            {
-                AddLog("ADJ升源接口正常" + result.Result);
-            }
-            else
-            {
-                AddLog("ADJ升源接口异常" + result.Result);
-            }
-        }
-        int BluetoothMode = 0; //接线模式 0-常规接线 1-蓝牙 2-双光电头
-        int BluetoothChannel = 3; //通道号 3-有功 4-无功 
-        /// <summary>
-        /// 设置蓝牙模式和通道 
-        /// 先设置模式
-        ///常规接线模式
-        ///蓝牙模块接线模式
-        ///双光电头接线模式
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        bool BoolTooth = true;//模式选择
-        private void bttn_settooth_Click(object sender, EventArgs e)
-        {
-            LogMessage.Info(sender.ToString());
-            if (BoolTooth)
-            {
-                BluetoothMode = XYCtr.BlueTooth_Channel(cbbx_BlueTooth.Text);
-                AddLog("设置模式：" + cbbx_BlueTooth.Text);
-                var result = xyCtr.CallSet_BlueTooth_Channel(BluetoothMode);
-                if (result.Result == 1)
-                {
-                    AddLog("设置成功");
-                }
-                else
-                {
-                    AddLog("设置失败，错误代码：" + result.Result);
-                }
-                bttn_settooth.Text = "设置通道"; //切换到设置通道
-                BoolTooth = false; //切换到设置通道 
-            }
-            else
-            {
-                //设置通道
-                BluetoothChannel = XYCtr.BlueTooth_Channel(cbbx_ToosNum.Text);
-                AddLog("设置通道：" + cbbx_ToosNum.Text);
-                var result = xyCtr.CallSet_BlueTooth_Channel(BluetoothChannel);
-                if (result.Result == 1)
-                {
-                    AddLog("设置成功");
-                }
-                else
-                {
-                    AddLog("设置失败，错误代码：" + result.Result);
-                }
-                bttn_settooth.Text = "设置模式"; //切换到设置模式
-                BoolTooth = true; //切换到设置模式
-            }
-        }
-        /// <summary>
-        /// 时钟误差
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private async void bttn_ClockStart_Click(object sender, EventArgs e)
-        {
-            LogMessage.Info(sender.ToString());
-            bttn_ClockStart.Enabled = false;
-            int iPulse = int.Parse(tbxclockpulse.Text);//时钟误差数
-            AddLog("时钟误差数：" + iPulse);
-
-            var result = xyCtr.Call_Clock_Start(iPulse);
-            if (result.Result == 1)
-            {
-                AddLog($"开始测试时钟误差,延迟等待{iPulse + iPulse}秒，等待结束自动读取误差数据。");
-                await Task.Delay(iPulse * 1000 + iPulse * 1000);//延迟等待
-            }
-            //读取误差
-            ReadTestError();
-            bttn_ClockStart.Enabled = true;
-
-        }
-        /// <summary>
-        /// 读取时钟误差
-        /// </summary>
-        /// <exception cref="NotImplementedException"></exception>
-        private void ReadTestError()
-        {
-            byte[] MeterError = new byte[1024];
-            string[] meterNo = tbx_MeterNo.Text.Split('-');//分割字符串
-            if (meterNo.Length == 2 && int.TryParse(meterNo[0], out int firtNo) && int.TryParse(meterNo[1], out int ListNo))
-            {
-                for (int i = firtNo; i < ListNo + 1; i++)
-                {
-                    var result = xyCtr.CallReadTestData(1, i, MeterError);
-                    if (result.Result == 1)
-                    {
-                        AddLog($"正在读取{i}表位误差数据...");
-                        AddLog($"误差数据" + MeterError + "+\r\n");
-                    }
-                }
-            }
-            else if (meterNo.Length != 2)
-            {
-                AddLog("电表编号格式错误，请输入正确的格式，如：1-1,1-12");
-                return;
-            }
-        }
-        private void ReadTestError_1(int meter)
-        {
-            byte[] MeterError = new byte[1024];
-            for (int i = 1; i <= meter; i++)
-            {
-                AddLog($"正在读取{i}表位误差数据...");
-                var result = xyCtr.Call_Read_TestError(i, MeterError);
-                if (result.Result == 1)
-                {
-                    AddLog($"误差数据" + MeterError + "+\r\n");
-                }
-            }
-        }
-        private async void bttn_ErrorStart_Click(object sender, EventArgs e)
-        {
-            LogMessage.Info(sender.ToString());
-            //获取传入的参数
-            string MeterConstant = tbx_MeterConstant.Text;//电表常数
-            int MeterCount = int.Parse(tbx_iMeterCount.Text);//表位数
-            int Pulse = int.Parse(tbx_iPulse.Text);//圈数
-            StringBuilder CMeterConstant = new StringBuilder();
-            for (int i = 1; i <= MeterCount; i++)
-            {
-                if (i < MeterCount)
-                {
-                    CMeterConstant.Append(tbx_MeterConstant.Text + ",");
-                }
-                else
-                {
-                    CMeterConstant.Append(tbx_MeterConstant.Text);
-                }
-            }
-            AddLog($"误差启动=>  Error_Start({CMeterConstant.ToString()},{MeterCount},{Pulse})");
-            var result = xyCtr.Call_Error_Start(CMeterConstant.ToString(), MeterCount, Pulse);
-            if (result.Result == 1)
-            {
-                AddLog("启动误差接口正常" + result.Result);
-                //添加延迟等待
-                await Task.Delay(int.Parse(tbx_TaskDelay.Text) * 1000);
-                //读取实验误差
-                ReadTestError_1(MeterCount);
-            }
-            else
-            {
-                AddLog("调用启动误差接口异常" + result.Result);
-            }
-
-        }
-
-        /// <summary>
-        /// 停止误差
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private void bttn_StopError_Click(object sender, EventArgs e)
-        {
-            LogMessage.Info(sender.ToString());
-            var result = xyCtr.Call_Stop_Test();
-            if (result.Result == 1)
-            {
-                AddLog("停止误差接口正常" + result.Result);
-            }
-            else
-            {
-                AddLog("调用停止误差接口异常" + result.Result);
-            }
-        }
-        /// <summary>
-        /// 清除误差
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private void bttn_ClearError_Click(object sender, EventArgs e)
-        {
-            LogMessage.Info(sender.ToString());
-            var result = xyCtr.Call_Error_Clear();
-            if (result.Result == 1)
-            {
-                AddLog("清除误差接口正常" + result.Result);
-            }
-            else
-            {
-                AddLog(("调用清除误差接口异常" + result.Result));
-            }
-        }
-        /// <summary>
-        /// 读取表位的脉冲数
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private void buttonRead_Pulset_Click(object sender, EventArgs e)
-        {
-            LogMessage.Info(sender.ToString());
-            byte[] MeterError = new byte[1024];
-            var result = xyCtr.Call_Read_Pulse(int.Parse(tbxXYMeterPulse.Text), MeterError);
-            if (result.Result == 1)
-            {
-                AddLog("读取表位的脉冲数接口正常" + result.Result);
-            }
-            else
-            {
-                AddLog(("读取表位的脉冲数接口异常" + result.Result));
-            }
-        }
-
-        /// <summary>
-        /// 读取新跃dll版本日期
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private void btn_ReadTime_Click(object sender, EventArgs e)
-        {
-            LogMessage.Info(sender.ToString());
-            byte[] StrVer = new byte[1024];
-            var result = xyCtr.CallFunctionReadVersion(StrVer);
-            if (result.Result == 1)
-            {
-                AddLog("读取新跃dll版本日期接口正常" + result.Result);
-            }
-            else
-            {
-                AddLog("读取新跃dll版本日期接口异常" + result.Result);
-            }
-        }
-        /// <summary>
-        /// setui设置电压和电流量程
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private void button7_Click(object sender, EventArgs e)
-        {
-            //得到数据，分割数据，
-            string ServerData = textBoxSetUIRange.Text;
-            string[] ServerDataNew = ModelTool.StringDataSplit(ServerData);
-            int Iui = int.Parse(ServerDataNew[0]);
-            int Ivalue = int.Parse(ServerDataNew[1]);
-            var result = xyCtr.CallSetUIRange(Iui, Ivalue);
-            if (result.Result > 0)
-            {
-                AddLog("设置setui接口正常" + result.Result);
-            }
-            else
-            {
-                AddLog("设置setui接口异常" + result.Result);
-            }
-        }
-
-        /// <summary>
-        /// rangui
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-
-        private void RangeOutputUI_Click(object sender, EventArgs e)
-        {
-            string RangeOutputUIData = textBoxRangeOutputUI.Text;
-            string[] ServerDataNew = ModelTool.StringDataSplit(RangeOutputUIData);
-            string ua = ServerDataNew[0];
-            string ub = ServerDataNew[1];
-            string uc = ServerDataNew[2];
-            string ia = ServerDataNew[3];
-            string ib = ServerDataNew[4];
-            string ic = ServerDataNew[5];
-            string StrUICommand = $"{ua}_{ub}_{uc}_{ia}_{ib}_{ic}";
-            var result = xyCtr.CallRangeOutputUI(StrUICommand);
-            if (result.Result == 1)
-            {
-                AddLog("设置RangeOutputUI接口正常" + result.Result);
-            }
-            else
-            {
-                AddLog("设置RangeOutputUI接口异常" + result.Result);
-            }
-        }
-
-        #endregion
         private void ModelMain_Resize(object sender, EventArgs e)
         {
             if (this.WindowState == FormWindowState.Maximized)
