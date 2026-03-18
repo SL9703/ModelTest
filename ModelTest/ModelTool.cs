@@ -245,6 +245,184 @@ namespace ModelTest
                       .ToUpper() ?? "";
         }
         /// <summary>
+        /// 处理16进制字符串，确保是4字节（8个字符）格式
+        /// </summary>
+        /// <param name="hex">输入的16进制字符串</param>
+        /// <param name="mode">处理模式：0-自动判断，1-左补0，2-右补0，3-左截断，4-右截断</param>
+        /// <returns>处理后的4字节16进制字符串</returns>
+        public static string Ensure4Bytes(string hex, int mode = 0)
+        {
+            // 清理输入
+            string originalHex = hex;
+            hex = CleanHexString(hex);
+
+            Console.WriteLine($"原始输入: \"{originalHex}\"");
+            Console.WriteLine($"清理后: \"{hex}\" (长度: {hex.Length} 字符, {hex.Length / 2.0:F1} 字节)");
+
+            // 验证是否为有效16进制
+            if (!IsValidHex(hex))
+            {
+                throw new ArgumentException("无效的16进制字符串");
+            }
+
+            int currentBytes = hex.Length / 2;
+            int targetBytes = 4;
+            int targetLength = targetBytes * 2;
+
+            // 根据模式处理
+            string result = mode switch
+            {
+                1 => PadLeftTo4Bytes(hex),      // 强制左补0
+                2 => PadRightTo4Bytes(hex),     // 强制右补0
+                3 => TruncateLeft(hex),          // 强制左截断（保留低位）
+                4 => TruncateRight(hex),         // 强制右截断（保留高位）
+                _ => AutoProcess(hex)            // 自动判断
+            };
+
+            // 显示处理结果
+            Console.WriteLine($"处理模式: {GetModeDescription(mode)}");
+            Console.WriteLine($"处理结果: \"{result}\" (长度: {result.Length} 字符, {result.Length / 2} 字节)");
+
+            return result;
+        }
+        /// <summary>
+        /// 清理16进制字符串
+        /// </summary>
+        private static string CleanHexString(string hex)
+        {
+            if (string.IsNullOrWhiteSpace(hex))
+                return "";
+
+            // 去除常见前缀和后缀
+            hex = hex.Trim()
+                     .Replace(" ", "")
+                     .Replace("0x", "")
+                     .Replace("0X", "")
+                     .Replace("h", "")
+                     .Replace("H", "")
+                     .Replace("-", "")
+                     .Replace(":", "")
+                     .Replace(",", "");
+
+            return hex.ToUpper();
+        }/// <summary>
+         /// 自动处理模式
+         /// </summary>
+        private static string AutoProcess(string hex)
+        {
+            int currentLength = hex.Length;
+            int targetLength = 8; // 4字节 = 8字符
+
+            if (currentLength < targetLength)
+            {
+                // 不足4字节，自动左补0
+                int paddingNeeded = targetLength - currentLength;
+                string result = hex.PadLeft(targetLength, '0');
+                Console.WriteLine($"自动左补{paddingNeeded}个0 (不足4字节)");
+                return result;
+            }
+            else if (currentLength > targetLength)
+            {
+                // 超过4字节，自动左截断（保留低位）
+                string result = hex.Substring(currentLength - targetLength);
+                Console.WriteLine($"自动左截断，保留低位 (超过4字节)");
+                return result;
+            }
+            else
+            {
+                // 正好4字节
+                Console.WriteLine($"正好4字节，无需处理");
+                return hex;
+            }
+        }
+
+        /// <summary>
+        /// 左补0到4字节
+        /// </summary>
+        private static string PadLeftTo4Bytes(string hex)
+        {
+            int targetLength = 8;
+            if (hex.Length >= targetLength)
+            {
+                Console.WriteLine($"警告: 输入已超过4字节，左补0操作将保留低位");
+                return hex.Substring(hex.Length - targetLength);
+            }
+
+            int paddingNeeded = targetLength - hex.Length;
+            string result = hex.PadLeft(targetLength, '0');
+            Console.WriteLine($"左补{paddingNeeded}个0");
+            return result;
+        }
+
+        /// <summary>
+        /// 右补0到4字节
+        /// </summary>
+        private static string PadRightTo4Bytes(string hex)
+        {
+            int targetLength = 8;
+            if (hex.Length >= targetLength)
+            {
+                Console.WriteLine($"警告: 输入已超过4字节，右补0操作将保留高位");
+                return hex.Substring(0, targetLength);
+            }
+
+            int paddingNeeded = targetLength - hex.Length;
+            string result = hex.PadRight(targetLength, '0');
+            Console.WriteLine($"右补{paddingNeeded}个0");
+            return result;
+        }
+
+        /// <summary>
+        /// 左截断（保留低位）
+        /// </summary>
+        private static string TruncateLeft(string hex)
+        {
+            int targetLength = 8;
+            if (hex.Length <= targetLength)
+            {
+                Console.WriteLine($"输入不足4字节，将补0处理");
+                return hex.PadLeft(targetLength, '0');
+            }
+
+            string result = hex.Substring(hex.Length - targetLength);
+            Console.WriteLine($"左截断，保留低位 (丢弃高位: {hex.Substring(0, hex.Length - targetLength)})");
+            return result;
+        }
+
+        /// <summary>
+        /// 右截断（保留高位）
+        /// </summary>
+        private static string TruncateRight(string hex)
+        {
+            int targetLength = 8;
+            if (hex.Length <= targetLength)
+            {
+                Console.WriteLine($"输入不足4字节，将补0处理");
+                return hex.PadRight(targetLength, '0');
+            }
+
+            string result = hex.Substring(0, targetLength);
+            Console.WriteLine($"右截断，保留高位 (丢弃低位: {hex.Substring(targetLength)})");
+            return result;
+        }
+
+        /// <summary>
+        /// 获取模式描述
+        /// </summary>
+        private static string GetModeDescription(int mode)
+        {
+            return mode switch
+            {
+                0 => "自动模式",
+                1 => "强制左补0",
+                2 => "强制右补0",
+                3 => "强制左截断（保留低位）",
+                4 => "强制右截断（保留高位）",
+                _ => "未知模式"
+            };
+        }
+
+        /// <summary>
         /// 绑定一组互斥的复选框（两个或三个）
         /// </summary>
         /// <param name="checkBoxes">要设为互斥的复选框数组（按顺序传入即可）</param>

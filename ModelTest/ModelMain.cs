@@ -34,7 +34,8 @@ namespace ModelTest
         // 定义字典来存储所有控件的初始信息
         private Dictionary<System.Windows.Forms.Control, ControlInfo> _originalControlsInfo = new Dictionary<System.Windows.Forms.Control, ControlInfo>();
         private System.Drawing.Size _originalFormSize;
-        private ShowStandValueUserControl standValueUserControl;
+        private ShowStandValueUserControl _standValueUserControl;
+        private TerminalV1YXUserControl _terminalV1YXUserControl;
         public enum TerminalCLASS : byte
         {
             [Description("专变III")]
@@ -86,10 +87,16 @@ namespace ModelTest
         {
             InitializeComponent();
             //源界面初始化
-            standValueUserControl = new ShowStandValueUserControl();
-            standValueUserControl.OnUpdateRequested += MyControl_OnUpdateRequested;
-            panel13.Controls.Add(standValueUserControl);
-            standValueUserControl.Dock = DockStyle.Fill;
+            _standValueUserControl = new ShowStandValueUserControl();
+            _standValueUserControl.OnUpdateRequested += MyControl_OnUpdateRequested;
+            panel13.Controls.Add(_standValueUserControl);
+            _standValueUserControl.Dock = DockStyle.Fill;
+            ////终端界面遥信初始化
+            _terminalV1YXUserControl = new TerminalV1YXUserControl();
+            _terminalV1YXUserControl.OnUpdateRequestedTYXLog += MyControl_OnUpdateRequested;
+            tabPage10.Controls.Add(_terminalV1YXUserControl);
+            _terminalV1YXUserControl.Dock = DockStyle.Fill;
+
             _uiContext = SynchronizationContext.Current;
             // 处理UI线程异常
             Application.ThreadException += (sender, e) =>
@@ -132,10 +139,12 @@ namespace ModelTest
             this.SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint, true);
             this.UpdateStyles();
 
-            CheckItemSetUpFrom();
-            checkBox1_CheckedChanged(sender, e);//初始化模组0x01 0x31命令选择状态
-            cbxRevcHEX_CheckedChanged(sender, e);//初始化接收HEX状态。tcpserver用到
-            cbxSendHEX_CheckedChanged(sender, e);//初始化发送HEX状态。tcpserver用到
+            CheckItemSetUpFrom();//加密机接口初始化
+            ModelTool.BindMutexCheckBoxes(checkBox1, checkBox2);//初始化模组0x01 0x31命令选择状态
+            ModelTool.BindMutexCheckBoxes(checkBoxC, checkBoxN);//初始化模组IC和IN命令选择状态
+            ModelTool.BindMutexCheckBoxes(cbx_TerminalV1_IC, cbx_TerminalV1_IN);//初始化终端IC和IN命令选择状态
+            ModelTool.BindMutexCheckBoxes(cbxRevcHEX, cbxRevcASCII);//初始化接收HEX状态。tcpserver用到
+            ModelTool.BindMutexCheckBoxes(cbxSendHEX, cbxSendASCII);//初始化发送HEX状态。tcpserver用到
             
             AddLog("应用程序已启动成功");
             LogMessage.Info("应用程序已启动成功");
@@ -247,18 +256,18 @@ namespace ModelTest
             {
                 //显示原始数据
                 string hexData = BitConverter.ToString(e.RawData).Replace("-", " ");
-                string asciiData = Encoding.ASCII.GetString(e.RawData);
+                //string asciiData = Encoding.ASCII.GetString(e.RawData);
                 // 更新状态显示
-                if (cbxRevcASCII.Checked)
-                {
-                    AddLog($"接收消息成功[PC<--MCU]: {asciiData}", Color.Lime);
-                    LogMessage.Debug($"接受消息成功[PC<-- MCU]的数据: {asciiData}");
-                }
-                else
-                {
+                //if (cbxRevcASCII.Checked)
+                //{
+                //    AddLog($"接收消息成功[PC<--MCU]: {asciiData}", Color.Lime);
+                //    LogMessage.Debug($"接受消息成功[PC<-- MCU]的数据: {asciiData}");
+                //}
+                //else
+                //{
                     AddLog($"接收消息成功[PC<--MCU] : {hexData}", Color.Lime);
                     LogMessage.Debug($"接受消息成功[PC<-- MCU]的数据: {hexData}");
-                }
+                //}
             });
         }
         private void OnMCUConnectionStatusChanged(object sender, TcpClientStatusEventArgs e)
@@ -526,26 +535,6 @@ namespace ModelTest
             Dispose();
             btn_cilentSocket_Close.Enabled = false;
             btn_cilentSocket.Enabled = true;
-        }
-
-        private void checkBox1_CheckedChanged(object sender, EventArgs e)
-        {
-            // 初始化设置
-            checkBox1.CheckedChanged += (s, e) =>
-            {
-                if (checkBox1.Checked)
-                {
-                    checkBox2.Checked = false;
-                }
-            };
-
-            checkBox2.CheckedChanged += (s, e) =>
-            {
-                if (checkBox2.Checked)
-                {
-                    checkBox1.Checked = false;
-                }
-            };
         }
         /// <summary>
         /// 国网广播报文
@@ -897,7 +886,7 @@ namespace ModelTest
             MCUAddr = tbxTerminalAdds.Text;//地址
             if (!REDFlas)
             {
-                var Terminal_RedLoop = TerminalModel.TerminalByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUAddr, "2A", "20", MCUStopByte);
+                var Terminal_RedLoop = TerminalModel.TerminalByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUCtrl, "2A", "20", MCUStopByte);
                 await SeedMethod(Terminal_RedLoop);
                 //if (Terminal_RedLoop.Contains(BitConverter.ToString(buffer)))
                 //{
@@ -907,7 +896,7 @@ namespace ModelTest
             }
             else
             {
-                var Terminal_RedLoop = TerminalModel.TerminalByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUAddr, "2A", "10", MCUStopByte);
+                var Terminal_RedLoop = TerminalModel.TerminalByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUCtrl, "2A", "10", MCUStopByte);
                 await SeedMethod(Terminal_RedLoop);
                 //if (Terminal_RedLoop.Contains(BitConverter.ToString(buffer)))
                 //{
@@ -929,7 +918,7 @@ namespace ModelTest
             MCUAddr = tbxTerminalAdds.Text;//地址
             if (!GreenFlas)
             {
-                var Terminal_GreenLoop = TerminalModel.TerminalByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUAddr, "2A", "40", MCUStopByte);
+                var Terminal_GreenLoop = TerminalModel.TerminalByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUCtrl, "2A", "40", MCUStopByte);
                 await SeedMethod(Terminal_GreenLoop);
                 //if (Terminal_GreenLoop.Contains(BitConverter.ToString(buffer)))
                 //{
@@ -939,7 +928,7 @@ namespace ModelTest
             }
             else
             {
-                var Terminal_GreenLoop = TerminalModel.TerminalByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUAddr, "2A", "10", MCUStopByte);
+                var Terminal_GreenLoop = TerminalModel.TerminalByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUCtrl, "2A", "10", MCUStopByte);
                 await SeedMethod(Terminal_GreenLoop);
                 //if (Terminal_GreenLoop.Contains(BitConverter.ToString(buffer)))
                 //{
@@ -1403,7 +1392,7 @@ namespace ModelTest
             LogMessage.Info(sender.ToString());
             MCUAddr = tbxTerminalAdds.Text;//地址
             var sourcestatus = TerminalModel.GetTerminalSourceType(cbx_changePCBUPAC.SelectedIndex);
-            var Terminal_ChangePCBDownAC = TerminalModel.TerminalByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUCtrl, "41", $"{sourcestatus}00", MCUStopByte);//07 00 01 00 41 01 00
+            var Terminal_ChangePCBDownAC = TerminalModel.TerminalByte(MCUStartByte, A0800_DataLength, MCUAddr, MCUCtrl, "41", $"{sourcestatus}00", MCUStopByte);//07 00 01 00 41 01 00
             await SeedMethod(Terminal_ChangePCBDownAC);
         }
         /// <summary>
@@ -2414,45 +2403,6 @@ namespace ModelTest
             rtbxSendData.Text = "";
         }
 
-        private void cbxRevcHEX_CheckedChanged(object sender, EventArgs e)
-        {
-            // 初始化设置
-            cbxRevcHEX.CheckedChanged += (s, e) =>
-            {
-                if (cbxRevcHEX.Checked)
-                {
-                    cbxRevcASCII.Checked = false;
-                }
-            };
-
-            cbxRevcASCII.CheckedChanged += (s, e) =>
-            {
-                if (cbxRevcASCII.Checked)
-                {
-                    cbxRevcHEX.Checked = false;
-                }
-            };
-        }
-
-        private void cbxSendHEX_CheckedChanged(object sender, EventArgs e)
-        {
-            // 初始化设置
-            cbxSendHEX.CheckedChanged += (s, e) =>
-            {
-                if (cbxSendHEX.Checked)
-                {
-                    cbxSendASCII.Checked = false;
-                }
-            };
-
-            cbxSendASCII.CheckedChanged += (s, e) =>
-            {
-                if (cbxSendASCII.Checked)
-                {
-                    cbxSendHEX.Checked = false;
-                }
-            };
-        }
         /// <summary>
         /// 终端检测
         /// </summary>

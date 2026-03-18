@@ -93,11 +93,11 @@
             tb_V_LC = new TextBox();
             tb_xx = new TextBox();
             panel1 = new Panel();
+            btn_ReadContans = new Button();
+            btn_ReadStandMeter = new Button();
             groupBox1 = new GroupBox();
             cbxShutdownUI0 = new CheckBox();
-            btn_ReadContans = new Button();
             btnXY_x0E = new Button();
-            btn_ReadStandMeter = new Button();
             btnCtrlUI = new Button();
             tbxiPulse = new TextBox();
             cbxUac = new ComboBox();
@@ -238,7 +238,7 @@
             // 
             label4.AutoSize = true;
             label4.ForeColor = Color.Red;
-            label4.Location = new Point(500, 123);
+            label4.Location = new Point(509, 123);
             label4.Name = "label4";
             label4.Size = new Size(40, 28);
             label4.TabIndex = 5;
@@ -248,7 +248,7 @@
             // 
             label5.AutoSize = true;
             label5.ForeColor = Color.Lime;
-            label5.Location = new Point(500, 66);
+            label5.Location = new Point(509, 66);
             label5.Name = "label5";
             label5.Size = new Size(42, 28);
             label5.TabIndex = 4;
@@ -258,7 +258,7 @@
             // 
             label6.AutoSize = true;
             label6.ForeColor = Color.Yellow;
-            label6.Location = new Point(500, 15);
+            label6.Location = new Point(509, 15);
             label6.Name = "label6";
             label6.Size = new Size(41, 28);
             label6.TabIndex = 3;
@@ -268,7 +268,7 @@
             // 
             label7.AutoSize = true;
             label7.ForeColor = Color.Red;
-            label7.Location = new Point(334, 123);
+            label7.Location = new Point(341, 123);
             label7.Name = "label7";
             label7.Size = new Size(36, 28);
             label7.TabIndex = 8;
@@ -278,7 +278,7 @@
             // 
             label8.AutoSize = true;
             label8.ForeColor = Color.Lime;
-            label8.Location = new Point(334, 66);
+            label8.Location = new Point(341, 66);
             label8.Name = "label8";
             label8.Size = new Size(38, 28);
             label8.TabIndex = 7;
@@ -288,7 +288,7 @@
             // 
             label9.AutoSize = true;
             label9.ForeColor = Color.Yellow;
-            label9.Location = new Point(334, 15);
+            label9.Location = new Point(341, 15);
             label9.Name = "label9";
             label9.Size = new Size(37, 28);
             label9.TabIndex = 6;
@@ -298,7 +298,7 @@
             // 
             label10.AutoSize = true;
             label10.ForeColor = Color.Red;
-            label10.Location = new Point(179, 123);
+            label10.Location = new Point(180, 123);
             label10.Name = "label10";
             label10.Size = new Size(29, 28);
             label10.TabIndex = 11;
@@ -328,7 +328,7 @@
             // 
             label13.AutoSize = true;
             label13.ForeColor = Color.Red;
-            label13.Location = new Point(671, 123);
+            label13.Location = new Point(680, 123);
             label13.Name = "label13";
             label13.Size = new Size(35, 28);
             label13.TabIndex = 14;
@@ -338,7 +338,7 @@
             // 
             label14.AutoSize = true;
             label14.ForeColor = Color.Lime;
-            label14.Location = new Point(671, 66);
+            label14.Location = new Point(680, 66);
             label14.Name = "label14";
             label14.Size = new Size(37, 28);
             label14.TabIndex = 13;
@@ -348,7 +348,7 @@
             // 
             label15.AutoSize = true;
             label15.ForeColor = Color.Yellow;
-            label15.Location = new Point(671, 15);
+            label15.Location = new Point(680, 15);
             label15.Name = "label15";
             label15.Size = new Size(36, 28);
             label15.TabIndex = 12;
@@ -358,7 +358,7 @@
             // 
             label16.AutoSize = true;
             label16.ForeColor = Color.Red;
-            label16.Location = new Point(839, 123);
+            label16.Location = new Point(848, 123);
             label16.Name = "label16";
             label16.Size = new Size(43, 28);
             label16.TabIndex = 17;
@@ -368,7 +368,7 @@
             // 
             label17.AutoSize = true;
             label17.ForeColor = Color.Lime;
-            label17.Location = new Point(839, 66);
+            label17.Location = new Point(848, 66);
             label17.Name = "label17";
             label17.Size = new Size(45, 28);
             label17.TabIndex = 16;
@@ -378,7 +378,7 @@
             // 
             label18.AutoSize = true;
             label18.ForeColor = Color.Yellow;
-            label18.Location = new Point(839, 15);
+            label18.Location = new Point(848, 15);
             label18.Name = "label18";
             label18.Size = new Size(44, 28);
             label18.TabIndex = 15;
@@ -388,7 +388,7 @@
             // 
             label19.AutoSize = true;
             label19.ForeColor = Color.Red;
-            label19.Location = new Point(1016, 123);
+            label19.Location = new Point(1027, 123);
             label19.Name = "label19";
             label19.Size = new Size(40, 28);
             label19.TabIndex = 20;
@@ -398,7 +398,7 @@
             // 
             label20.AutoSize = true;
             label20.ForeColor = Color.Lime;
-            label20.Location = new Point(1016, 66);
+            label20.Location = new Point(1027, 66);
             label20.Name = "label20";
             label20.Size = new Size(42, 28);
             label20.TabIndex = 19;
@@ -408,7 +408,7 @@
             // 
             label21.AutoSize = true;
             label21.ForeColor = Color.Yellow;
-            label21.Location = new Point(1016, 15);
+            label21.Location = new Point(1027, 15);
             label21.Name = "label21";
             label21.Size = new Size(41, 28);
             label21.TabIndex = 18;
@@ -418,7 +418,7 @@
             // 
             label25.AutoSize = true;
             label25.ForeColor = Color.Red;
-            label25.Location = new Point(1188, 123);
+            label25.Location = new Point(1201, 123);
             label25.Name = "label25";
             label25.Size = new Size(41, 28);
             label25.TabIndex = 26;
@@ -428,7 +428,7 @@
             // 
             label26.AutoSize = true;
             label26.ForeColor = Color.Lime;
-            label26.Location = new Point(1188, 66);
+            label26.Location = new Point(1201, 66);
             label26.Name = "label26";
             label26.Size = new Size(37, 28);
             label26.TabIndex = 25;
@@ -438,7 +438,7 @@
             // 
             label27.AutoSize = true;
             label27.ForeColor = Color.Yellow;
-            label27.Location = new Point(1188, 15);
+            label27.Location = new Point(1201, 15);
             label27.Name = "label27";
             label27.Size = new Size(36, 28);
             label27.TabIndex = 24;
@@ -448,7 +448,7 @@
             // 
             label28.AutoSize = true;
             label28.ForeColor = Color.Blue;
-            label28.Location = new Point(1358, 15);
+            label28.Location = new Point(1373, 15);
             label28.Name = "label28";
             label28.Size = new Size(62, 28);
             label28.TabIndex = 27;
@@ -458,7 +458,7 @@
             // 
             label29.AutoSize = true;
             label29.ForeColor = Color.Blue;
-            label29.Location = new Point(1358, 123);
+            label29.Location = new Point(1373, 123);
             label29.Name = "label29";
             label29.Size = new Size(75, 28);
             label29.TabIndex = 28;
@@ -468,7 +468,7 @@
             // 
             label30.AutoSize = true;
             label30.ForeColor = Color.Blue;
-            label30.Location = new Point(1358, 66);
+            label30.Location = new Point(1373, 66);
             label30.Name = "label30";
             label30.Size = new Size(75, 28);
             label30.TabIndex = 29;
@@ -478,7 +478,7 @@
             // 
             label31.AutoSize = true;
             label31.ForeColor = Color.Blue;
-            label31.Location = new Point(1565, 15);
+            label31.Location = new Point(1582, 15);
             label31.Name = "label31";
             label31.Size = new Size(74, 28);
             label31.TabIndex = 30;
@@ -488,7 +488,7 @@
             // 
             label32.AutoSize = true;
             label32.ForeColor = Color.Blue;
-            label32.Location = new Point(1565, 66);
+            label32.Location = new Point(1582, 66);
             label32.Name = "label32";
             label32.Size = new Size(72, 28);
             label32.TabIndex = 31;
@@ -498,7 +498,7 @@
             // 
             label33.AutoSize = true;
             label33.ForeColor = Color.Blue;
-            label33.Location = new Point(1729, 15);
+            label33.Location = new Point(1754, 15);
             label33.Name = "label33";
             label33.Size = new Size(75, 28);
             label33.TabIndex = 32;
@@ -508,7 +508,7 @@
             // 
             label34.AutoSize = true;
             label34.ForeColor = Color.Blue;
-            label34.Location = new Point(1729, 66);
+            label34.Location = new Point(1754, 66);
             label34.Name = "label34";
             label34.Size = new Size(117, 28);
             label34.TabIndex = 33;
@@ -518,7 +518,7 @@
             // 
             label35.AutoSize = true;
             label35.ForeColor = Color.Blue;
-            label35.Location = new Point(1729, 123);
+            label35.Location = new Point(1754, 123);
             label35.Name = "label35";
             label35.Size = new Size(117, 28);
             label35.TabIndex = 34;
@@ -550,7 +550,7 @@
             // 
             // tb_IC
             // 
-            tb_IC.Location = new Point(208, 120);
+            tb_IC.Location = new Point(215, 120);
             tb_IC.Name = "tb_IC";
             tb_IC.ReadOnly = true;
             tb_IC.Size = new Size(120, 34);
@@ -558,7 +558,7 @@
             // 
             // tb_IB
             // 
-            tb_IB.Location = new Point(208, 66);
+            tb_IB.Location = new Point(215, 66);
             tb_IB.Name = "tb_IB";
             tb_IB.ReadOnly = true;
             tb_IB.Size = new Size(120, 34);
@@ -566,7 +566,7 @@
             // 
             // tb_IA
             // 
-            tb_IA.Location = new Point(208, 12);
+            tb_IA.Location = new Point(215, 12);
             tb_IA.Name = "tb_IA";
             tb_IA.ReadOnly = true;
             tb_IA.Size = new Size(120, 34);
@@ -574,7 +574,7 @@
             // 
             // tb_PC
             // 
-            tb_PC.Location = new Point(376, 120);
+            tb_PC.Location = new Point(385, 120);
             tb_PC.Name = "tb_PC";
             tb_PC.ReadOnly = true;
             tb_PC.Size = new Size(120, 34);
@@ -582,7 +582,7 @@
             // 
             // tb_PB
             // 
-            tb_PB.Location = new Point(376, 66);
+            tb_PB.Location = new Point(385, 66);
             tb_PB.Name = "tb_PB";
             tb_PB.ReadOnly = true;
             tb_PB.Size = new Size(120, 34);
@@ -590,7 +590,7 @@
             // 
             // tb_PA
             // 
-            tb_PA.Location = new Point(376, 12);
+            tb_PA.Location = new Point(385, 12);
             tb_PA.Name = "tb_PA";
             tb_PA.ReadOnly = true;
             tb_PA.Size = new Size(120, 34);
@@ -598,7 +598,7 @@
             // 
             // tb_QC
             // 
-            tb_QC.Location = new Point(546, 120);
+            tb_QC.Location = new Point(555, 120);
             tb_QC.Name = "tb_QC";
             tb_QC.ReadOnly = true;
             tb_QC.Size = new Size(120, 34);
@@ -606,7 +606,7 @@
             // 
             // tb_QB
             // 
-            tb_QB.Location = new Point(546, 66);
+            tb_QB.Location = new Point(555, 66);
             tb_QB.Name = "tb_QB";
             tb_QB.ReadOnly = true;
             tb_QB.Size = new Size(120, 34);
@@ -614,7 +614,7 @@
             // 
             // tb_QA
             // 
-            tb_QA.Location = new Point(546, 12);
+            tb_QA.Location = new Point(555, 12);
             tb_QA.Name = "tb_QA";
             tb_QA.ReadOnly = true;
             tb_QA.Size = new Size(120, 34);
@@ -622,7 +622,7 @@
             // 
             // tb_SC
             // 
-            tb_SC.Location = new Point(716, 120);
+            tb_SC.Location = new Point(725, 120);
             tb_SC.Name = "tb_SC";
             tb_SC.ReadOnly = true;
             tb_SC.Size = new Size(120, 34);
@@ -630,7 +630,7 @@
             // 
             // tb_SB
             // 
-            tb_SB.Location = new Point(716, 66);
+            tb_SB.Location = new Point(725, 66);
             tb_SB.Name = "tb_SB";
             tb_SB.ReadOnly = true;
             tb_SB.Size = new Size(120, 34);
@@ -638,7 +638,7 @@
             // 
             // tb_SA
             // 
-            tb_SA.Location = new Point(716, 12);
+            tb_SA.Location = new Point(725, 12);
             tb_SA.Name = "tb_SA";
             tb_SA.ReadOnly = true;
             tb_SA.Size = new Size(120, 34);
@@ -646,7 +646,7 @@
             // 
             // tb_PFC
             // 
-            tb_PFC.Location = new Point(884, 120);
+            tb_PFC.Location = new Point(895, 120);
             tb_PFC.Name = "tb_PFC";
             tb_PFC.ReadOnly = true;
             tb_PFC.Size = new Size(120, 34);
@@ -654,7 +654,7 @@
             // 
             // tb_PFB
             // 
-            tb_PFB.Location = new Point(884, 66);
+            tb_PFB.Location = new Point(895, 66);
             tb_PFB.Name = "tb_PFB";
             tb_PFB.ReadOnly = true;
             tb_PFB.Size = new Size(120, 34);
@@ -662,7 +662,7 @@
             // 
             // tb_PFA
             // 
-            tb_PFA.Location = new Point(884, 12);
+            tb_PFA.Location = new Point(895, 12);
             tb_PFA.Name = "tb_PFA";
             tb_PFA.ReadOnly = true;
             tb_PFA.Size = new Size(120, 34);
@@ -670,7 +670,7 @@
             // 
             // tb_XC
             // 
-            tb_XC.Location = new Point(1062, 120);
+            tb_XC.Location = new Point(1075, 120);
             tb_XC.Name = "tb_XC";
             tb_XC.ReadOnly = true;
             tb_XC.Size = new Size(120, 34);
@@ -678,7 +678,7 @@
             // 
             // tb_XB
             // 
-            tb_XB.Location = new Point(1062, 66);
+            tb_XB.Location = new Point(1075, 66);
             tb_XB.Name = "tb_XB";
             tb_XB.ReadOnly = true;
             tb_XB.Size = new Size(120, 34);
@@ -686,7 +686,7 @@
             // 
             // tb_XA
             // 
-            tb_XA.Location = new Point(1062, 12);
+            tb_XA.Location = new Point(1075, 12);
             tb_XA.Name = "tb_XA";
             tb_XA.ReadOnly = true;
             tb_XA.Size = new Size(120, 34);
@@ -694,7 +694,7 @@
             // 
             // tb_EQ
             // 
-            tb_EQ.Location = new Point(1231, 120);
+            tb_EQ.Location = new Point(1246, 120);
             tb_EQ.Name = "tb_EQ";
             tb_EQ.ReadOnly = true;
             tb_EQ.Size = new Size(120, 34);
@@ -702,7 +702,7 @@
             // 
             // tb_EP
             // 
-            tb_EP.Location = new Point(1231, 66);
+            tb_EP.Location = new Point(1246, 66);
             tb_EP.Name = "tb_EP";
             tb_EP.ReadOnly = true;
             tb_EP.Size = new Size(120, 34);
@@ -710,7 +710,7 @@
             // 
             // tb_ES
             // 
-            tb_ES.Location = new Point(1231, 12);
+            tb_ES.Location = new Point(1246, 12);
             tb_ES.Name = "tb_ES";
             tb_ES.ReadOnly = true;
             tb_ES.Size = new Size(120, 34);
@@ -718,7 +718,7 @@
             // 
             // tb_contans
             // 
-            tb_contans.Location = new Point(1435, 117);
+            tb_contans.Location = new Point(1454, 117);
             tb_contans.Name = "tb_contans";
             tb_contans.ReadOnly = true;
             tb_contans.Size = new Size(283, 34);
@@ -726,7 +726,7 @@
             // 
             // tb_Alarm
             // 
-            tb_Alarm.Location = new Point(1435, 66);
+            tb_Alarm.Location = new Point(1454, 66);
             tb_Alarm.Name = "tb_Alarm";
             tb_Alarm.ReadOnly = true;
             tb_Alarm.Size = new Size(120, 34);
@@ -734,7 +734,7 @@
             // 
             // tb_HZ
             // 
-            tb_HZ.Location = new Point(1435, 12);
+            tb_HZ.Location = new Point(1454, 12);
             tb_HZ.Name = "tb_HZ";
             tb_HZ.ReadOnly = true;
             tb_HZ.Size = new Size(120, 34);
@@ -742,7 +742,7 @@
             // 
             // tb_Uca
             // 
-            tb_Uca.Location = new Point(1642, 66);
+            tb_Uca.Location = new Point(1661, 66);
             tb_Uca.Name = "tb_Uca";
             tb_Uca.ReadOnly = true;
             tb_Uca.Size = new Size(76, 34);
@@ -750,7 +750,7 @@
             // 
             // tb_Uba
             // 
-            tb_Uba.Location = new Point(1642, 12);
+            tb_Uba.Location = new Point(1661, 12);
             tb_Uba.Name = "tb_Uba";
             tb_Uba.ReadOnly = true;
             tb_Uba.Size = new Size(76, 34);
@@ -758,7 +758,7 @@
             // 
             // tb_A_LC
             // 
-            tb_A_LC.Location = new Point(1842, 120);
+            tb_A_LC.Location = new Point(1867, 120);
             tb_A_LC.Name = "tb_A_LC";
             tb_A_LC.ReadOnly = true;
             tb_A_LC.Size = new Size(120, 34);
@@ -766,7 +766,7 @@
             // 
             // tb_V_LC
             // 
-            tb_V_LC.Location = new Point(1842, 66);
+            tb_V_LC.Location = new Point(1867, 66);
             tb_V_LC.Name = "tb_V_LC";
             tb_V_LC.ReadOnly = true;
             tb_V_LC.Size = new Size(120, 34);
@@ -774,7 +774,7 @@
             // 
             // tb_xx
             // 
-            tb_xx.Location = new Point(1842, 12);
+            tb_xx.Location = new Point(1867, 12);
             tb_xx.Name = "tb_xx";
             tb_xx.ReadOnly = true;
             tb_xx.Size = new Size(120, 34);
@@ -783,7 +783,9 @@
             // panel1
             // 
             panel1.BorderStyle = BorderStyle.FixedSingle;
+            panel1.Controls.Add(btn_ReadContans);
             panel1.Controls.Add(tb_QB);
+            panel1.Controls.Add(btn_ReadStandMeter);
             panel1.Controls.Add(label33);
             panel1.Controls.Add(label1);
             panel1.Controls.Add(label32);
@@ -853,6 +855,30 @@
             panel1.Size = new Size(2582, 165);
             panel1.TabIndex = 67;
             // 
+            // btn_ReadContans
+            // 
+            btn_ReadContans.Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold, GraphicsUnit.Point, 134);
+            btn_ReadContans.ForeColor = SystemColors.ControlText;
+            btn_ReadContans.Location = new Point(2019, 54);
+            btn_ReadContans.Name = "btn_ReadContans";
+            btn_ReadContans.Size = new Size(158, 40);
+            btn_ReadContans.TabIndex = 35;
+            btn_ReadContans.Text = "读取常数";
+            btn_ReadContans.UseVisualStyleBackColor = true;
+            btn_ReadContans.Click += btn_ReadContans_Click;
+            // 
+            // btn_ReadStandMeter
+            // 
+            btn_ReadStandMeter.Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold, GraphicsUnit.Point, 134);
+            btn_ReadStandMeter.ForeColor = SystemColors.ControlText;
+            btn_ReadStandMeter.Location = new Point(2019, 10);
+            btn_ReadStandMeter.Name = "btn_ReadStandMeter";
+            btn_ReadStandMeter.Size = new Size(158, 40);
+            btn_ReadStandMeter.TabIndex = 34;
+            btn_ReadStandMeter.Text = "读取标准表";
+            btn_ReadStandMeter.UseVisualStyleBackColor = true;
+            btn_ReadStandMeter.Click += btn_ReadStandMeter_Click;
+            // 
             // groupBox1
             // 
             groupBox1.Controls.Add(panel1);
@@ -877,18 +903,6 @@
             cbxShutdownUI0.Text = "0电压、电流同时停止输出";
             cbxShutdownUI0.UseVisualStyleBackColor = true;
             // 
-            // btn_ReadContans
-            // 
-            btn_ReadContans.Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold, GraphicsUnit.Point, 134);
-            btn_ReadContans.ForeColor = SystemColors.ControlText;
-            btn_ReadContans.Location = new Point(1100, 62);
-            btn_ReadContans.Name = "btn_ReadContans";
-            btn_ReadContans.Size = new Size(131, 40);
-            btn_ReadContans.TabIndex = 35;
-            btn_ReadContans.Text = "读取常数";
-            btn_ReadContans.UseVisualStyleBackColor = true;
-            btn_ReadContans.Click += btn_ReadContans_Click;
-            // 
             // btnXY_x0E
             // 
             btnXY_x0E.Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold, GraphicsUnit.Point, 134);
@@ -900,18 +914,6 @@
             btnXY_x0E.Text = "降源";
             btnXY_x0E.UseVisualStyleBackColor = true;
             btnXY_x0E.Click += btnXY_x0E_Click;
-            // 
-            // btn_ReadStandMeter
-            // 
-            btn_ReadStandMeter.Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold, GraphicsUnit.Point, 134);
-            btn_ReadStandMeter.ForeColor = SystemColors.ControlText;
-            btn_ReadStandMeter.Location = new Point(1100, 18);
-            btn_ReadStandMeter.Name = "btn_ReadStandMeter";
-            btn_ReadStandMeter.Size = new Size(131, 40);
-            btn_ReadStandMeter.TabIndex = 34;
-            btn_ReadStandMeter.Text = "读取标准表";
-            btn_ReadStandMeter.UseVisualStyleBackColor = true;
-            btn_ReadStandMeter.Click += btn_ReadStandMeter_Click;
             // 
             // btnCtrlUI
             // 
@@ -1536,7 +1538,7 @@
             // 
             btn_Init.Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold, GraphicsUnit.Point, 134);
             btn_Init.ForeColor = SystemColors.ControlText;
-            btn_Init.Location = new Point(438, 103);
+            btn_Init.Location = new Point(8, 225);
             btn_Init.Name = "btn_Init";
             btn_Init.Size = new Size(167, 40);
             btn_Init.TabIndex = 46;
@@ -1549,7 +1551,7 @@
             label59.AutoSize = true;
             label59.Font = new Font("Microsoft YaHei UI", 10.7142859F, FontStyle.Bold | FontStyle.Italic);
             label59.ForeColor = SystemColors.ActiveCaptionText;
-            label59.Location = new Point(484, 67);
+            label59.Location = new Point(294, 183);
             label59.Name = "label59";
             label59.Size = new Size(128, 33);
             label59.TabIndex = 45;
@@ -1581,7 +1583,7 @@
             // 
             cbx_meterconstant.FormattingEnabled = true;
             cbx_meterconstant.Items.AddRange(new object[] { "400", "600", "800", "1000", "1200", "6400", "10000", "20000" });
-            cbx_meterconstant.Location = new Point(484, 27);
+            cbx_meterconstant.Location = new Point(141, 183);
             cbx_meterconstant.Name = "cbx_meterconstant";
             cbx_meterconstant.Size = new Size(123, 36);
             cbx_meterconstant.TabIndex = 42;
@@ -1590,7 +1592,7 @@
             // 
             cbx_ratedcurrent.FormattingEnabled = true;
             cbx_ratedcurrent.Items.AddRange(new object[] { "1.5", "5", "10", "20" });
-            cbx_ratedcurrent.Location = new Point(141, 139);
+            cbx_ratedcurrent.Location = new Point(141, 133);
             cbx_ratedcurrent.Name = "cbx_ratedcurrent";
             cbx_ratedcurrent.Size = new Size(123, 36);
             cbx_ratedcurrent.TabIndex = 41;
@@ -1599,7 +1601,7 @@
             // 
             cbx_ratedvoltage.FormattingEnabled = true;
             cbx_ratedvoltage.Items.AddRange(new object[] { "57.7", "100", "220", "380", "110", "120" });
-            cbx_ratedvoltage.Location = new Point(141, 86);
+            cbx_ratedvoltage.Location = new Point(141, 83);
             cbx_ratedvoltage.Name = "cbx_ratedvoltage";
             cbx_ratedvoltage.Size = new Size(123, 36);
             cbx_ratedvoltage.TabIndex = 40;
@@ -1617,7 +1619,7 @@
             // 
             label56.AutoSize = true;
             label56.ForeColor = SystemColors.ActiveCaptionText;
-            label56.Location = new Point(385, 30);
+            label56.Location = new Point(8, 191);
             label56.Name = "label56";
             label56.Size = new Size(117, 28);
             label56.TabIndex = 39;
@@ -1637,7 +1639,7 @@
             // 
             label54.AutoSize = true;
             label54.ForeColor = SystemColors.ActiveCaptionText;
-            label54.Location = new Point(8, 140);
+            label54.Location = new Point(8, 141);
             label54.Name = "label54";
             label54.Size = new Size(117, 28);
             label54.TabIndex = 38;
@@ -1677,7 +1679,7 @@
             // 
             btn_XY_ADJ.Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold, GraphicsUnit.Point, 134);
             btn_XY_ADJ.ForeColor = SystemColors.ControlText;
-            btn_XY_ADJ.Location = new Point(291, 134);
+            btn_XY_ADJ.Location = new Point(8, 240);
             btn_XY_ADJ.Name = "btn_XY_ADJ";
             btn_XY_ADJ.Size = new Size(167, 40);
             btn_XY_ADJ.TabIndex = 47;
@@ -1699,7 +1701,7 @@
             // 
             cbx_LC.FormattingEnabled = true;
             cbx_LC.Items.AddRange(new object[] { "0.25L", "0.5L", "0.8L", "1.0", "0.8C", "0.5C", "0.25C", "0C", "0.25L-反向", "0.5L-反向", "0.8L-反向", "1.0-反向", "0.8C-反向", "0.5C-反向", "0.25C-反向", "0L-反向" });
-            cbx_LC.Location = new Point(365, 74);
+            cbx_LC.Location = new Point(152, 191);
             cbx_LC.Name = "cbx_LC";
             cbx_LC.Size = new Size(116, 36);
             cbx_LC.TabIndex = 47;
@@ -1733,7 +1735,7 @@
             // 
             label60.AutoSize = true;
             label60.ForeColor = Color.Transparent;
-            label60.Location = new Point(294, 76);
+            label60.Location = new Point(8, 198);
             label60.Name = "label60";
             label60.Size = new Size(75, 28);
             label60.TabIndex = 43;
@@ -1743,7 +1745,7 @@
             // 
             label61.AutoSize = true;
             label61.ForeColor = Color.Transparent;
-            label61.Location = new Point(8, 95);
+            label61.Location = new Point(8, 96);
             label61.Name = "label61";
             label61.Size = new Size(138, 28);
             label61.TabIndex = 41;
@@ -1753,7 +1755,7 @@
             // 
             label62.AutoSize = true;
             label62.ForeColor = Color.Transparent;
-            label62.Location = new Point(8, 144);
+            label62.Location = new Point(8, 147);
             label62.Name = "label62";
             label62.Size = new Size(96, 28);
             label62.TabIndex = 42;
@@ -1923,9 +1925,7 @@
             // 
             // groupBox9
             // 
-            groupBox9.Controls.Add(btn_ReadContans);
             groupBox9.Controls.Add(cbxShutdownUI0);
-            groupBox9.Controls.Add(btn_ReadStandMeter);
             groupBox9.Controls.Add(cbxSelecteA_V);
             groupBox9.Controls.Add(tbxiPulse);
             groupBox9.Controls.Add(label48);
