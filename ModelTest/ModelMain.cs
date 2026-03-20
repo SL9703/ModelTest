@@ -1817,6 +1817,59 @@ namespace ModelTest
                         thread.IsBackground = true;
                         thread.Start();
                         break;
+                    case "Obj_Terminal_Formal_GetSessionData":
+                        var res = winSocketServer.CallObj_Terminal_Formal_GetSessionData(
+                            int.Parse(ServerDataNew[0]), 
+                            ServerDataNew[1],
+                            ServerDataNew[2],
+                            int.Parse(ServerDataNew[3]),
+                            ServerDataNew[4], cOutSID, cOutAttachData, cOutData,cOutMAC
+                            );
+                        if (res.Result == 0)
+                        {
+                            AddLog($"调用接口：{ServerImp.Text}----------成功");
+                        }
+                        else
+                        {
+                            AddLog($"调用接口：{ServerImp.Text}----------失败,返回值：{result}");
+                        }
+                        break;
+                    case "Obj_Terminal_Formal_GetTerminalSetData":
+                        var GetTerminalSetData = winSocketServer.CallObj_Terminal_Formal_GetTerminalSetData(
+                            int.Parse(ServerDataNew[0]),
+                            ServerDataNew[1],
+                            ServerDataNew[2],
+                            ServerDataNew[3],
+                            cOutSID, cOutAttachData, cOutData, cOutMAC
+                            );
+                        if (GetTerminalSetData.Result == 0)
+                        {
+                            AddLog($"调用接口：{ServerImp.Text}----------成功");
+                        }
+                        else
+                        {
+                            AddLog($"调用接口：{ServerImp.Text}----------失败,返回值：{result}");
+                        }
+                        break;
+                    case "Obj_Terminal_Formal_VerifyTerminalData":
+                        var VerifyTerminalData = winSocketServer.CallObj_Terminal_Formal_VerifyTerminalData(
+                            int.Parse(ServerDataNew[0]),
+                            int.Parse(ServerDataNew[1]),
+                            ServerDataNew[2],
+                            ServerDataNew[3],
+                            ServerDataNew[4],
+                            ServerDataNew[5],
+                            cOutData
+                            );
+                        if (VerifyTerminalData.Result == 0)
+                        {
+                            AddLog($"调用接口：{ServerImp.Text}----------成功");
+                        }
+                        else
+                        {
+                            AddLog($"调用接口：{ServerImp.Text}----------失败,返回值：{result}");
+                        }
+                        break;
                     default:
                         break;
                 }
@@ -1885,6 +1938,18 @@ namespace ModelTest
                 case "Obj_Terminal_Formal_InitSession":
                     AddLog($"选择加密机函数 {ServerImpType}，调用接口参数：");
                     AddLog("输入参数iKeyState，cTESAMID，cASCTR，cFLG，cMasterCert");
+                    break;
+                case "Obj_Terminal_Formal_GetSessionData":
+                    AddLog($"选择加密机函数 {ServerImpType}，调用接口参数：");
+                    AddLog("输入参数:int iOperateMode, char cTeasmid, char cSessionKey ,int cTaskType, char cTaskData ");
+                    break;
+                case "Obj_Terminal_Formal_GetTerminalSetData":
+                    AddLog($"选择加密机函数 {ServerImpType}，调用接口参数：");
+                    AddLog("输入参数:int iOperateMode, char cTeasmid, char cSessionKey , char cTaskData");
+                    break;
+                case "Obj_Terminal_Formal_VerifyTerminalData":
+                    AddLog($"选择加密机函数 {ServerImpType}，调用接口参数：");
+                    AddLog("输入参数:int ikeyState, int iOperateMode, char cTeasmid, char cSessionKey , char cTaskData,char cMac");
                     break;
                 default:
                     break;
