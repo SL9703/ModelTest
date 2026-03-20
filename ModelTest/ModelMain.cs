@@ -145,11 +145,11 @@ namespace ModelTest
             ModelTool.BindMutexCheckBoxes(cbx_TerminalV1_IC, cbx_TerminalV1_IN);//初始化终端IC和IN命令选择状态
             ModelTool.BindMutexCheckBoxes(cbxRevcHEX, cbxRevcASCII);//初始化接收HEX状态。tcpserver用到
             ModelTool.BindMutexCheckBoxes(cbxSendHEX, cbxSendASCII);//初始化发送HEX状态。tcpserver用到
-            
+
             AddLog("应用程序已启动成功");
             LogMessage.Info("应用程序已启动成功");
         }
-       
+
         private void StoreControlInfo(Control parentCtrl)
         {
             foreach (Control ctrl in parentCtrl.Controls)
@@ -265,8 +265,8 @@ namespace ModelTest
                 //}
                 //else
                 //{
-                    AddLog($"接收消息成功[PC<--MCU] : {hexData}", Color.Lime);
-                    LogMessage.Debug($"接受消息成功[PC<-- MCU]的数据: {hexData}");
+                AddLog($"接收消息成功[PC<--MCU] : {hexData}", Color.Lime);
+                LogMessage.Debug($"接受消息成功[PC<-- MCU]的数据: {hexData}");
                 //}
             });
         }
@@ -1414,6 +1414,24 @@ namespace ModelTest
 
         }
         /// <summary>
+        /// 施加永磁体
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void btnApplyingmagnet_Click(object sender, EventArgs e)
+        {
+
+        }
+        /// <summary>
+        /// 释放永磁体
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void btnReleasemagnet_Click(object sender, EventArgs e)
+        {
+
+        }
+        /// <summary>
         /// 开始误差
         /// </summary>
         /// <param name="sender"></param>
@@ -2429,6 +2447,6 @@ namespace ModelTest
             meterTest.Show();
         }
 
-
+      
     }
 }

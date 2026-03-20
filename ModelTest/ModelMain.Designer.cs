@@ -251,6 +251,10 @@ namespace ModelTest
             tsbtnMeterTest = new ToolStripButton();
             panel2 = new Panel();
             panel3 = new Panel();
+            groupBox6 = new GroupBox();
+            label31 = new Label();
+            btnApplyingmagnet = new Button();
+            btnReleasemagnet = new Button();
             tabControl1.SuspendLayout();
             tabPage1.SuspendLayout();
             TestUnit.SuspendLayout();
@@ -306,6 +310,7 @@ namespace ModelTest
             toolStrip1.SuspendLayout();
             panel2.SuspendLayout();
             panel3.SuspendLayout();
+            groupBox6.SuspendLayout();
             SuspendLayout();
             // 
             // tabControl1
@@ -1370,6 +1375,7 @@ namespace ModelTest
             // panel5
             // 
             panel5.BorderStyle = BorderStyle.FixedSingle;
+            panel5.Controls.Add(groupBox6);
             panel5.Controls.Add(groupBox5);
             panel5.Controls.Add(groupBox2);
             panel5.Controls.Add(groupBox1);
@@ -2850,6 +2856,53 @@ namespace ModelTest
             panel3.Size = new Size(2295, 362);
             panel3.TabIndex = 5;
             // 
+            // groupBox6
+            // 
+            groupBox6.Controls.Add(btnReleasemagnet);
+            groupBox6.Controls.Add(btnApplyingmagnet);
+            groupBox6.Controls.Add(label31);
+            groupBox6.Dock = DockStyle.Top;
+            groupBox6.Location = new Point(0, 576);
+            groupBox6.Name = "groupBox6";
+            groupBox6.Size = new Size(583, 89);
+            groupBox6.TabIndex = 39;
+            groupBox6.TabStop = false;
+            groupBox6.Text = "磁体电机控制";
+            // 
+            // label31
+            // 
+            label31.AutoSize = true;
+            label31.Location = new Point(4, 43);
+            label31.Margin = new Padding(4, 0, 4, 0);
+            label31.Name = "label31";
+            label31.Size = new Size(170, 28);
+            label31.TabIndex = 12;
+            label31.Text = "地址在上边填↑：";
+            // 
+            // btnApplyingmagnet
+            // 
+            btnApplyingmagnet.Location = new Point(184, 35);
+            btnApplyingmagnet.Margin = new Padding(6, 5, 6, 5);
+            btnApplyingmagnet.Name = "btnApplyingmagnet";
+            btnApplyingmagnet.Size = new Size(167, 41);
+            btnApplyingmagnet.TabIndex = 35;
+            btnApplyingmagnet.Tag = "01";
+            btnApplyingmagnet.Text = "施加磁体";
+            btnApplyingmagnet.UseVisualStyleBackColor = true;
+            btnApplyingmagnet.Click += btnApplyingmagnet_Click;
+            // 
+            // btnReleasemagnet
+            // 
+            btnReleasemagnet.Location = new Point(369, 35);
+            btnReleasemagnet.Margin = new Padding(6, 5, 6, 5);
+            btnReleasemagnet.Name = "btnReleasemagnet";
+            btnReleasemagnet.Size = new Size(167, 41);
+            btnReleasemagnet.TabIndex = 36;
+            btnReleasemagnet.Tag = "02";
+            btnReleasemagnet.Text = "释放磁体";
+            btnReleasemagnet.UseVisualStyleBackColor = true;
+            btnReleasemagnet.Click += btnReleasemagnet_Click;
+            // 
             // ModelMain
             // 
             AutoScaleDimensions = new SizeF(13F, 28F);
@@ -2946,6 +2999,8 @@ namespace ModelTest
             toolStrip1.PerformLayout();
             panel2.ResumeLayout(false);
             panel3.ResumeLayout(false);
+            groupBox6.ResumeLayout(false);
+            groupBox6.PerformLayout();
             ResumeLayout(false);
             PerformLayout();
 
@@ -3173,5 +3228,9 @@ namespace ModelTest
         private Label label128;
         private TextBox tbxRJSC;
         private Panel panel13;
+        private GroupBox groupBox6;
+        private Label label31;
+        private Button btnApplyingmagnet;
+        private Button btnReleasemagnet;
     }
 }
