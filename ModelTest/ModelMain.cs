@@ -1617,16 +1617,18 @@ namespace ModelTest
             string ServerPort = textBox3.Text;
             Thread thread = new Thread(() =>
             {
-                int rtnConnnt = winSocketServer.ConnectDeviceEx(ServerIp, ServerPort, "8000");
-                if (rtnConnnt == 0)
+                AddLog("开始连接加密服务器！！！");
+                var rtnConnnt = winSocketServer.ConnectDeviceEx(ServerIp, ServerPort, "8000");
+                if (rtnConnnt.Result == 0)
                 {
-                    AddLog("连接服务器成功！");
-                    label115.Text = "服务器连接状态：已连接";
+                    AddLog("连接加密服务器成功！");
+                    label115.Text = "加密服务器连接状态：已连接";
                     //获取随机数
-                    int ret = winSocketServer.CreateRandEx(16, OutRandNum);
-                    if (ret == 0)
+                    var randEx = winSocketServer.CreateRandEx(16, OutRandNum);
+                    if (randEx.Result == 0)
                     {
-                        richTextBox1.AppendText("获取随机数成功！" + System.Text.Encoding.Default.GetString(OutRandNum));
+                        richTextBox1.Text = "";
+                        richTextBox1.AppendText("获取随机数成功！随机数结果 = " + System.Text.Encoding.Default.GetString(OutRandNum));
                     }
                     else
                     {
@@ -1636,8 +1638,8 @@ namespace ModelTest
                 }
                 else
                 {
-                    AddLog("连接服务器失败，错误代码：" + rtnConnnt);
-                    label115.Text = "服务器连接状态：连接服务器失败";
+                    AddLog("连接加密服务器失败，错误代码：" + rtnConnnt);
+                    label115.Text = "服务器连接状态：连接失败";
                 }
             });
             thread.IsBackground = true;
@@ -1652,7 +1654,6 @@ namespace ModelTest
         private void button5_Click(object sender, EventArgs e)
         {
             Thread thread = new Thread(() => { });
-            //cOutSID, cOutAttachData, cOutData, cOutMAC
             byte[] cOutSID = new byte[256];
             byte[] cOutAttachData = new byte[256];
             byte[] cOutData = new byte[256];
@@ -1674,107 +1675,88 @@ namespace ModelTest
                         AddLog("请右上角选择加密算法！");
                         break;
                     case "RESAM_Formal_GetKeyData_AppLayer":
-                        thread = new Thread(() =>
-                        {
-                            AddLog($"调用接口：{ServerImp.Text}");
-                            AddLog($"传入参数===>iOperateMode{ServerDataNew[0]}，cTESAMID{ServerDataNew[1]}，" +
-                                $"cSessionKey{ServerDataNew[2]}，cTaskType{ServerDataNew[3]}，cTaskData{ServerDataNew[4]}");
-                            result = winSocketServer.ReSAM_Formal_GetKeyData_AppLayer
-                              (int.Parse(ServerDataNew[0]),
-                              ServerDataNew[1],
-                              ServerDataNew[2],
-                              int.Parse(ServerDataNew[3]),
-                              ServerDataNew[4],
-                               cOutSID,
-                               cOutAttachData,
-                               cOutData,
-                               cOutMAC
-                              );
-                            //cOutSID, cOutAttachData, cOutData, cOutMAC
-                            PrintServerMeassRes(result);
-                            richTextBox1.AppendText($"加密机返回数据：cOutSID={System.Text.Encoding.Default.GetString(cOutSID)}，" +
-                                                                $"cOutAttachData={System.Text.Encoding.Default.GetString(cOutAttachData)}," +
-                                                                $"cOutData={System.Text.Encoding.Default.GetString(cOutData)}," +
-                                                                $"cOutMAC={System.Text.Encoding.Default.GetString(cOutMAC)}");
-                        });
+                        AddLog($"调用接口：{ServerImp.Text}----------开始加密计算\r\n");
+                        AddLog($"iOperateMode = {ServerDataNew[0]}\r\n" +
+                            $"cTESAMID = {ServerDataNew[1]}\r\n" +
+                            $"cSessionKey = {ServerDataNew[2]}\r\n" +
+                            $"cTaskType = {ServerDataNew[3]}\r\n" +
+                            $"cTaskData = {ServerDataNew[4]}");
+                        var GetKeyData_AppLayer = winSocketServer.ReSAM_Formal_GetKeyData_AppLayer
+                           (int.Parse(ServerDataNew[0]),
+                           ServerDataNew[1],
+                           ServerDataNew[2],
+                           int.Parse(ServerDataNew[3]),
+                           ServerDataNew[4],
+                            cOutSID,
+                            cOutAttachData,
+                            cOutData,
+                            cOutMAC
+                           );
+                        PrintServerMeassRes(GetKeyData_AppLayer.Result);
                         break;
                     case "CloseDevice":
-                        thread = new Thread(() =>
-                        {
-                            AddLog($"调用接口：{ServerImp.Text}");
-                            result = winSocketServer.CloseDeviceEx();
-                            PrintServerMeassRes(result);
-                        });
+                        AddLog($"调用接口：{ServerImp.Text}----------开始加密计算\r\n");
+                        var CloseDevice = winSocketServer.CloseDeviceEx();
+                        PrintServerMeassRes(CloseDevice.Result);
                         break;
                     case "ClseUsbkey":
                         thread = new Thread(() =>
                         {
-                            AddLog($"调用接口：{ServerImp.Text}");
+                            AddLog($"调用接口：{ServerImp.Text}----------开始加密计算\r\n");
                             result = winSocketServer.ClseUsbkeyEx();
                             PrintServerMeassRes(result);
                         });
                         break;
                     case "Meter_Formal_DataClear1":
-                        AddLog($"调用接口：{ServerImp.Text}");
-                        AddLog($"传入参数===>Flag={ServerDataNew[0]},PutRand={ServerDataNew[1]}," +
-                           $"PutDiv={ServerDataNew[2]},PutData={ServerDataNew[3]}");
-                        result = winSocketServer.Meter_Formal_DataClear1Ex(int.Parse(ServerDataNew[0]), ServerDataNew[1], ServerDataNew[2], ServerDataNew[3], cOutData);
-                        PrintServerMeassRes(result);
-                        richTextBox1.AppendText($"加密机返回数据cOutMAC={System.Text.Encoding.Default.GetString(cOutData)}");
+                        AddLog($"调用接口：{ServerImp.Text}----------开始加密计算\r\n");
+                        AddLog($"Flag = {ServerDataNew[0]}\r\n" +
+                            $"PutRand = {ServerDataNew[1]}\r\n" +
+                           $"PutDiv = {ServerDataNew[2]}\r\n" +
+                           $"PutData = {ServerDataNew[3]}\r\n");
+                        var DataClear1 = winSocketServer.CallMeter_Formal_DataClear1(int.Parse(ServerDataNew[0]), ServerDataNew[1], ServerDataNew[2], ServerDataNew[3], cOutData);
+                        PrintServerMeassRes(DataClear1.Result);
                         break;
                     case "Meter_Formal_DataClear2":
                         AddLog($"调用接口：{ServerImp.Text}");
-                        AddLog($"传入参数===>Flag={ServerDataNew[0]},PutRand={ServerDataNew[1]}," +
-                           $"PutDiv={ServerDataNew[2]},PutData={ServerDataNew[3]}");
-                        result = winSocketServer.Meter_Formal_DataClear2Ex(int.Parse(ServerDataNew[0]), ServerDataNew[1], ServerDataNew[2], ServerDataNew[3], cOutData);
-                        PrintServerMeassRes(result);
-                        richTextBox1.AppendText($"加密机返回数据cOutMAC={System.Text.Encoding.Default.GetString(cOutData)}");
+                        AddLog($"Flag = {ServerDataNew[0]}\r\n" +
+                            $"PutRand = {ServerDataNew[1]}\r\n" +
+                           $"PutDiv = {ServerDataNew[2]}\r\n" +
+                           $"PutData = {ServerDataNew[3]}\r\n");
+                       var DataClear2 = winSocketServer.CallMeter_Formal_DataClear2(int.Parse(ServerDataNew[0]), ServerDataNew[1], ServerDataNew[2], ServerDataNew[3], cOutData);
+                        PrintServerMeassRes(DataClear2.Result);
                         break;
                     case "Obj_Meter_Formal_SetESAMData":
-                        AddLog($"调用接口：{ServerImp.Text}");
-                        AddLog($"传入参数InKeyState={ServerDataNew[0]},InOperateMode={ServerDataNew[1]}," +
-                            $"cESAMNO={ServerDataNew[2]},cSessionKey={ServerDataNew[3]}," +
-                            $"cMeterNo={ServerDataNew[4]},cESAMRand={ServerDataNew[5]},cData={ServerDataNew[6]}");
-                        thread = new Thread(() =>
-                        {
-                            result = winSocketServer.Call_Obj_Meter_Formal_SetESAMData
-                                (int.Parse(ServerDataNew[0]),
-                                int.Parse(ServerDataNew[1]),
-                                ServerDataNew[2],
-                                ServerDataNew[3],
-                                ServerDataNew[4],
-                                ServerDataNew[5],
-                                ServerDataNew[6],
-                                 cOutSID,
-                                 cOutAttachData,
-                                 cOutData,
-                                 cOutMAC
-                                );
-                            if (result == 0)
-                            {
-                                AddLog($"调用接口：{ServerImp.Text}----------成功");
-                                Thread.Sleep(2000);
-                                richTextBox1.AppendText($"加密机返回数据：cOutSID={System.Text.Encoding.Default.GetString(cOutSID)}+\r\n");
-                                richTextBox1.AppendText($"cOutAttachData={System.Text.Encoding.Default.GetString(cOutAttachData)}+\r\n");
-                                richTextBox1.AppendText($"cOutData={System.Text.Encoding.Default.GetString(cOutData)}+\r\n");
-                                richTextBox1.AppendText($"cOutMAC={System.Text.Encoding.Default.GetString(cOutMAC)}+\r\n");
-                            }
-                            else
-                            {
-                                AddLog($"调用接口：{ServerImp.Text}----------失败,返回值：{result}");
-                            }
-                        });
-                        thread.IsBackground = true;
-                        thread.Start();
+                        AddLog($"调用接口：{ServerImp.Text}----------开始加密计算\r\n");
+                        AddLog($"InKeyState = {ServerDataNew[0]}\r\n" +
+                            $"InOperateMode = {ServerDataNew[1]}\r\n" +
+                            $"cESAMNO = {ServerDataNew[2]}\r\n" +
+                            $"cSessionKey = {ServerDataNew[3]}\r\n" +
+                            $"cMeterNo = {ServerDataNew[4]}\r\n" +
+                            $"cESAMRand = {ServerDataNew[5]}\r\n" +
+                            $"cData = {ServerDataNew[6]} \r\n");
+                        var SetESAMData = winSocketServer.CallObj_Meter_Formal_SetESAMData
+                            (int.Parse(ServerDataNew[0]),
+                            int.Parse(ServerDataNew[1]),
+                            ServerDataNew[2],
+                            ServerDataNew[3],
+                            ServerDataNew[4],
+                            ServerDataNew[5],
+                            ServerDataNew[6],
+                             cOutSID,
+                             cOutAttachData,
+                             cOutData,
+                             cOutMAC
+                            );
+                        PrintServerMeassRes(SetESAMData.Result);
                         break;
                     case "Obj_Terminal_Formal_GetTrmKeyData":
-                        AddLog($"调用接口：{ServerImp.Text}");
-                        AddLog($"传入参数iKeyVersion={ServerDataNew[0]},strEsamNo={ServerDataNew[1]}," +
-                            $"strSessionKey={ServerDataNew[2]},cTerminalAddress={ServerDataNew[3]}," +
-                            $"strKeyType={ServerDataNew[4]}");
-                        thread = new Thread(() =>
-                        {
-                            result = winSocketServer.Obj_Terminal_Formal_GetTrmKeyDataEx(
+                        AddLog($"调用接口：{ServerImp.Text}----------开始加密计算\r\n");
+                        AddLog($"iKeyVersion = {ServerDataNew[0]}\r\n" +
+                            $"strEsamNo = {ServerDataNew[1]}\r\n" +
+                            $"strSessionKey = {ServerDataNew[2]}\r\n" +
+                            $"cTerminalAddress = {ServerDataNew[3]}\r\n" +
+                            $"strKeyType = {ServerDataNew[4]}\r\n");
+                            var GetTrmKeyData = winSocketServer.CallObj_Terminal_Formal_GetTrmKeyData(
                                 int.Parse(ServerDataNew[0]),
                                 ServerDataNew[1],
                                 ServerDataNew[2],
@@ -1785,31 +1767,16 @@ namespace ModelTest
                                  cOutData,
                                  cOutMAC
                                 );
-                            if (result == 0)
-                            {
-                                AddLog($"调用接口：{ServerImp.Text}----------成功");
-                                Thread.Sleep(2000);
-                                richTextBox1.AppendText($"加密机返回数据：cOutSID={System.Text.Encoding.Default.GetString(cOutSID)}+\r\n");
-                                richTextBox1.AppendText($"cOutAttachData={System.Text.Encoding.Default.GetString(cOutAttachData)}+\r\n");
-                                richTextBox1.AppendText($"strOutTrmKeyData={System.Text.Encoding.Default.GetString(cOutData)}+\r\n");
-                                richTextBox1.AppendText($"cOutMAC={System.Text.Encoding.Default.GetString(cOutMAC)}+\r\n");
-                            }
-                            else
-                            {
-                                AddLog($"调用接口：{ServerImp.Text}----------失败,返回值：{result}");
-                            }
-                        });
-                        thread.IsBackground = true;
-                        thread.Start();
+                        PrintServerMeassRes(GetTrmKeyData.Result);
                         break;
                     case "Obj_Terminal_Formal_InitSession":
-                        AddLog($"调用接口：{ServerImp.Text}");
-                        AddLog($"传入参数iKeyVersion={ServerDataNew[0]},strEsamNo={ServerDataNew[1]}," +
-                           $"strSessionKey={ServerDataNew[2]},cTerminalAddress={ServerDataNew[3]}," +
-                           $"strKeyType={ServerDataNew[4]}");
-                        thread = new Thread(() =>
-                        {
-                            int result = winSocketServer.Obj_Terminal_Formal_InitSessionEx(
+                        AddLog($"调用接口：{ServerImp.Text}----------开始加密计算\r\n");
+                        AddLog($"iKeyVersion = {ServerDataNew[0]}\r\n" +
+                            $"strEsamNo = {ServerDataNew[1]}\r\n" +
+                           $"strSessionKey = {ServerDataNew[2]}\r\n" +
+                           $"cTerminalAddress = {ServerDataNew[3]}\r\n" +
+                           $"strKeyType = {ServerDataNew[4]}\r\n");
+                            var InitSession = winSocketServer.CallObj_Terminal_Formal_InitSession(
                                  int.Parse(ServerDataNew[0]),
                                  ServerDataNew[1],
                                  ServerDataNew[2],
@@ -1819,40 +1786,29 @@ namespace ModelTest
                                   cOutAttachData,
                                   cOutData
                                  );
-                            if (result == 0)
-                            {
-                                AddLog($"调用接口：{ServerImp.Text}----------成功");
-                                Thread.Sleep(2000);
-                                richTextBox1.AppendText($"加密机返回数据：cOutSID={System.Text.Encoding.Default.GetString(cOutSID)}+\r\n");
-                                richTextBox1.AppendText($"cOutAttachData={System.Text.Encoding.Default.GetString(cOutAttachData)}+\r\n");
-                                richTextBox1.AppendText($"strOutTrmKeyData={System.Text.Encoding.Default.GetString(cOutData)}+\r\n");
-                            }
-                            else
-                            {
-                                AddLog($"调用接口：{ServerImp.Text}----------失败,返回值：{result}");
-                            }
-                        });
-                        thread.IsBackground = true;
-                        thread.Start();
+                        PrintServerMeassRes(InitSession.Result);
                         break;
                     case "Obj_Terminal_Formal_GetSessionData":
-                        var res = winSocketServer.CallObj_Terminal_Formal_GetSessionData(
-                            int.Parse(ServerDataNew[0]), 
+                        AddLog($"调用接口：{ServerImp.Text}----------开始加密计算\r\n");
+                        AddLog($"iKeyVersion = {ServerDataNew[0]}\r\n" +
+                            $"strEsamNo = {ServerDataNew[1]}\r\n" +
+                           $"strSessionKey = {ServerDataNew[2]}\r\n" +
+                           $"cTerminalAddress = {ServerDataNew[3]}\r\n");
+                        var GetSessionData = winSocketServer.CallObj_Terminal_Formal_GetSessionData(
+                            int.Parse(ServerDataNew[0]),
                             ServerDataNew[1],
                             ServerDataNew[2],
                             int.Parse(ServerDataNew[3]),
-                            ServerDataNew[4], cOutSID, cOutAttachData, cOutData,cOutMAC
+                            ServerDataNew[4], cOutSID, cOutAttachData, cOutData, cOutMAC
                             );
-                        if (res.Result == 0)
-                        {
-                            AddLog($"调用接口：{ServerImp.Text}----------成功");
-                        }
-                        else
-                        {
-                            AddLog($"调用接口：{ServerImp.Text}----------失败,返回值：{result}");
-                        }
+                        PrintServerMeassRes(GetSessionData.Result);
                         break;
                     case "Obj_Terminal_Formal_GetTerminalSetData":
+                        AddLog($"调用接口：{ServerImp.Text}----------开始加密计算\r\n");
+                        AddLog($"iOperateMode = {ServerDataNew[0]}\r\n" +
+                            $"cEasmid = {ServerDataNew[1]}\r\n" +
+                           $"cSessionKey = {ServerDataNew[2]}\r\n" +
+                           $"cTaskData = {ServerDataNew[3]}\r\n");
                         var GetTerminalSetData = winSocketServer.CallObj_Terminal_Formal_GetTerminalSetData(
                             int.Parse(ServerDataNew[0]),
                             ServerDataNew[1],
@@ -1860,16 +1816,16 @@ namespace ModelTest
                             ServerDataNew[3],
                             cOutSID, cOutAttachData, cOutData, cOutMAC
                             );
-                        if (GetTerminalSetData.Result == 0)
-                        {
-                            AddLog($"调用接口：{ServerImp.Text}----------成功");
-                        }
-                        else
-                        {
-                            AddLog($"调用接口：{ServerImp.Text}----------失败,返回值：{result}");
-                        }
+                        PrintServerMeassRes(GetTerminalSetData.Result);
                         break;
                     case "Obj_Terminal_Formal_VerifyTerminalData":
+                        AddLog($"调用接口：{ServerImp.Text}----------开始加密计算");
+                        AddLog($"ikeyState = {ServerDataNew[0]}\r\n" +
+                           $"iOperateMode = {ServerDataNew[1]}\r\n" +
+                          $"cEasmid = {ServerDataNew[2]}\r\n" +
+                          $"cSessionKey = {ServerDataNew[3]}\r\n" +
+                          $"cTaskData = {ServerDataNew[4]}\r\n" +
+                          $"cMac = {ServerDataNew[5]}");
                         var VerifyTerminalData = winSocketServer.CallObj_Terminal_Formal_VerifyTerminalData(
                             int.Parse(ServerDataNew[0]),
                             int.Parse(ServerDataNew[1]),
@@ -1879,14 +1835,7 @@ namespace ModelTest
                             ServerDataNew[5],
                             cOutData
                             );
-                        if (VerifyTerminalData.Result == 0)
-                        {
-                            AddLog($"调用接口：{ServerImp.Text}----------成功");
-                        }
-                        else
-                        {
-                            AddLog($"调用接口：{ServerImp.Text}----------失败,返回值：{result}");
-                        }
+                        PrintServerMeassRes(VerifyTerminalData.Result);
                         break;
                     default:
                         break;
@@ -1903,7 +1852,7 @@ namespace ModelTest
         {
             if (result == 0)
             {
-                AddLog($"调用接口：{ServerImp.Text}----------成功");
+                AddLog($"调用接口：{ServerImp.Text}----------成功,返回值：{result}");
             }
             else
             {
@@ -2512,6 +2461,6 @@ namespace ModelTest
             meterTest.Show();
         }
 
-      
+
     }
 }

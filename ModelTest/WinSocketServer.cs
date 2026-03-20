@@ -10,7 +10,7 @@ namespace ModelTest
 {
     public class WinSocketServer
     {
-        public int res =-1;
+        public int res = -1;
         private readonly object lockObject = new object();//lock对象
         private static void HandleException(Exception ex)
         {
@@ -29,20 +29,48 @@ namespace ModelTest
         /// <param name="port"></param>
         /// <param name="Ctime"></param>
         /// <returns></returns>
+        private static int LoginResult;
         [DllImport("WinSocketServer.dll")]
         private static extern int ConnectDevice(string ip, string port, string Ctime);
 
-        public int ConnectDeviceEx(string ip, string port, string Ctime)
+        public (bool Success, int Result) ConnectDeviceEx(string ip, string port, string Ctime)
         {
-            try
+            if (_disposed)
             {
-                int res= ConnectDevice(ip, port, Ctime);
-                return res;
+                throw new ObjectDisposedException(nameof(WinSocketServer));
             }
-            catch (Exception ex)
+            lock (lockObject)
             {
-                HandleException(ex);
-                return res;
+                try
+                {
+                    LoginResult = ConnectDevice(ip, port, Ctime); ;
+                    if (IsValidResult("ConnectDevice", LoginResult))
+                    {
+                        LogMessage.Debug($"DLL返回有效内容:{LoginResult.ToString()}");
+                        return (true, LoginResult);
+
+                    }
+                    else
+                    {
+                        LogMessage.Debug($"DLL返回无效内容:{LoginResult.ToString()}");
+                        return (false, LoginResult);
+                    }
+                }
+                catch (AccessViolationException ex)
+                {
+                    LogMessage.Error("内存访问冲突", ex);
+                    return (false, -1);
+                }
+                catch (BadImageFormatException ex)
+                {
+                    LogMessage.Error("DLL格式错误", ex);
+                    return (false, -1);
+                }
+                catch (Exception ex)
+                {
+                    LogMessage.Error("DLL调用异常", ex);
+                    return (false, -1);
+                }
             }
         }
         /// <summary>
@@ -51,48 +79,101 @@ namespace ModelTest
         /// <param name="InRand"></param>
         /// <param name="OutRand"></param>
         /// <returns></returns>
+        private static int CreateRandResult;
         [DllImport("WinSocketServer.dll")]
-        private static extern int CreateRand([In,Out] int InRand, [Out] byte[] OutRand);
+        private static extern int CreateRand([In, Out] int InRand, [Out] byte[] OutRand);
         //byte[] OutRand = new byte[128];
-        public int CreateRandEx(int InRand, [Out] byte[] OutRand)
+        public (bool Success, int Result) CreateRandEx(int InRand, [Out] byte[] OutRand)
         {
-            
-            try
+            RandNum = new byte[128];
+            if (_disposed)
             {
-                RandNum = new byte[128];
-                res =  CreateRand(InRand, OutRand);
-                return res;
+                throw new ObjectDisposedException(nameof(WinSocketServer));
             }
-            catch (Exception ex)
+            lock (lockObject)
             {
-                HandleException(ex); return res;
+                try
+                {
+                    CreateRandResult = CreateRand(InRand, OutRand);
+                    if (IsValidResult("ConnectDevice", CreateRandResult, "OutRand", OutRand))
+                    {
+                        LogMessage.Debug($"DLL返回有效内容:{CreateRandResult.ToString()}");
+                        return (true, CreateRandResult);
+
+                    }
+                    else
+                    {
+                        LogMessage.Debug($"DLL返回无效内容:{CreateRandResult.ToString()}");
+                        return (false, CreateRandResult);
+                    }
+                }
+                catch (AccessViolationException ex)
+                {
+                    LogMessage.Error("内存访问冲突", ex);
+                    return (false, -1);
+                }
+                catch (BadImageFormatException ex)
+                {
+                    LogMessage.Error("DLL格式错误", ex);
+                    return (false, -1);
+                }
+                catch (Exception ex)
+                {
+                    LogMessage.Error("DLL调用异常", ex);
+                    return (false, -1);
+                }
             }
         }
-
+        private static int _GetKeyData_AppLayer;
         [DllImport("WinSocketServer.dll")]
-        private static extern int RESAM_Formal_GetKeyData_AppLayer([In, Out] 
-        int iOperateMode,string cTESAMID,string cSessionKey, int cTaskType, string cTaskData,
+        private static extern int RESAM_Formal_GetKeyData_AppLayer([In, Out]
+        int iOperateMode, string cTESAMID, string cSessionKey, int cTaskType, string cTaskData,
         [Out] byte[] cOutSID, [Out] byte[] cOutAttachData, [Out] byte[] cOutData, [Out] byte[] cOutMAC);
 
-        public int ReSAM_Formal_GetKeyData_AppLayer(
+        public (bool Success, int Result) ReSAM_Formal_GetKeyData_AppLayer(
             int iOperateMode, string cTESAMID, string cSessionKey, int cTaskType, string cTaskData,
             [Out] byte[] cOutSID, [Out] byte[] cOutAttachData, [Out] byte[] cOutData, [Out] byte[] cOutMAC)
         {
-            try
+            if (_disposed)
             {
-                res= RESAM_Formal_GetKeyData_AppLayer(iOperateMode, cTESAMID, cSessionKey, cTaskType, cTaskData,
-                 cOutSID, cOutAttachData, cOutData, cOutMAC);
-                LogMessage.Debug(System.Text.Encoding.Default.GetString(cOutSID));
-                LogMessage.Debug(System.Text.Encoding.Default.GetString(cOutAttachData));
-                LogMessage.Debug(System.Text.Encoding.Default.GetString(cOutData));
-                LogMessage.Debug(System.Text.Encoding.Default.GetString(cOutMAC));
-                return res;
+                throw new ObjectDisposedException(nameof(WinSocketServer));
             }
-            catch (Exception ex)
+            lock (lockObject)
             {
-                HandleException(ex); return res;
+                try
+                {
+                    _GetKeyData_AppLayer = RESAM_Formal_GetKeyData_AppLayer(iOperateMode, cTESAMID, cSessionKey, cTaskType, cTaskData,
+             cOutSID, cOutAttachData, cOutData, cOutMAC);
+                    if (IsValidResult("ReSAM_Formal_GetKeyData_AppLayer", GetSessionData, cOutSID, cOutAttachData, cOutData, cOutMAC))
+                    {
+                        LogMessage.Debug($"DLL返回有效内容:{_GetKeyData_AppLayer.ToString()}");
+                        return (true, _GetKeyData_AppLayer);
+
+                    }
+                    else
+                    {
+                        LogMessage.Debug($"DLL返回无效内容:{_GetKeyData_AppLayer.ToString()}");
+                        return (false, _GetKeyData_AppLayer);
+                    }
+                }
+                catch (AccessViolationException ex)
+                {
+                    LogMessage.Error("内存访问冲突", ex);
+                    return (false, -1);
+                }
+                catch (BadImageFormatException ex)
+                {
+                    LogMessage.Error("DLL格式错误", ex);
+                    return (false, -1);
+                }
+                catch (Exception ex)
+                {
+                    LogMessage.Error("DLL调用异常", ex);
+                    return (false, -1);
+                }
             }
         }
+        private static int _SetESAMData;
         [DllImport("WinSocketServer.dll")]
         private static extern int Obj_Meter_Formal_SetESAMData([In, Out]
             int InKeyState,
@@ -106,42 +187,94 @@ namespace ModelTest
            [Out] byte[] OutAddData,
            [Out] byte[] OutData,
            [Out] byte[] OutMAC);
-        public int Call_Obj_Meter_Formal_SetESAMData(int InKeyState, int InOperateMode, string cESAMNO, string cSessionKey,
+        public (bool Success, int Result) CallObj_Meter_Formal_SetESAMData(int InKeyState, int InOperateMode, string cESAMNO, string cSessionKey,
             string cMeterNo, string cESAMRand, string cData, [Out] byte[] OutSID, [Out] byte[] OutAddData,
             [Out] byte[] OutData, [Out] byte[] OutMAC)
         {
-            try
+            if (_disposed)
             {
-                res =  Obj_Meter_Formal_SetESAMData(InKeyState, InOperateMode, cESAMNO, cSessionKey,
+                throw new ObjectDisposedException(nameof(WinSocketServer));
+            }
+            lock (lockObject)
+            {
+                try
+                {
+                    _SetESAMData = Obj_Meter_Formal_SetESAMData(InKeyState, InOperateMode, cESAMNO, cSessionKey,
              cMeterNo, cESAMRand, cData, OutSID, OutAddData,
              OutData, OutMAC);
-                LogMessage.Debug(System.Text.Encoding.Default.GetString(OutSID));
-                LogMessage.Debug(System.Text.Encoding.Default.GetString(OutAddData));
-                LogMessage.Debug(System.Text.Encoding.Default.GetString(OutData));
-                LogMessage.Debug(System.Text.Encoding.Default.GetString(OutMAC));
-                return res;
-            }
-            catch (Exception ex)
-            {
-                HandleException(ex); return res;
+                    if (IsValidResult("Obj_Meter_Formal_SetESAMData", _SetESAMData, OutSID, OutAddData, OutData, OutMAC))
+                    {
+                        LogMessage.Debug($"DLL返回有效内容:{_SetESAMData.ToString()}");
+                        return (true, _SetESAMData);
+
+                    }
+                    else
+                    {
+                        LogMessage.Debug($"DLL返回无效内容:{_SetESAMData.ToString()}");
+                        return (false, _SetESAMData);
+                    }
+                }
+                catch (AccessViolationException ex)
+                {
+                    LogMessage.Error("内存访问冲突", ex);
+                    return (false, -1);
+                }
+                catch (BadImageFormatException ex)
+                {
+                    LogMessage.Error("DLL格式错误", ex);
+                    return (false, -1);
+                }
+                catch (Exception ex)
+                {
+                    LogMessage.Error("DLL调用异常", ex);
+                    return (false, -1);
+                }
             }
         }
         /// <summary>
         /// 断开密码机
         /// </summary>
         /// <returns></returns>
+        private static int _CloseDevice;
         [DllImport("WinSocketServer.dll")]
         private static extern int CloseDevice();
-        public int CloseDeviceEx()
+        public (bool Success, int Result) CloseDeviceEx()
         {
-            try
+            if (_disposed)
             {
-                res = CloseDevice();
-                return res;
+                throw new ObjectDisposedException(nameof(WinSocketServer));
             }
-            catch (Exception ex)
+            lock (lockObject)
             {
-                HandleException(ex); return res;
+                try
+                {
+                    _CloseDevice = CloseDevice();
+                    if (IsValidResult("CloseDevice", _CloseDevice))
+                    {
+                        LogMessage.Debug($"DLL返回有效内容:{_CloseDevice.ToString()}");
+                        return (true, _CloseDevice);
+                    }
+                    else
+                    {
+                        LogMessage.Debug($"DLL返回无效内容:{_CloseDevice.ToString()}");
+                        return (false, _CloseDevice);
+                    }
+                }
+                catch (AccessViolationException ex)
+                {
+                    LogMessage.Error("内存访问冲突", ex);
+                    return (false, -1);
+                }
+                catch (BadImageFormatException ex)
+                {
+                    LogMessage.Error("DLL格式错误", ex);
+                    return (false, -1);
+                }
+                catch (Exception ex)
+                {
+                    LogMessage.Error("DLL调用异常", ex);
+                    return (false, -1);
+                }
             }
         }
         /// <summary>
@@ -154,7 +287,7 @@ namespace ModelTest
         {
             try
             {
-                res=  ClseUsbkeyEx();
+                res = ClseUsbkeyEx();
                 return res;
             }
             catch (Exception ex)
@@ -166,19 +299,47 @@ namespace ModelTest
         /// 用于远程费控电能表清零
         /// </summary>
         /// <returns></returns>
+        private static int _DataClear1;
         [DllImport("WinSocketServer.dll")]
-        private static extern int Meter_Formal_DataClear1([In,Out] int Flag,string PutRand,string PutDiv,string PutData,[Out] byte[] Outdata);
-        public int Meter_Formal_DataClear1Ex(int flag, string putRand,string putDiv,string putData, [Out] byte[] outdata)
+        private static extern int Meter_Formal_DataClear1([In, Out] int Flag, string PutRand, string PutDiv, string PutData, [Out] byte[] Outdata);
+        public (bool Success, int Result) CallMeter_Formal_DataClear1(int flag, string putRand, string putDiv, string putData, 
+            [Out] byte[] outdata)
         {
-            try
+            if (_disposed)
             {
-                res= Meter_Formal_DataClear1(flag,putRand,putDiv,putData,outdata);
-                LogMessage.Debug(System.Text.Encoding.Default.GetString(outdata));
-                return res;
+                throw new ObjectDisposedException(nameof(WinSocketServer));
             }
-            catch (Exception ex)
+            lock (lockObject)
             {
-                HandleException(ex); return res;
+                try
+                {
+                    _DataClear1 = Meter_Formal_DataClear1(flag, putRand, putDiv, putData, outdata);
+                    if (IsValidResult("Meter_Formal_DataClear1", _DataClear1, "OutRand", outdata))
+                    {
+                        LogMessage.Debug($"DLL返回有效内容:{_DataClear1.ToString()}");
+                        return (true, _DataClear1);
+                    }
+                    else
+                    {
+                        LogMessage.Debug($"DLL返回无效内容:{_DataClear1.ToString()}");
+                        return (false, _DataClear1);
+                    }
+                }
+                catch (AccessViolationException ex)
+                {
+                    LogMessage.Error("内存访问冲突", ex);
+                    return (false, -1);
+                }
+                catch (BadImageFormatException ex)
+                {
+                    LogMessage.Error("DLL格式错误", ex);
+                    return (false, -1);
+                }
+                catch (Exception ex)
+                {
+                    LogMessage.Error("DLL调用异常", ex);
+                    return (false, -1);
+                }
             }
         }
         /// <summary>
@@ -190,66 +351,142 @@ namespace ModelTest
         /// <param name="PutData"></param>
         /// <param name="Outdata"></param>
         /// <returns></returns>
+        private static int _DataClear2;
         [DllImport("WinSocketServer.dll")]
         private static extern int Meter_Formal_DataClear2([In, Out] int Flag, string PutRand, string PutDiv, string PutData, [Out] byte[] Outdata);
-        public int Meter_Formal_DataClear2Ex(int flag, string putRand, string putDiv, string putData, [Out] byte[] outdata)
+        public (bool Success, int Result) CallMeter_Formal_DataClear2(int flag, string putRand, string putDiv, string putData, [Out] byte[] outdata)
         {
-            try
+            if (_disposed)
             {
-                res= Meter_Formal_DataClear2(flag, putRand, putDiv, putData, outdata);
-                LogMessage.Debug(System.Text.Encoding.Default.GetString(outdata));
-                return res;
+                throw new ObjectDisposedException(nameof(WinSocketServer));
             }
-            catch (Exception ex)
+            lock (lockObject)
             {
-                 HandleException(ex); return  res;
+                try
+                {
+                    _DataClear2 = Meter_Formal_DataClear2(flag, putRand, putDiv, putData, outdata);
+                    if (IsValidResult("Meter_Formal_DataClear2", _DataClear2, "outdata", outdata))
+                    {
+                        LogMessage.Debug($"DLL返回有效内容:{_DataClear2.ToString()}");
+                        return (true, _DataClear2);
+                    }
+                    else
+                    {
+                        LogMessage.Debug($"DLL返回无效内容:{_DataClear2.ToString()}");
+                        return (false, _DataClear2);
+                    }
+                }
+                catch (AccessViolationException ex)
+                {
+                    LogMessage.Error("内存访问冲突", ex);
+                    return (false, -1);
+                }
+                catch (BadImageFormatException ex)
+                {
+                    LogMessage.Error("DLL格式错误", ex);
+                    return (false, -1);
+                }
+                catch (Exception ex)
+                {
+                    LogMessage.Error("DLL调用异常", ex);
+                    return (false, -1);
+                }
             }
         }
 
+        private static int GetTrmKeyData;
         [DllImport("WinSocketServer.dll")]
-        private static extern int Obj_Terminal_Formal_GetTrmKeyData([In, Out] int iKeyVersion, string strEsamNo, string strSessionKey,string cTerminalAddress, string strKeyType, [Out] byte[] strOutSID, [Out] byte[] strOutAttachData, [Out] byte[] strOutTrmKeyData,[Out] byte[] strOutMAC);
-        public int Obj_Terminal_Formal_GetTrmKeyDataEx(int iKeyVersion, string strEsamNo, string strSessionKey,string cTerminalAddress, string strKeyType, [Out] byte[] strOutSID, [Out] byte[] strOutAttachData, [Out] byte[] strOutTrmKeyData, [Out] byte[] strOutMAC)
+        private static extern int Obj_Terminal_Formal_GetTrmKeyData([In, Out] int iKeyVersion, string strEsamNo, string strSessionKey, string cTerminalAddress, string strKeyType, [Out] byte[] strOutSID, [Out] byte[] strOutAttachData, [Out] byte[] strOutTrmKeyData, [Out] byte[] strOutMAC);
+        public (bool Success, int Result) CallObj_Terminal_Formal_GetTrmKeyData(int iKeyVersion, string strEsamNo, string strSessionKey, string cTerminalAddress, string strKeyType,
+            [Out] byte[] strOutSID, [Out] byte[] strOutAttachData, [Out] byte[] strOutTrmKeyData, [Out] byte[] strOutMAC)
         {
-            try
+            if (_disposed)
             {
-                res = Obj_Terminal_Formal_GetTrmKeyData(iKeyVersion, strEsamNo, strSessionKey, strKeyType, cTerminalAddress, strOutSID, strOutAttachData, strOutTrmKeyData, strOutMAC);
-                Thread.Sleep(2000);
-                LogMessage.Debug(System.Text.Encoding.Default.GetString(strOutSID));
-                LogMessage.Debug(System.Text.Encoding.Default.GetString(strOutAttachData));
-                LogMessage.Debug(System.Text.Encoding.Default.GetString(strOutTrmKeyData));
-                LogMessage.Debug(System.Text.Encoding.Default.GetString(strOutMAC));
-                return res;
+                throw new ObjectDisposedException(nameof(WinSocketServer));
             }
-            catch (Exception ex)
+            lock (lockObject)
             {
-                HandleException(ex); 
-                return res;
+                try
+                {
+                    GetTrmKeyData = Obj_Terminal_Formal_GetTrmKeyData(iKeyVersion, strEsamNo, strSessionKey, strKeyType, cTerminalAddress,
+                        strOutSID, strOutAttachData, strOutTrmKeyData, strOutMAC);
+                    if (IsValidResult("Obj_Terminal_Formal_GetTrmKeyData", GetTrmKeyData, strOutSID, strOutAttachData, strOutTrmKeyData,strOutMAC))
+                    {
+                        LogMessage.Debug($"DLL返回有效内容:{GetTrmKeyData.ToString()}");
+                        return (true, GetTrmKeyData);
+                    }
+                    else
+                    {
+                        LogMessage.Debug($"DLL返回无效内容:{GetTrmKeyData.ToString()}");
+                        return (false, GetTrmKeyData);
+                    }
+                }
+                catch (AccessViolationException ex)
+                {
+                    LogMessage.Error("内存访问冲突", ex);
+                    return (false, -1);
+                }
+                catch (BadImageFormatException ex)
+                {
+                    LogMessage.Error("DLL格式错误", ex);
+                    return (false, -1);
+                }
+                catch (Exception ex)
+                {
+                    LogMessage.Error("DLL调用异常", ex);
+                    return (false, -1);
+                }
             }
         }
-
+        private static int _InitSession;
         [DllImport("WinSocketServer.dll")]
-        private static extern int Obj_Terminal_Formal_InitSession([In, Out] int iKeyVersion, string cTESAMID,string cASCTR, string cFLG, string cMasterCert,  [Out] byte[] cOutRandHost, [Out] byte[] cOutSessionInit, [Out] byte[] cOutSign);
-        public int Obj_Terminal_Formal_InitSessionEx(int iKeyVersion, string cTESAMID, string cASCTR, string cFLG, string cMasterCert, [Out] byte[] cOutRandHost, [Out] byte[] cOutSessionInit, [Out] byte[] cOutSign)
+        private static extern int Obj_Terminal_Formal_InitSession([In, Out] int iKeyVersion, string cTESAMID, string cASCTR, string cFLG, string cMasterCert, [Out] byte[] cOutRandHost, [Out] byte[] cOutSessionInit, [Out] byte[] cOutSign);
+        public (bool Success, int Result) CallObj_Terminal_Formal_InitSession(int iKeyVersion, string cTESAMID, string cASCTR, string cFLG, string cMasterCert, 
+            [Out] byte[] cOutRandHost, [Out] byte[] cOutSessionInit, [Out] byte[] cOutSign)
         {
-            try
+            if (_disposed)
             {
-                res = Obj_Terminal_Formal_InitSession(iKeyVersion, cTESAMID, cASCTR, cFLG, cMasterCert, cOutRandHost, cOutSessionInit, cOutSign);
-                LogMessage.Debug(System.Text.Encoding.Default.GetString(cOutRandHost));
-                LogMessage.Debug(System.Text.Encoding.Default.GetString(cOutSessionInit));
-                LogMessage.Debug(System.Text.Encoding.Default.GetString(cOutSign));
-                return res;
+                throw new ObjectDisposedException(nameof(WinSocketServer));
             }
-            catch (Exception ex)
+            lock (lockObject)
             {
-                HandleException(ex);
-                return res;
+                try
+                {
+                    _InitSession = Obj_Terminal_Formal_InitSession(iKeyVersion, cTESAMID, cASCTR, cFLG, cMasterCert,
+                        cOutRandHost, cOutSessionInit, cOutSign);
+                    if (IsValidResult("Obj_Terminal_Formal_GetTrmKeyData", _InitSession, cOutRandHost, cOutSessionInit, cOutSign))
+                    {
+                        LogMessage.Debug($"DLL返回有效内容:{_InitSession.ToString()}");
+                        return (true, _InitSession);
+                    }
+                    else
+                    {
+                        LogMessage.Debug($"DLL返回无效内容:{_InitSession.ToString()}");
+                        return (false, _InitSession);
+                    }
+                }
+                catch (AccessViolationException ex)
+                {
+                    LogMessage.Error("内存访问冲突", ex);
+                    return (false, -1);
+                }
+                catch (BadImageFormatException ex)
+                {
+                    LogMessage.Error("DLL格式错误", ex);
+                    return (false, -1);
+                }
+                catch (Exception ex)
+                {
+                    LogMessage.Error("DLL调用异常", ex);
+                    return (false, -1);
+                }
             }
         }
         private static int GetSessionData;
-       [DllImport("WinSocketServer.dll")]
+        [DllImport("WinSocketServer.dll")]
         private static extern int Obj_Terminal_Formal_GetSessionData(
-            [In, Out]int iOperateMode,string cEasmid ,string cSessionKey, int cTasktype,string cTaskData,
-               [Out] byte[] OutSID, [Out] byte[] OutAttachData, [Out] byte[] cOutData, [Out] byte[] cOutMac);
+             [In, Out] int iOperateMode, string cEasmid, string cSessionKey, int cTasktype, string cTaskData,
+                [Out] byte[] OutSID, [Out] byte[] OutAttachData, [Out] byte[] cOutData, [Out] byte[] cOutMac);
         public (bool Success, int Result) CallObj_Terminal_Formal_GetSessionData(
             int iOperateMode, string cEasmid, string cSessionKey, int cTasktype, string cTaskData,
                byte[] OutSID, byte[] OutAttachData, byte[] cOutData, byte[] cOutMac)
@@ -262,7 +499,7 @@ namespace ModelTest
             {
                 try
                 {
-                    GetSessionData = 
+                    GetSessionData =
                         Obj_Terminal_Formal_GetSessionData
                         (iOperateMode, cEasmid, cSessionKey, cTasktype, cTaskData,
                         OutSID, OutAttachData, cOutData, cOutMac);
@@ -296,7 +533,7 @@ namespace ModelTest
             }
         }
 
-      
+
         private static int _GetTerminalSetData;
         [DllImport("WinSocketServer.dll")]
         private static extern int Obj_Terminal_Formal_GetTerminalSetData(
@@ -318,7 +555,7 @@ namespace ModelTest
                         Obj_Terminal_Formal_GetTerminalSetData
                         (iOperateMode, cEasmid, cSessionKey, cTaskData,
                         OutSID, OutAttachData, cOutData, cOutMac);
-                    if (IsValidResult("Obj_Terminal_Formal_GetTerminalSetData",_GetTerminalSetData, OutSID, OutAttachData, cOutData, cOutMac))
+                    if (IsValidResult("Obj_Terminal_Formal_GetTerminalSetData", _GetTerminalSetData, OutSID, OutAttachData, cOutData, cOutMac))
                     {
                         LogMessage.Debug($"Obj_Terminal_Formal_GetTerminalSetData返回有效内容:{_GetTerminalSetData.ToString()}");
                         return (true, _GetTerminalSetData);
@@ -351,7 +588,7 @@ namespace ModelTest
 
         [DllImport("WinSocketServer.dll")]
         private static extern int Obj_Terminal_Formal_VerifyTerminalData(
-           [In, Out] int ikeyState, int iOperateMode, string cEasmid, string cSessionKey, string cTaskData,string cMac,
+           [In, Out] int ikeyState, int iOperateMode, string cEasmid, string cSessionKey, string cTaskData, string cMac,
            byte[] cOutData);
         public (bool Success, int Result) CallObj_Terminal_Formal_VerifyTerminalData(
          [In, Out] int ikeyState, int iOperateMode, string cEasmid, string cSessionKey, string cTaskData,
@@ -367,13 +604,12 @@ namespace ModelTest
                 {
                     _VerifyTerminalData =
                         Obj_Terminal_Formal_VerifyTerminalData
-                        (ikeyState,iOperateMode, cEasmid, cSessionKey, cTaskData,
+                        (ikeyState, iOperateMode, cEasmid, cSessionKey, cTaskData,
                         cMac, cOutData);
-                    if (IsValidResult("Obj_Terminal_Formal_VerifyTerminalData", _VerifyTerminalData, cOutData))
+                    if (IsValidResult("Obj_Terminal_Formal_VerifyTerminalData", _VerifyTerminalData, "cOutData", cOutData))
                     {
                         LogMessage.Debug($"Obj_Terminal_Formal_VerifyTerminalData返回有效内容:{_VerifyTerminalData.ToString()}");
                         return (true, _VerifyTerminalData);
-
                     }
                     else
                     {
@@ -398,35 +634,63 @@ namespace ModelTest
                 }
             }
         }
-
-        private bool IsValidResult(string dllMethod, int verifyTerminalData, byte[] cOutData)
+        private bool IsValidResult(string dllMethod, int resultData)
         {
-            if (verifyTerminalData == 0)
+            if (resultData == 0)
             {
                 LogMessage.Debug($"调用{dllMethod}成功");
-                LogMessage.Debug("返回加密数据：" + System.Text.Encoding.Default.GetString(cOutData));
                 return true;
             }
             else
             {
-                LogMessage.Debug("调用Obj_Terminal_Formal_GetSessionData失败，错误代码：" + verifyTerminalData);
+                LogMessage.Debug($"调用{dllMethod}失败，错误代码：" + resultData);
                 return false;
             }
         }
-        private bool IsValidResult(string dllMethod, int getSessionData, byte[] outSID, byte[] outAttachData, byte[] cOutData, byte[] cOutMac)
+        private bool IsValidResult(string dllMethod, int resultData,string cMethod, byte[] cOutData)
         {
-            if (getSessionData == 0)
+            if (resultData == 0)
             {
                 LogMessage.Debug($"调用{dllMethod}成功");
-                LogMessage.Debug("返回加密数据：" + System.Text.Encoding.Default.GetString(outSID));
-                LogMessage.Debug("返回加密数据：" + System.Text.Encoding.Default.GetString(outAttachData));
-                LogMessage.Debug("返回加密数据：" + System.Text.Encoding.Default.GetString(cOutData));
-                LogMessage.Debug("返回加密数据：" + System.Text.Encoding.Default.GetString(cOutMac));
+                LogMessage.Debug($"{cMethod}：" + System.Text.Encoding.Default.GetString(cOutData));
                 return true;
             }
             else
             {
-                LogMessage.Debug("调用Obj_Terminal_Formal_GetSessionData失败，错误代码：" + getSessionData);
+                LogMessage.Debug($"调用{dllMethod}失败，错误代码：" + resultData);
+                return false;
+            }
+        }
+        private bool IsValidResult(string dllMethod, int resultData, byte[] cOutData, byte[] cOutData2, byte[] cOutData3)
+        {
+            if (resultData == 0)
+            {
+                LogMessage.Debug($"调用{dllMethod}成功");
+                LogMessage.Debug("返回加密数据：" + System.Text.Encoding.Default.GetString(cOutData));
+                LogMessage.Debug("返回加密数据：" + System.Text.Encoding.Default.GetString(cOutData2));
+                LogMessage.Debug("返回加密数据：" + System.Text.Encoding.Default.GetString(cOutData3));
+                return true;
+            }
+            else
+            {
+                LogMessage.Debug($"调用{dllMethod}失败，错误代码：" + resultData);
+                return false;
+            }
+        }
+        private bool IsValidResult(string dllMethod, int resultData, byte[] outSID, byte[] outAttachData, byte[] cOutData, byte[] cOutMac)
+        {
+            if (resultData == 0)
+            {
+                LogMessage.Debug($"调用{dllMethod}成功");
+                LogMessage.Debug("outSID：" + System.Text.Encoding.Default.GetString(outSID));
+                LogMessage.Debug("outAttachData：" + System.Text.Encoding.Default.GetString(outAttachData));
+                LogMessage.Debug("cOutData：" + System.Text.Encoding.Default.GetString(cOutData));
+                LogMessage.Debug("cOutMac：" + System.Text.Encoding.Default.GetString(cOutMac));
+                return true;
+            }
+            else
+            {
+                LogMessage.Debug($"调用{dllMethod}失败，错误代码：" + resultData);
                 return false;
             }
         }
