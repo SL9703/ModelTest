@@ -20,8 +20,6 @@ namespace ModelTest
                 LogMessage.Error(ex);
             }
         }
-
-        public byte[] RandNum;
         /// <summary>
         /// 登录加密机服务器
         /// </summary>
@@ -82,10 +80,8 @@ namespace ModelTest
         private static int CreateRandResult;
         [DllImport("WinSocketServer.dll")]
         private static extern int CreateRand([In, Out] int InRand, [Out] byte[] OutRand);
-        //byte[] OutRand = new byte[128];
-        public (bool Success, int Result) CreateRandEx(int InRand, [Out] byte[] OutRand)
+        public (bool Success, int Result) CreateRandEx(int inRand, [Out] byte[] outRand)
         {
-            RandNum = new byte[128];
             if (_disposed)
             {
                 throw new ObjectDisposedException(nameof(WinSocketServer));
@@ -94,8 +90,8 @@ namespace ModelTest
             {
                 try
                 {
-                    CreateRandResult = CreateRand(InRand, OutRand);
-                    if (IsValidResult("ConnectDevice", CreateRandResult, "OutRand", OutRand))
+                    CreateRandResult = CreateRand(inRand, outRand);
+                    if (IsValidResult("ConnectDevice", CreateRandResult, "OutRand", outRand))
                     {
                         LogMessage.Debug($"DLL返回有效内容:{CreateRandResult.ToString()}");
                         return (true, CreateRandResult);
@@ -652,7 +648,7 @@ namespace ModelTest
             if (resultData == 0)
             {
                 LogMessage.Debug($"调用{dllMethod}成功");
-                LogMessage.Debug($"{cMethod}：" + System.Text.Encoding.Default.GetString(cOutData));
+                LogMessage.Debug($"{cMethod}：" + System.Text.Encoding.Default.GetString(cOutData).TrimEnd());
                 return true;
             }
             else
@@ -666,9 +662,9 @@ namespace ModelTest
             if (resultData == 0)
             {
                 LogMessage.Debug($"调用{dllMethod}成功");
-                LogMessage.Debug("返回加密数据：" + System.Text.Encoding.Default.GetString(cOutData));
-                LogMessage.Debug("返回加密数据：" + System.Text.Encoding.Default.GetString(cOutData2));
-                LogMessage.Debug("返回加密数据：" + System.Text.Encoding.Default.GetString(cOutData3));
+                LogMessage.Debug("返回加密数据：" + System.Text.Encoding.Default.GetString(cOutData).TrimEnd());
+                LogMessage.Debug("返回加密数据：" + System.Text.Encoding.Default.GetString(cOutData2).TrimEnd());
+                LogMessage.Debug("返回加密数据：" + System.Text.Encoding.Default.GetString(cOutData3).TrimEnd());
                 return true;
             }
             else
@@ -682,10 +678,10 @@ namespace ModelTest
             if (resultData == 0)
             {
                 LogMessage.Debug($"调用{dllMethod}成功");
-                LogMessage.Debug("outSID：" + System.Text.Encoding.Default.GetString(outSID));
-                LogMessage.Debug("outAttachData：" + System.Text.Encoding.Default.GetString(outAttachData));
-                LogMessage.Debug("cOutData：" + System.Text.Encoding.Default.GetString(cOutData));
-                LogMessage.Debug("cOutMac：" + System.Text.Encoding.Default.GetString(cOutMac));
+                LogMessage.Debug("outSID：" + System.Text.Encoding.Default.GetString(outSID).TrimEnd());
+                LogMessage.Debug("outAttachData：" + System.Text.Encoding.Default.GetString(outAttachData).TrimEnd());
+                LogMessage.Debug("cOutData：" + System.Text.Encoding.Default.GetString(cOutData).TrimEnd());
+                LogMessage.Debug("cOutMac：" + System.Text.Encoding.Default.GetString(cOutMac).TrimEnd());
                 return true;
             }
             else
