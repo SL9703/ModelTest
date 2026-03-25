@@ -10,7 +10,7 @@ namespace ModelTest
 {
     public class WinSocketServer
     {
-        public int res = -1;
+        
         private readonly object lockObject = new object();//lock对象
         private static void HandleException(Exception ex)
         {
@@ -281,18 +281,19 @@ namespace ModelTest
         /// 释放服务器登录权限，兼容 09 版电能表使用的函数。
         /// </summary>
         /// <returns></returns>
+        public static int ClseUsbkeyres;
         [DllImport("WinSocketServer.dll")]
         private static extern int ClseUsbkey();
         public int ClseUsbkeyEx()
         {
             try
             {
-                res = ClseUsbkeyEx();
-                return res;
+                ClseUsbkeyres = ClseUsbkeyEx();
+                return ClseUsbkeyres;
             }
             catch (Exception ex)
             {
-                HandleException(ex); return res;
+                HandleException(ex); return ClseUsbkeyres;
             }
         }
         /// <summary>

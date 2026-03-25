@@ -147,7 +147,6 @@ namespace ModelTest.CustomControl
                     }
                 }
             }
-
         }
         string MCUStartByte = "55";
         string TerminalDataLength = string.Empty;

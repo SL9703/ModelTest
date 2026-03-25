@@ -1406,7 +1406,7 @@ namespace ModelTest
             // 
             // btnReleasemagnet
             // 
-            btnReleasemagnet.Location = new Point(436, 41);
+            btnReleasemagnet.Location = new Point(401, 41);
             btnReleasemagnet.Margin = new Padding(7, 6, 7, 6);
             btnReleasemagnet.Name = "btnReleasemagnet";
             btnReleasemagnet.Size = new Size(197, 48);
@@ -1418,7 +1418,7 @@ namespace ModelTest
             // 
             // btnApplyingmagnet
             // 
-            btnApplyingmagnet.Location = new Point(217, 41);
+            btnApplyingmagnet.Location = new Point(182, 41);
             btnApplyingmagnet.Margin = new Padding(7, 6, 7, 6);
             btnApplyingmagnet.Name = "btnApplyingmagnet";
             btnApplyingmagnet.Size = new Size(197, 48);
