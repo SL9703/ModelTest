@@ -151,7 +151,7 @@ namespace ModelTest.CustomControl
         string MCUStartByte = "55";
         string TerminalDataLength = string.Empty;
         string MCUCtrl = "00";//控制协议
-        string MCUTransparent = "00";//透传协议
+        string MCUTransparent = "01";//透传协议
         string CommandCode = string.Empty;
         string MCUAddr = string.Empty;
         string MCUData_1 = string.Empty;

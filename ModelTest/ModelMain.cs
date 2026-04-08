@@ -1854,6 +1854,24 @@ namespace ModelTest
                             );
                         PrintServerMeassRes(VerifyTerminalData.Result);
                         break;
+                    case "Obj_Send_Formal_DataForGetKey":
+                        AddLog($"调用接口：{ServerImp.Text}----------开始加密计算");
+                        AddLog($"InDeviceType = {ServerDataNew[0]}\r\n" +
+                          $"cTastType = {ServerDataNew[1]}\r\n" +
+                         $"cKeyState = {ServerDataNew[2]}\r\n" +
+                         $"cTESAMID = {ServerDataNew[3]}\r\n" +
+                         $"InMeterNo = {ServerDataNew[4]}\r\n" +
+                         $"cSessionKey = {ServerDataNew[5]}");
+                        var DataForGetKey = winSocketServer.CallObj_Send_Formal_DataForGetKey(
+                            ServerDataNew[0],
+                            ServerDataNew[1],
+                            ServerDataNew[2],
+                            ServerDataNew[3],
+                            ServerDataNew[4],
+                            ServerDataNew[5],
+                            cOutSID, cOutAttachData, cOutData, cOutMAC
+                            );
+                        break;
                     default:
                         break;
                 }
@@ -1934,6 +1952,10 @@ namespace ModelTest
                 case "Obj_Terminal_Formal_VerifyTerminalData":
                     AddLog($"选择加密机函数 {ServerImpType}，调用接口参数：");
                     AddLog("输入参数:int ikeyState, int iOperateMode, char cTeasmid, char cSessionKey , char cTaskData,char cMac");
+                    break;
+                case "Obj_Send_Formal_DataForGetKey":
+                    AddLog($"选择加密机函数 {ServerImpType}，调用接口参数：");
+                    AddLog("输入参数:string InDeviceType, string cTastType,,string cKeyState, string cTeasmid, string InMeterNo,char cSessionKey");
                     break;
                 default:
                     break;

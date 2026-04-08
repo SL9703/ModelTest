@@ -635,6 +635,60 @@ namespace ModelTest
                 }
             }
         }
+        private static int _DataForGetKey;
+        [DllImport("WinSocketServer.dll")]
+        private static extern int Obj_Send_Formal_DataForGetKey(
+          [In, Out] string inDeviceType, string cTasktype,string cKeyState, string cTESAMID, string InMeterNo, string cSessionKey,
+          [Out] byte[] cOutSID,
+          [Out] byte[] cOutAttachData,
+          byte[] cOutTaskData ,
+          byte[] cOutTaskMAC);
+        public (bool Success, int Result) CallObj_Send_Formal_DataForGetKey(
+        [In, Out] string _DeviceType, string _cTasktype, string cKeyState, string _cEasmid,string _inMeterNo, string _cSessionKey, 
+            byte[] OutSID, byte[] OutAttachData, byte[] cOutData, byte[] cOutMac)
+        {
+            if (_disposed)
+            {
+                throw new ObjectDisposedException(nameof(WinSocketServer));
+            }
+            lock (lockObject)
+            {
+                try
+                {
+                    _DataForGetKey =
+                        Obj_Send_Formal_DataForGetKey
+                        (_DeviceType, _cTasktype, cKeyState, _cEasmid, _inMeterNo, _cSessionKey,
+                        OutSID, OutAttachData, cOutData, cOutMac);
+                    if (IsValidResult("Obj_Send_Formal_DataForGetKey", _DataForGetKey, OutSID, OutAttachData, cOutData, cOutMac))
+                    {
+                        LogMessage.Debug($"Obj_Send_Formal_DataForGetKey返回有效内容:{_DataForGetKey.ToString()}");
+                        return (true, _DataForGetKey);
+
+                    }
+                    else
+                    {
+                        LogMessage.Debug($"Obj_Send_Formal_DataForGetKey返回无效内容:{_DataForGetKey.ToString()}");
+                        return (false, _DataForGetKey);
+                    }
+                }
+                catch (AccessViolationException ex)
+                {
+                    LogMessage.Error("内存访问冲突", ex);
+                    return (false, -1);
+                }
+                catch (BadImageFormatException ex)
+                {
+                    LogMessage.Error("DLL格式错误", ex);
+                    return (false, -1);
+                }
+                catch (Exception ex)
+                {
+                    LogMessage.Error("DLL调用异常", ex);
+                    return (false, -1);
+                }
+            }
+        }
+
         private bool IsValidResult(string dllMethod, int resultData)
         {
             if (resultData == 0)
