@@ -36,6 +36,7 @@ namespace ModelTest
         private System.Drawing.Size _originalFormSize;
         private ShowStandValueUserControl _standValueUserControl;
         private TerminalV1YXUserControl _terminalV1YXUserControl;
+        private ElectricEnergyMeterControlV1 _MeterV1UserControl;
         public enum TerminalCLASS : byte
         {
             [Description("专变III")]
@@ -91,11 +92,17 @@ namespace ModelTest
             _standValueUserControl.OnUpdateRequested += MyControl_OnUpdateRequested;
             panel13.Controls.Add(_standValueUserControl);
             _standValueUserControl.Dock = DockStyle.Fill;
-            ////终端界面遥信初始化
+            //终端界面遥信初始化
             _terminalV1YXUserControl = new TerminalV1YXUserControl();
             _terminalV1YXUserControl.OnUpdateRequestedTYXLog += MyControl_OnUpdateRequested;
             tabPage10.Controls.Add(_terminalV1YXUserControl);
             _terminalV1YXUserControl.Dock = DockStyle.Fill;
+
+            //电表V1界面初始化
+            _MeterV1UserControl = new ElectricEnergyMeterControlV1();
+            _MeterV1UserControl.OnUpdateRequested_MeterV1 += MyControl_OnUpdateRequested;
+            tabPage4.Controls.Add(_MeterV1UserControl);
+            _MeterV1UserControl.Dock = DockStyle.Fill;
 
             _uiContext = SynchronizationContext.Current;
             // 处理UI线程异常
@@ -313,7 +320,7 @@ namespace ModelTest
                                 }
                                 else
                                 {
-                                    AddLog($"发送消息成功[PC-->MCU] : {BitConverter.ToString(ModelTool.HexStringToByteArray(mCU)).Replace("-", " ")}", Color.Red);
+                                    AddLog($"发送消息失败[PC-->MCU] : {BitConverter.ToString(ModelTool.HexStringToByteArray(mCU)).Replace("-", " ")}", Color.White);
                                 }
                             }
                             else if (buttonOpen.Text == "CLOSE")
@@ -509,6 +516,16 @@ namespace ModelTest
             textBoxlog.SelectionColor = textBoxlog.ForeColor;
             textBoxlog.ScrollToCaret();
             LogMessage.Debug(Message);
+        }
+        public void MyControl_OnUpdateRequested(string message,Color? color = null)
+        {
+            // 确保在UI线程执行
+            if (this.InvokeRequired)
+            {
+                this.Invoke(new Action<string>(MyControl_OnUpdateRequested), message);
+                return;
+            }
+            AddLog(message, color);
         }
         /// <summary>
         /// contaol x
@@ -1837,6 +1854,24 @@ namespace ModelTest
                             );
                         PrintServerMeassRes(VerifyTerminalData.Result);
                         break;
+                    case "Obj_Send_Formal_DataForGetKey":
+                        AddLog($"调用接口：{ServerImp.Text}----------开始加密计算");
+                        AddLog($"InDeviceType = {ServerDataNew[0]}\r\n" +
+                          $"cTastType = {ServerDataNew[1]}\r\n" +
+                         $"cKeyState = {ServerDataNew[2]}\r\n" +
+                         $"cTESAMID = {ServerDataNew[3]}\r\n" +
+                         $"InMeterNo = {ServerDataNew[4]}\r\n" +
+                         $"cSessionKey = {ServerDataNew[5]}");
+                        var DataForGetKey = winSocketServer.CallObj_Send_Formal_DataForGetKey(
+                            ServerDataNew[0],
+                            ServerDataNew[1],
+                            ServerDataNew[2],
+                            ServerDataNew[3],
+                            ServerDataNew[4],
+                            ServerDataNew[5],
+                            cOutSID, cOutAttachData, cOutData, cOutMAC
+                            );
+                        break;
                     default:
                         break;
                 }
@@ -1917,6 +1952,10 @@ namespace ModelTest
                 case "Obj_Terminal_Formal_VerifyTerminalData":
                     AddLog($"选择加密机函数 {ServerImpType}，调用接口参数：");
                     AddLog("输入参数:int ikeyState, int iOperateMode, char cTeasmid, char cSessionKey , char cTaskData,char cMac");
+                    break;
+                case "Obj_Send_Formal_DataForGetKey":
+                    AddLog($"选择加密机函数 {ServerImpType}，调用接口参数：");
+                    AddLog("输入参数:string InDeviceType, string cTastType,,string cKeyState, string cTeasmid, string InMeterNo,char cSessionKey");
                     break;
                 default:
                     break;
