@@ -450,5 +450,22 @@ namespace ModelTest
                 };
             }
         }
+        /// <summary>
+        /// 反转16进制字符串的字节顺序（例如 "12345678" 变为 "78563412"）
+        /// </summary>
+        /// <param name="input"></param>
+        /// <returns></returns>
+
+        public static string ReverseHexString(string input)
+        {
+            if (string.IsNullOrEmpty(input) || input.Length % 2 != 0)
+                return input;
+
+            return string.Concat(
+                Enumerable.Range(0, input.Length / 2)
+                          .Select(i => input.Substring(i * 2, 2))
+                          .Reverse()
+            );
+        }
     }
 }

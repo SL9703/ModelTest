@@ -64,9 +64,14 @@ namespace ModelTest
             label4 = new Label();
             tabPage2 = new TabPage();
             panel16 = new Panel();
-            SGCC698FF = new Button();
+            cbxSGCC_Meter = new CheckBox();
+            cbxSGCC_Terminal = new CheckBox();
+            cbxSgccOAD = new ComboBox();
+            btnReadMSG = new Button();
+            label32 = new Label();
+            tbxMeterTerminalAddr = new TextBox();
+            textBox1 = new TextBox();
             buttonKZHLStatus = new Button();
-            label10 = new Label();
             label13 = new Label();
             buttonKZHLID = new Button();
             label18 = new Label();
@@ -670,9 +675,14 @@ namespace ModelTest
             // 
             // panel16
             // 
-            panel16.Controls.Add(SGCC698FF);
+            panel16.Controls.Add(cbxSGCC_Meter);
+            panel16.Controls.Add(cbxSGCC_Terminal);
+            panel16.Controls.Add(cbxSgccOAD);
+            panel16.Controls.Add(btnReadMSG);
+            panel16.Controls.Add(label32);
+            panel16.Controls.Add(tbxMeterTerminalAddr);
+            panel16.Controls.Add(textBox1);
             panel16.Controls.Add(buttonKZHLStatus);
-            panel16.Controls.Add(label10);
             panel16.Controls.Add(label13);
             panel16.Controls.Add(buttonKZHLID);
             panel16.Controls.Add(label18);
@@ -687,20 +697,80 @@ namespace ModelTest
             panel16.Size = new Size(973, 815);
             panel16.TabIndex = 28;
             // 
-            // SGCC698FF
+            // cbxSGCC_Meter
             // 
-            SGCC698FF.Location = new Point(726, 4);
-            SGCC698FF.Margin = new Padding(4);
-            SGCC698FF.Name = "SGCC698FF";
-            SGCC698FF.Size = new Size(232, 40);
-            SGCC698FF.TabIndex = 6;
-            SGCC698FF.Text = "国网698广播";
-            SGCC698FF.UseVisualStyleBackColor = true;
-            SGCC698FF.Click += SGCC698FF_Click;
+            cbxSGCC_Meter.AutoSize = true;
+            cbxSGCC_Meter.Location = new Point(114, 300);
+            cbxSGCC_Meter.Margin = new Padding(4);
+            cbxSGCC_Meter.Name = "cbxSGCC_Meter";
+            cbxSGCC_Meter.Size = new Size(80, 32);
+            cbxSGCC_Meter.TabIndex = 33;
+            cbxSGCC_Meter.Text = "电表";
+            cbxSGCC_Meter.UseVisualStyleBackColor = true;
+            // 
+            // cbxSGCC_Terminal
+            // 
+            cbxSGCC_Terminal.AutoSize = true;
+            cbxSGCC_Terminal.Checked = true;
+            cbxSGCC_Terminal.CheckState = CheckState.Checked;
+            cbxSGCC_Terminal.Location = new Point(14, 300);
+            cbxSGCC_Terminal.Margin = new Padding(4);
+            cbxSGCC_Terminal.Name = "cbxSGCC_Terminal";
+            cbxSGCC_Terminal.Size = new Size(80, 32);
+            cbxSGCC_Terminal.TabIndex = 32;
+            cbxSGCC_Terminal.Text = "终端";
+            cbxSGCC_Terminal.UseVisualStyleBackColor = true;
+            // 
+            // cbxSgccOAD
+            // 
+            cbxSgccOAD.FormattingEnabled = true;
+            cbxSgccOAD.Location = new Point(265, 255);
+            cbxSgccOAD.Margin = new Padding(4);
+            cbxSgccOAD.Name = "cbxSgccOAD";
+            cbxSgccOAD.Size = new Size(328, 36);
+            cbxSgccOAD.TabIndex = 31;
+            // 
+            // btnReadMSG
+            // 
+            btnReadMSG.Location = new Point(726, 251);
+            btnReadMSG.Margin = new Padding(6, 5, 6, 5);
+            btnReadMSG.Name = "btnReadMSG";
+            btnReadMSG.Size = new Size(167, 47);
+            btnReadMSG.TabIndex = 30;
+            btnReadMSG.Text = "读取";
+            btnReadMSG.UseVisualStyleBackColor = true;
+            btnReadMSG.Click += btnReadMSG_Click;
+            // 
+            // label32
+            // 
+            label32.AutoSize = true;
+            label32.Location = new Point(9, 215);
+            label32.Margin = new Padding(6, 0, 6, 0);
+            label32.Name = "label32";
+            label32.Size = new Size(222, 28);
+            label32.TabIndex = 29;
+            label32.Text = "电表地址或者终端地址";
+            // 
+            // tbxMeterTerminalAddr
+            // 
+            tbxMeterTerminalAddr.Location = new Point(9, 257);
+            tbxMeterTerminalAddr.Margin = new Padding(6, 5, 6, 5);
+            tbxMeterTerminalAddr.Name = "tbxMeterTerminalAddr";
+            tbxMeterTerminalAddr.Size = new Size(242, 34);
+            tbxMeterTerminalAddr.TabIndex = 28;
+            tbxMeterTerminalAddr.Text = "000000000001";
+            // 
+            // textBox1
+            // 
+            textBox1.Location = new Point(9, 248);
+            textBox1.Margin = new Padding(6, 5, 6, 5);
+            textBox1.Name = "textBox1";
+            textBox1.Size = new Size(242, 34);
+            textBox1.TabIndex = 28;
             // 
             // buttonKZHLStatus
             // 
-            buttonKZHLStatus.Location = new Point(726, 164);
+            buttonKZHLStatus.Location = new Point(726, 115);
             buttonKZHLStatus.Margin = new Padding(4);
             buttonKZHLStatus.Name = "buttonKZHLStatus";
             buttonKZHLStatus.Size = new Size(232, 40);
@@ -709,22 +779,11 @@ namespace ModelTest
             buttonKZHLStatus.UseVisualStyleBackColor = true;
             buttonKZHLStatus.Click += buttonKZHLStatus_Click;
             // 
-            // label10
-            // 
-            label10.AutoSize = true;
-            label10.ForeColor = Color.Red;
-            label10.Location = new Point(9, 15);
-            label10.Margin = new Padding(4, 0, 4, 0);
-            label10.Name = "label10";
-            label10.Size = new Size(652, 28);
-            label10.TabIndex = 1;
-            label10.Text = "6817004345AAAAAAAAAAAA005B4F0501004001020000ED0316";
-            // 
             // label13
             // 
             label13.AutoSize = true;
             label13.ForeColor = Color.Red;
-            label13.Location = new Point(9, 117);
+            label13.Location = new Point(9, 68);
             label13.Margin = new Padding(4, 0, 4, 0);
             label13.Name = "label13";
             label13.Size = new Size(584, 28);
@@ -733,7 +792,7 @@ namespace ModelTest
             // 
             // buttonKZHLID
             // 
-            buttonKZHLID.Location = new Point(726, 219);
+            buttonKZHLID.Location = new Point(726, 170);
             buttonKZHLID.Margin = new Padding(4);
             buttonKZHLID.Name = "buttonKZHLID";
             buttonKZHLID.Size = new Size(232, 40);
@@ -746,7 +805,7 @@ namespace ModelTest
             // 
             label18.AutoSize = true;
             label18.ForeColor = Color.Red;
-            label18.Location = new Point(9, 170);
+            label18.Location = new Point(9, 121);
             label18.Margin = new Padding(4, 0, 4, 0);
             label18.Name = "label18";
             label18.Size = new Size(645, 28);
@@ -755,7 +814,7 @@ namespace ModelTest
             // 
             // CSG698FF
             // 
-            CSG698FF.Location = new Point(726, 112);
+            CSG698FF.Location = new Point(726, 63);
             CSG698FF.Margin = new Padding(4);
             CSG698FF.Name = "CSG698FF";
             CSG698FF.Size = new Size(232, 40);
@@ -768,7 +827,7 @@ namespace ModelTest
             // 
             label19.AutoSize = true;
             label19.ForeColor = Color.Red;
-            label19.Location = new Point(9, 220);
+            label19.Location = new Point(9, 171);
             label19.Margin = new Padding(4, 0, 4, 0);
             label19.Name = "label19";
             label19.Size = new Size(657, 28);
@@ -779,7 +838,7 @@ namespace ModelTest
             // 
             label11.AutoSize = true;
             label11.ForeColor = Color.Red;
-            label11.Location = new Point(9, 66);
+            label11.Location = new Point(9, 17);
             label11.Margin = new Padding(4, 0, 4, 0);
             label11.Name = "label11";
             label11.Size = new Size(431, 28);
@@ -788,7 +847,7 @@ namespace ModelTest
             // 
             // SGCC645FF
             // 
-            SGCC645FF.Location = new Point(726, 58);
+            SGCC645FF.Location = new Point(726, 9);
             SGCC645FF.Margin = new Padding(4);
             SGCC645FF.Name = "SGCC645FF";
             SGCC645FF.Size = new Size(232, 40);
@@ -3048,10 +3107,8 @@ namespace ModelTest
         private Panel panel2;
         private Panel panel3;
         private TabPage tabPage3;
-        private Label label10;
         private Label label11;
         private Label label13;
-        private Button SGCC698FF;
         private Button CSG698FF;
         private Button SGCC645FF;
         private Label label3;
@@ -3236,5 +3293,12 @@ namespace ModelTest
         private Label label31;
         private Button btnApplyingmagnet;
         private Button btnReleasemagnet;
+        private TextBox textBox1;
+        private Label label32;
+        private TextBox tbxMeterTerminalAddr;
+        private Button btnReadMSG;
+        private ComboBox cbxSgccOAD;
+        private CheckBox cbxSGCC_Meter;
+        private CheckBox cbxSGCC_Terminal;
     }
 }

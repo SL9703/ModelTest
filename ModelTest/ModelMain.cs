@@ -11,6 +11,7 @@ using ModelTest.CustomControl;
 using ModelTest.SerialPortImp;
 using ModelTest.Socket_DLL;
 using ModelTest.Socket_DLL.Socket_Client;
+using ModelTest.Tools;
 namespace ModelTest
 {
     public partial class ModelMain : Form
@@ -147,11 +148,13 @@ namespace ModelTest
             this.UpdateStyles();
 
             CheckItemSetUpFrom();//加密机接口初始化
+            SGCCItemSetUpFrom();//国网698读取报文初始化
             ModelTool.BindMutexCheckBoxes(checkBox1, checkBox2);//初始化模组0x01 0x31命令选择状态
             ModelTool.BindMutexCheckBoxes(checkBoxC, checkBoxN);//初始化模组IC和IN命令选择状态
             ModelTool.BindMutexCheckBoxes(cbx_TerminalV1_IC, cbx_TerminalV1_IN);//初始化终端IC和IN命令选择状态
             ModelTool.BindMutexCheckBoxes(cbxRevcHEX, cbxRevcASCII);//初始化接收HEX状态。tcpserver用到
             ModelTool.BindMutexCheckBoxes(cbxSendHEX, cbxSendASCII);//初始化发送HEX状态。tcpserver用到
+            ModelTool.BindMutexCheckBoxes(cbxSGCC_Meter, cbxSGCC_Terminal);//初始化国网电表还是终端。
 
             AddLog("应用程序已启动成功");
             LogMessage.Info("应用程序已启动成功");
@@ -499,7 +502,7 @@ namespace ModelTest
         public void AddLog(string Message)
         {
             textBoxlog.SelectionLength = 0;
-            textBoxlog.AppendText($"[{DateTime.Now:HH:mm:ss.fff}] {Message}+{Environment.NewLine}");
+            textBoxlog.AppendText($"[{DateTime.Now:HH:mm:ss:fff}] {Message}+{Environment.NewLine}");
             textBoxlog.ScrollToCaret();
             LogMessage.Debug(Message);
         }
@@ -512,12 +515,12 @@ namespace ModelTest
         {
             textBoxlog.SelectionLength = 0;
             textBoxlog.SelectionColor = color.Value;
-            textBoxlog.AppendText($"[{DateTime.Now:HH:mm:ss.fff}] {Message}+{Environment.NewLine}");
+            textBoxlog.AppendText($"[{DateTime.Now:HH:mm:ss:fff}] {Message}+{Environment.NewLine}");
             textBoxlog.SelectionColor = textBoxlog.ForeColor;
             textBoxlog.ScrollToCaret();
             LogMessage.Debug(Message);
         }
-        public void MyControl_OnUpdateRequested(string message,Color? color = null)
+        public void MyControl_OnUpdateRequested(string message, Color? color = null)
         {
             // 确保在UI线程执行
             if (this.InvokeRequired)
@@ -554,15 +557,6 @@ namespace ModelTest
             btn_cilentSocket.Enabled = true;
         }
         /// <summary>
-        /// 国网广播报文
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private async void SGCC698FF_Click(object sender, EventArgs e)
-        {
-            await SeedMethod(label10.Text);
-        }
-        /// <summary>
         /// 国网645报文
         /// </summary>
         /// <param name="sender"></param>
@@ -580,7 +574,56 @@ namespace ModelTest
         {
             await SeedMethod(label13.Text);
         }
+        /// <summary>
+        /// 读取电表终端信息
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private async void btnReadMSG_Click(object sender, EventArgs e)
+        {
+            string _68H = "68";//起始符
+            string _16H = "16";//结束符
+            string apdu, SGCCMessage;//长度
+            string Ctrl = "43";//控制域
+            string SASgin = "05";//服务器标识
+            string CAAddr = "00";//客户机地址
+            string SAAddr = tbxMeterTerminalAddr.Text;//服务器地址
+            if (cbxSGCC_Meter.Checked)
+            {
+                CAAddr = "A0";
+            }
+            else
+            {
+                CAAddr = "10";
+            }
 
+            if (SAAddr.Length != 12)
+            {
+                AddLog("698报文服务器地址不对,重新检查地址");
+                return;
+            }
+            else
+            {
+                //反转地址
+                SAAddr = ModelTool.ReverseHexString(SAAddr);
+                switch (cbxSgccOAD.Text)
+                {
+                    case "读取终端或电表485属性":
+                        apdu = "050101f201020000";
+                        SGCCMessage = SGCCTools.BytesToSGCCMessage(_68H, Ctrl, SASgin, SAAddr, CAAddr, apdu, _16H);
+                        break;
+                    case "读取广播终端或电表地址":
+                        SAAddr = "AAAAAAAAAAAA";
+                        apdu = "0501004001020000";
+                        SGCCMessage = SGCCTools.BytesToSGCCMessage(_68H, Ctrl, SASgin, SAAddr, CAAddr, apdu, _16H);
+                        break;
+                    default:
+                        SGCCMessage = "";
+                        break;
+                }
+                await SeedMethod(SGCCMessage);
+            }
+        }
         /// <summary>
         /// 打开串口
         /// </summary>
@@ -1636,13 +1679,13 @@ namespace ModelTest
             {
                 AddLog("开始连接加密服务器！！！");
                 var rtnConnnt = winSocketServer.ConnectDeviceEx(ServerIp, ServerPort, "8000");
-                if (rtnConnnt.Result == 0)
+                if (rtnConnnt.Code == 0)
                 {
                     AddLog("连接加密服务器成功！");
                     label115.Text = "加密服务器连接状态：已连接";
                     //获取随机数
                     var randEx = winSocketServer.CreateRandEx(16, OutRandNum);
-                    if (randEx.Result == 0)
+                    if (randEx.Code == 0)
                     {
                         richTextBox1.Text = "";
                         richTextBox1.AppendText("获取随机数成功！随机数结果 = " + System.Text.Encoding.Default.GetString(OutRandNum));
@@ -1698,7 +1741,7 @@ namespace ModelTest
                             $"cSessionKey = {ServerDataNew[2]}\r\n" +
                             $"cTaskType = {ServerDataNew[3]}\r\n" +
                             $"cTaskData = {ServerDataNew[4]}");
-                        var GetKeyData_AppLayer = winSocketServer.ReSAM_Formal_GetKeyData_AppLayer
+                        var GetKeyData_AppLayer = winSocketServer.CallReSAM_Formal_GetKeyData_AppLayer
                            (int.Parse(ServerDataNew[0]),
                            ServerDataNew[1],
                            ServerDataNew[2],
@@ -1709,12 +1752,12 @@ namespace ModelTest
                             cOutData,
                             cOutMAC
                            );
-                        PrintServerMeassRes(GetKeyData_AppLayer.Result);
+                        PrintServerMeassRes(GetKeyData_AppLayer.Code);
                         break;
                     case "CloseDevice":
                         AddLog($"调用接口：{ServerImp.Text}----------开始加密计算\r\n");
                         var CloseDevice = winSocketServer.CloseDeviceEx();
-                        PrintServerMeassRes(CloseDevice.Result);
+                        PrintServerMeassRes(CloseDevice.Code);
                         break;
                     case "ClseUsbkey":
                         thread = new Thread(() =>
@@ -1731,7 +1774,7 @@ namespace ModelTest
                            $"PutDiv = {ServerDataNew[2]}\r\n" +
                            $"PutData = {ServerDataNew[3]}\r\n");
                         var DataClear1 = winSocketServer.CallMeter_Formal_DataClear1(int.Parse(ServerDataNew[0]), ServerDataNew[1], ServerDataNew[2], ServerDataNew[3], cOutData);
-                        PrintServerMeassRes(DataClear1.Result);
+                        PrintServerMeassRes(DataClear1.Code);
                         break;
                     case "Meter_Formal_DataClear2":
                         AddLog($"调用接口：{ServerImp.Text}");
@@ -1739,8 +1782,8 @@ namespace ModelTest
                             $"PutRand = {ServerDataNew[1]}\r\n" +
                            $"PutDiv = {ServerDataNew[2]}\r\n" +
                            $"PutData = {ServerDataNew[3]}\r\n");
-                       var DataClear2 = winSocketServer.CallMeter_Formal_DataClear2(int.Parse(ServerDataNew[0]), ServerDataNew[1], ServerDataNew[2], ServerDataNew[3], cOutData);
-                        PrintServerMeassRes(DataClear2.Result);
+                        var DataClear2 = winSocketServer.CallMeter_Formal_DataClear2(int.Parse(ServerDataNew[0]), ServerDataNew[1], ServerDataNew[2], ServerDataNew[3], cOutData);
+                        PrintServerMeassRes(DataClear2.Code);
                         break;
                     case "Obj_Meter_Formal_SetESAMData":
                         AddLog($"调用接口：{ServerImp.Text}----------开始加密计算\r\n");
@@ -1764,7 +1807,7 @@ namespace ModelTest
                              cOutData,
                              cOutMAC
                             );
-                        PrintServerMeassRes(SetESAMData.Result);
+                        PrintServerMeassRes(SetESAMData.Code);
                         break;
                     case "Obj_Terminal_Formal_GetTrmKeyData":
                         AddLog($"调用接口：{ServerImp.Text}----------开始加密计算\r\n");
@@ -1773,18 +1816,18 @@ namespace ModelTest
                             $"strSessionKey = {ServerDataNew[2]}\r\n" +
                             $"cTerminalAddress = {ServerDataNew[3]}\r\n" +
                             $"strKeyType = {ServerDataNew[4]}\r\n");
-                            var GetTrmKeyData = winSocketServer.CallObj_Terminal_Formal_GetTrmKeyData(
-                                int.Parse(ServerDataNew[0]),
-                                ServerDataNew[1],
-                                ServerDataNew[2],
-                                ServerDataNew[3],
-                                ServerDataNew[4],
-                                 cOutSID,
-                                 cOutAttachData,
-                                 cOutData,
-                                 cOutMAC
-                                );
-                        PrintServerMeassRes(GetTrmKeyData.Result);
+                        var GetTrmKeyData = winSocketServer.CallObj_Terminal_Formal_GetTrmKeyData(
+                            int.Parse(ServerDataNew[0]),
+                            ServerDataNew[1],
+                            ServerDataNew[2],
+                            ServerDataNew[3],
+                            ServerDataNew[4],
+                             cOutSID,
+                             cOutAttachData,
+                             cOutData,
+                             cOutMAC
+                            );
+                        PrintServerMeassRes(GetTrmKeyData.Code);
                         break;
                     case "Obj_Terminal_Formal_InitSession":
                         AddLog($"调用接口：{ServerImp.Text}----------开始加密计算\r\n");
@@ -1793,17 +1836,38 @@ namespace ModelTest
                            $"strSessionKey = {ServerDataNew[2]}\r\n" +
                            $"cTerminalAddress = {ServerDataNew[3]}\r\n" +
                            $"strKeyType = {ServerDataNew[4]}\r\n");
-                            var InitSession = winSocketServer.CallObj_Terminal_Formal_InitSession(
-                                 int.Parse(ServerDataNew[0]),
-                                 ServerDataNew[1],
-                                 ServerDataNew[2],
-                                 ServerDataNew[3],
-                                 ServerDataNew[4],
-                                  cOutSID,
-                                  cOutAttachData,
-                                  cOutData
-                                 );
-                        PrintServerMeassRes(InitSession.Result);
+                        var InitSession = winSocketServer.CallObj_Terminal_Formal_InitSession(
+                             int.Parse(ServerDataNew[0]),
+                             ServerDataNew[1],
+                             ServerDataNew[2],
+                             ServerDataNew[3],
+                             ServerDataNew[4],
+                              cOutSID,
+                              cOutAttachData,
+                              cOutData
+                             );
+                        PrintServerMeassRes(InitSession.Code);
+                        break;
+                    case "Obj_Terminal_Formal_InitSession_RH":
+                        AddLog($"调用接口：{ServerImp.Text}----------开始加密计算\r\n");
+                        AddLog($"iKeyState = {ServerDataNew[0]}\r\n" +
+                            $"cTESAMNO = {ServerDataNew[1]}\r\n" +
+                           $"cASCTR = {ServerDataNew[2]}\r\n" +
+                           $"cMasterCert = {ServerDataNew[3]}\r\n");
+                        Thread threadRH = new Thread(() => {
+                            var InitSession_RH = winSocketServer.CallObj_Terminal_Formal_InitSession_RH(
+                             int.Parse(ServerDataNew[0]),
+                             ServerDataNew[1],
+                             ServerDataNew[2],
+                             ServerDataNew[3],
+                              cOutSID,
+                              cOutAttachData,
+                              cOutData
+                             );
+                            PrintServerMeassRes(InitSession_RH.Code);
+                        });
+                        threadRH.Start();
+                        threadRH.IsBackground = true;
                         break;
                     case "Obj_Terminal_Formal_GetSessionData":
                         AddLog($"调用接口：{ServerImp.Text}----------开始加密计算\r\n");
@@ -1818,7 +1882,7 @@ namespace ModelTest
                             int.Parse(ServerDataNew[3]),
                             ServerDataNew[4], cOutSID, cOutAttachData, cOutData, cOutMAC
                             );
-                        PrintServerMeassRes(GetSessionData.Result);
+                        PrintServerMeassRes(GetSessionData.Code);
                         break;
                     case "Obj_Terminal_Formal_GetTerminalSetData":
                         AddLog($"调用接口：{ServerImp.Text}----------开始加密计算\r\n");
@@ -1833,7 +1897,7 @@ namespace ModelTest
                             ServerDataNew[3],
                             cOutSID, cOutAttachData, cOutData, cOutMAC
                             );
-                        PrintServerMeassRes(GetTerminalSetData.Result);
+                        PrintServerMeassRes(GetTerminalSetData.Code);
                         break;
                     case "Obj_Terminal_Formal_VerifyTerminalData":
                         AddLog($"调用接口：{ServerImp.Text}----------开始加密计算");
@@ -1852,11 +1916,11 @@ namespace ModelTest
                             ServerDataNew[5],
                             cOutData
                             );
-                        PrintServerMeassRes(VerifyTerminalData.Result);
+                        PrintServerMeassRes(VerifyTerminalData.Code);
                         break;
                     case "Obj_Send_Formal_DataForGetKey":
                         AddLog($"调用接口：{ServerImp.Text}----------开始加密计算");
-                        AddLog($"InDeviceType = {ServerDataNew[0]}\r\n" +
+                        AddLog($"\r\nInDeviceType = {ServerDataNew[0]}\r\n" +
                           $"cTastType = {ServerDataNew[1]}\r\n" +
                          $"cKeyState = {ServerDataNew[2]}\r\n" +
                          $"cTESAMID = {ServerDataNew[3]}\r\n" +
@@ -1872,6 +1936,44 @@ namespace ModelTest
                             cOutSID, cOutAttachData, cOutData, cOutMAC
                             );
                         break;
+
+                    case "Obj_Meter_Formal_GenReadData":
+                        AddLog($"调用接口：{ServerImp.Text}----------开始加密计算");
+                        AddLog($"\r\niKeyVersion = {ServerDataNew[0]}\r\n" +
+                          $"strEsamNo = {ServerDataNew[1]}\r\n" +
+                         $"strMeterNo = {ServerDataNew[2]}\r\n" +
+                         $"iOperateMode = {ServerDataNew[3]}\r\n" +
+                         $"randHost = {ServerDataNew[4]}\r\n" +
+                         $"cReadData = {ServerDataNew[5]}");
+                        var GenReadData = winSocketServer.CallObj_Meter_Formal_GenReadData(
+                            ServerDataNew[0],
+                            ServerDataNew[1],
+                            ServerDataNew[2],
+                            ServerDataNew[3],
+                            ServerDataNew[4],
+                            ServerDataNew[5],
+                            cOutData, cOutMAC
+                            );
+                        break;
+
+                    case "Obj_Terminal_Formal_GetSessionDataForMeter":
+                        AddLog($"调用接口：{ServerImp.Text}----------开始加密计算");
+                        AddLog($"\r\ncOperateMode = {ServerDataNew[0]}\r\n" +
+                          $"cTESAMID = {ServerDataNew[1]}\r\n" +
+                         $"cSessionKey = {ServerDataNew[2]}\r\n" +
+                         $"iTaskType = {ServerDataNew[3]}\r\n" +
+                         $"cApdu = {ServerDataNew[4]}\r\n" +
+                         $"cTaskData = {ServerDataNew[5]}");
+                        var GetSessionDataForMeter = winSocketServer.CallObj_Terminal_Formal_GetSessionDataForMeter(
+                            int.Parse(ServerDataNew[0]),
+                            ServerDataNew[1],
+                            ServerDataNew[2],
+                            int.Parse(ServerDataNew[3]),
+                            ServerDataNew[4],
+                            ServerDataNew[5],
+                            cOutSID, cOutAttachData, cOutData, cOutMAC
+                            );
+                        break;
                     default:
                         break;
                 }
@@ -1881,6 +1983,18 @@ namespace ModelTest
                 AddLog(ex.Message);
             }
 
+        }
+
+        private void PrintServerMeassRes((bool Success, int Result) result)
+        {
+            if (result.Result == 0)
+            {
+                AddLog($"调用接口：{ServerImp.Text}----------成功,返回值：{result.Result}");
+            }
+            else
+            {
+                AddLog($"调用接口：{ServerImp.Text}----------失败,返回值：{result.Result}");
+            }
         }
 
         private void PrintServerMeassRes(int result)
@@ -1941,6 +2055,10 @@ namespace ModelTest
                     AddLog($"选择加密机函数 {ServerImpType}，调用接口参数：");
                     AddLog("输入参数iKeyState，cTESAMID，cASCTR，cFLG，cMasterCert");
                     break;
+                case "Obj_Terminal_Formal_InitSession_RH":
+                    AddLog($"选择加密机函数 {ServerImpType}，调用接口参数：");
+                    AddLog("输入参数int iKeyState，string cTESAMID，string cASCT，string cMasterCert");
+                    break;
                 case "Obj_Terminal_Formal_GetSessionData":
                     AddLog($"选择加密机函数 {ServerImpType}，调用接口参数：");
                     AddLog("输入参数:int iOperateMode, char cTeasmid, char cSessionKey ,int cTaskType, char cTaskData ");
@@ -1955,7 +2073,17 @@ namespace ModelTest
                     break;
                 case "Obj_Send_Formal_DataForGetKey":
                     AddLog($"选择加密机函数 {ServerImpType}，调用接口参数：");
-                    AddLog("输入参数:string InDeviceType, string cTastType,,string cKeyState, string cTeasmid, string InMeterNo,char cSessionKey");
+                    AddLog("输入参数:string InDeviceType, " +
+                        "string cTastType, " +
+                        "string cKeyState, " +
+                        "string cTeasmid, " +
+                        "string InMeterNo, " +
+                        "string cSessionKey");
+                    break;
+
+                case "Obj_Meter_Formal_GenReadData":
+                    AddLog($"选择加密机函数 {ServerImpType}，调用接口参数：");
+                    AddLog("输入参数:string _iKeyVersion,string _strEsamNo,string _strMeterNo,  string _iOperateMode, string _randHost, string _cReadData,");
                     break;
                 default:
                     break;
@@ -1968,6 +2096,14 @@ namespace ModelTest
             ServerImp.DataSource = winSocketServer.WinSocketSericeImp();
             ServerImp.SelectedIndex = -1;
             ServerImp.SelectedIndexChanged += ServerImp_SelectedIndexChanged;
+        }
+        private void SGCCItemSetUpFrom()
+        {
+
+            //cbxSgccOAD.SelectedIndexChanged -= ServerImp_SelectedIndexChanged;
+            cbxSgccOAD.DataSource = SGCCTools.SGCCSericeImp();
+            cbxSgccOAD.SelectedIndex = -1;
+           // cbxSgccOAD.SelectedIndexChanged += ServerImp_SelectedIndexChanged;
         }
         /// <summary>
         /// textbox只能输入数字
@@ -2499,7 +2635,5 @@ namespace ModelTest
             this.Hide();
             meterTest.Show();
         }
-
-
     }
 }

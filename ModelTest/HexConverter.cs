@@ -197,4 +197,17 @@ public class HexConverter
 
         return sb.ToString();
     }
+
+    public static string ConvertToLittleEndianHex(int number)
+    {
+        // 转换为十六进制字符串，至少4位（两个字节）
+        string hex = number.ToString("X4");
+
+        // 按小端序重新排列：低字节在前，高字节在后
+        // 例如：1523 -> 05F3 -> F3 05
+        // 例如：23   -> 0017 -> 17 00
+        string littleEndian = hex.Substring(2, 2) + hex.Substring(0, 2);
+
+        return littleEndian;
+    }
 }
