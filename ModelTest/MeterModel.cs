@@ -50,17 +50,18 @@ namespace ModelTest
         public static string MeterV1Meassage { get; set; }
 
         
-        public static string MeterByte(string startByte, string dataLength, string address, string portocol, string command, string dataIteam, string stopByte)
+        public static string MeterByte(string startByte, string dataLength, string dataDirection ,string address, string portocol, string command, string dataIteam, string stopByte)
         {
             StartByte = startByte;
             DataLength = dataLength;
+            DataDirection = dataDirection;
             Address = AddressToHexChange.MeassageAddr(address);
             Portocol = portocol;
             Command = command;
             DataItem = dataIteam;
             StopByte = stopByte;
             CheekSum = MessagesCheckSum.CalculateChecksum(DataLength + Address + Portocol + Command + DataItem);
-            MeterV1Meassage = StartByte + DataLength + Address + Portocol + Command + DataItem + CheekSum + StopByte;
+            MeterV1Meassage = StartByte + DataLength+ DataDirection + Address + Portocol + Command + DataItem + CheekSum + StopByte;
             LogMessage.Debug("电表单元-准备发送消息：" + MeterV1Meassage);
             return MeterV1Meassage;
         }

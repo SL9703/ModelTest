@@ -528,6 +528,10 @@ namespace ModelTest
                 this.Invoke(new Action<string>(MyControl_OnUpdateRequested), message);
                 return;
             }
+            if (color == null)
+            {
+                color = Color.Red;
+            }
             AddLog(message, color);
         }
         /// <summary>

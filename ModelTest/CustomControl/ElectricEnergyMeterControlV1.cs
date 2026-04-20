@@ -55,6 +55,12 @@ namespace ModelTest.CustomControl
                     btn_MeterTCPConnect.BackColor = Color.White;
                 }
             }
+            else
+            {
+                OnUpdateRequested_MeterV1.Invoke(_meterIP + ":" + _meterPort + "连接失败");
+                btn_MeterTCPConnect.Text = "链接";
+                btn_MeterTCPConnect.BackColor = Color.White;
+            }
         }
         /// <summary>
         /// 处理错误事件，显示错误信息
