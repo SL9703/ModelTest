@@ -23,6 +23,7 @@ namespace ModelTest.CustomControl
         {
             InitializeComponent();
             this.BackColor = Color.FromArgb(88, 149, 127);
+            cbxChange232And485.SelectionLength = 0;
         }
         private EnhancedTcpClient _yxclient;
         private async void btn_YXConnect_Click(object sender, EventArgs e)
@@ -244,7 +245,7 @@ namespace ModelTest.CustomControl
                     MCUStartByte, TerminalDataLength + "00", MCUAddr, MCUCtrl,
                     "05", "02" + "01"
                     + IEEE754Converter.FloatToHex(float.Parse(tbxMCHZ.Text))
-                    + ModelTool.Ensure4Bytes(ModelTool.ToHex(long.Parse(tbxMCCounts.Text)), 4), MCUStopByte
+                    + ModelTool.Ensure4Bytes(ModelTool.ToHex(long.Parse(tbxMCCounts.Text)), 4)+"32", MCUStopByte
                     );
                 await SendMCUToPC(StartMAC_One);
                 Thread.Sleep(500);
@@ -264,13 +265,31 @@ namespace ModelTest.CustomControl
                     MCUStartByte, TerminalDataLength + "00", MCUAddr, MCUCtrl,
                     "05", "02" + "00"
                     + IEEE754Converter.FloatToHex(float.Parse(tbxMCHZ.Text))
-                    + ModelTool.Ensure4Bytes(ModelTool.ToHex(long.Parse(tbxMCCounts.Text)), 4), MCUStopByte
+                    + ModelTool.Ensure4Bytes(ModelTool.ToHex(long.Parse(tbxMCCounts.Text)), 4)+"32", MCUStopByte
                     );
                 await SendMCUToPC(StopMAC_One);
                 Thread.Sleep(500);
                 await SendMCUToPC(StopMAC_Two);
                 btnStartMC.Text = "启动脉冲";
             }
+        }
+        /// <summary>
+        /// 切换232 485-3 485-4
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void btnChange232485_Click(object sender, EventArgs e)
+        {
+
+        }
+        /// <summary>
+        /// 切换485和can通道
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void btnChangeCAN485_Click(object sender, EventArgs e)
+        {
+
         }
     }
 }

@@ -9,7 +9,7 @@ namespace ModelTest
     public class LogMessage
     {
         private static string logDateTime = $"{DateTime.Now:yyyy-MM-dd}";
-        private readonly static string _logDirectory = $"{logDateTime}";
+        private readonly static string _logDirectory = $"XCKJ_logs/{logDateTime}";
         /// <summary>
         /// 调试日志
         /// </summary>

@@ -14,6 +14,7 @@ namespace ModelTest
         #region 字段和常量
 
         private readonly object _lockObject = new();
+        private readonly IWinSocketServiceCatalog _serviceCatalog;
         private bool _disposed;
 
         // 缓冲区默认大小常量
@@ -34,6 +35,17 @@ namespace ModelTest
         private const int ErrorCode = -1;
 
         #endregion
+
+        public WinSocketServer()
+            : this(new DefaultWinSocketServiceCatalog())
+        {
+        }
+
+        public WinSocketServer(IWinSocketServiceCatalog serviceCatalog)
+        {
+            _serviceCatalog = serviceCatalog ?? throw new ArgumentNullException(nameof(serviceCatalog));
+        }
+
         #region 结果封装类
 
         /// <summary>
@@ -129,6 +141,11 @@ namespace ModelTest
             string cMac, byte[] cOutData);
 
         [DllImport("WinSocketServer.dll")]
+        private static extern int Obj_Terminal_Formal_VerifyReadData(
+            [In, Out] int iKeyState, int iOperateMode, string cTESAMID, string cRandHost, string cReadData,
+            string cMac, [Out] byte[] cOutData, [Out] byte[] cOutRSPCTR);
+
+        [DllImport("WinSocketServer.dll")]
         private static extern int Obj_Send_Formal_DataForGetKey(
             [In, Out] string inDeviceType, string cTasktype, string cKeyState, string cTESAMID, string inMeterNo, string cSessionKey,
             [Out] byte[] cOutSID, [Out] byte[] cOutAttachData, byte[] cOutTaskData, byte[] cOutTaskMAC);
@@ -142,7 +159,9 @@ namespace ModelTest
         private static extern int Obj_Terminal_Formal_GetSessionDataForMeter(
             [In, Out] int cOperateMode, string cTESAMID, string cSessionKey, int iTaskType, string cApdu, string cTaskData,
             [Out] byte[] cOutSID, [Out] byte[] cOutAttachData, [Out] byte[] cOutTaskData, [Out] byte[] cOutTaskMAC);
-
+        [DllImport("WinSocketServer.dll")]
+        private static extern int Obj_Meter_Formal_InitSession([In,Out] int iKeyState, string cDiv, string cASCTR, string cFLG,
+          [Out]  byte[] strOutRandHost, [Out]byte[] strOutSessionInit, [Out] byte[] strOutMac);
         #endregion
 
         #region 核心执行方法
@@ -455,6 +474,18 @@ namespace ModelTest
                 (nameof(cOutData), cOutData));
         }
 
+        public DllResult CallObj_Terminal_Formal_VerifyReadData(
+            int iKeyState, int iOperateMode, string cTESAMID, string cRandHost, string cReadData,
+            string cMac, byte[] cOutData, byte[] cOutRSPCTR)
+        {
+            ValidateByteArrayParams((cOutData, nameof(cOutData)), (cOutRSPCTR, nameof(cOutRSPCTR)));
+
+            return ExecuteDllCallWithByteOutputs(
+                nameof(Obj_Terminal_Formal_VerifyReadData),
+                () => Obj_Terminal_Formal_VerifyReadData(iKeyState, iOperateMode, cTESAMID, cRandHost, cReadData, cMac, cOutData, cOutRSPCTR),
+                (nameof(cOutData), cOutData), (nameof(cOutRSPCTR), cOutRSPCTR));
+        }
+
         public DllResult CallObj_Send_Formal_DataForGetKey(
             string deviceType, string cTasktype, string cKeyState, string cEasmid, string inMeterNo, string cSessionKey,
             byte[] outSID, byte[] outAttachData, byte[] cOutData, byte[] cOutMac)
@@ -496,6 +527,20 @@ namespace ModelTest
                                                                  cOutSID, cOutAttachData, cOutTaskData, cOutTaskMAC),
                 (nameof(cOutSID), cOutSID), (nameof(cOutAttachData), cOutAttachData),
                 (nameof(cOutTaskData), cOutTaskData), (nameof(cOutTaskMAC), cOutTaskMAC));
+        }
+        public DllResult CallObj_Meter_Formal_InitSession(
+          int iKeyState, string _strEsamNo, string _strASCTR, string _strFLG,
+          byte[] _strOutRandHost, byte[] _strOutSessionInit, byte[] _strOutMac)
+        {
+            ValidateByteArrayParams((_strOutRandHost, nameof(_strOutRandHost)), (_strOutSessionInit, nameof(_strOutSessionInit)),
+                                    (_strOutMac, nameof(_strOutMac)));
+
+            return ExecuteDllCallWithByteOutputs(
+                nameof(Obj_Meter_Formal_InitSession),
+                () => Obj_Meter_Formal_InitSession(iKeyState, _strEsamNo, _strASCTR, _strFLG,
+                                                                 _strOutRandHost, _strOutSessionInit, _strOutMac),
+                (nameof(_strOutRandHost), _strOutRandHost), (nameof(_strOutSessionInit), _strOutSessionInit),
+                (nameof(_strOutMac), _strOutMac));
         }
 
         #endregion
@@ -551,7 +596,7 @@ namespace ModelTest
                 LogMessage.Debug($"[{methodName}] 调用成功");
                 foreach (var (name, data) in outputs)
                 {
-                    LogMessage.Debug($"{name}: {data?.ToString().TrimEnd().Trim('0')}");
+                    LogMessage.Debug($"{name}: {System.Text.Encoding.Default.GetString(data)?.ToString().TrimEnd(' ')}");
                 }
                 return true;
             }
@@ -580,203 +625,12 @@ namespace ModelTest
 
 
         /// <summary>
-        /// 加密机所有的接口方法名称
+        /// 加密机所有的接口方法名称。
         /// </summary>
         /// <returns></returns>
         public List<string> WinSocketSericeImp()
         {
-            return new List<string>()
-            {
-                "RESAM_Formal_GetKeyData_AppLayer",
-                "BT_WESAM_Formal_GetTrmKeyData",
-                "CT_Terminal_Formal_CalCTESAMMac",
-                "CT_Terminal_Formal_CalCTTESAMMac",
-                "CT_Terminal_Formal_CalVerifyCTESAMMac",
-                "CT_Terminal_Formal_CalVerifyCTTESAMMac",
-                "ClearKeyInfo",
-                "CloseDevice",
-                "ClseUsbkey",
-                "ConnectDevice",
-                "CreateRand",
-                "Create_Rand",
-                "DisEncrptUserInfor",
-                "IdentityAuthentication",
-                "InCreasePurse",
-                "KeyUpdate",
-                "LgServer",
-                "LgoutServer",
-                "Log_WriteLogFile_FlieName",
-                "Maccheck",
-                "Meter_Formal_DataClear1",
-                "Meter_Formal_DataClear2",
-                "Meter_Formal_EncMacWrite",
-                "Meter_Formal_GetAuthKey",
-                "Meter_Formal_IdentityAuthentication",
-                "Meter_Formal_IdentityAuthentication_",
-"Meter_Formal_InCreasePurse",
-"Meter_Formal_InfraredAuth",
-"Meter_Formal_InfraredAuth_TermnalToMeter",
-"Meter_Formal_InfraredRand",
-"Meter_Formal_InintPurse",
-"Meter_Formal_KeyUpdateV2",
-"Meter_Formal_KeyUpdate_20201118",
-"Meter_Formal_MacCheck",
-"Meter_Formal_MacWrite",
-"Meter_Formal_ParameterElseUpdate",
-"Meter_Formal_ParameterUpdate",
-"Meter_Formal_ParameterUpdate1",
-"Meter_Formal_ParameterUpdate2",
-"Meter_Formal_UserControl",
-"NMeter_Formal_DataClear1",
-"NMeter_Formal_DataClear2",
-"NMeter_Formal_GetTrmKeyData",
-"NMeter_Formal_ParameterElseUpdate",
-"NMeter_Formal_ParameterUpdate",
-"NMeter_PowerOff",
-"NMeter_PowerOn",
-"NMeter_VerifyPowerOff",
-"Obj_CT_ESAM_Formal_GetSessionData",
-"Obj_CT_ESAM_Formal_GetTrmKeyData",
-"Obj_CT_ESAM_Formal_InitSession",
-"Obj_CT_ESAM_Formal_VerifyCTData",
-"Obj_CT_ESAM_Formal_VerifySession",
-"Obj_CT_TESAM_Formal_GetTrmKeyData",
-"Obj_ESAM_GN_Formal_GetMacKey",
-"Obj_ESAM_GN_Formal_GetPubKey",
-"Obj_ESAM_GN_Formal_GetSm4Key",
-"Obj_Formal_GetRandHost",
-"Obj_InterFace_Formal_BusinessData",
-"Obj_InterFace_Formal_GetTrmKeyData",
-"Obj_InterFace_Formal_InitSession",
-"Obj_InterFace_Formal_ParameterElseUpdate",
-"Obj_InterFace_Formal_VerifyBusinessData",
-"Obj_InterFace_Formal_VerifyMeterData",
-"Obj_InterFace_Formal_VerifySession",
-"Obj_InterFace_GetSessionData",
-"Obj_JL_Formal_InitSession",
-"Obj_JL_Formal_VerifySession",
-"Obj_Meter_Formal_EncForCompare",
-"Obj_Meter_Formal_GenReadData",
-"Obj_Meter_Formal_GetESAMData",
-"Obj_Meter_Formal_GetESAMFileData",
-"Obj_Meter_Formal_GetGrpBrdCstData",
-"Obj_Meter_Formal_GetGrpBrdCstDataNew",
-"Obj_Meter_Formal_GetMeterSetData",
-"Obj_Meter_Formal_GetPurseData",
-"Obj_Meter_Formal_GetResponseData",
-"Obj_Meter_Formal_GetSessionData",
-"Obj_Meter_Formal_GetTrmKeyData",
-"Obj_Meter_Formal_GetTrmKeyData_ForCheck",
-"Obj_Meter_Formal_InitSession",
-"Obj_Meter_Formal_InitTrmKeyData",
-"Obj_Meter_Formal_SetESAMData",
-"Obj_Meter_Formal_SetESAMDataNew",
-"Obj_Meter_Formal_VerifyESAMData",
-"Obj_Meter_Formal_VerifyMeterData",
-"Obj_Meter_Formal_VerifyReadData",
-"Obj_Meter_Formal_VerifyReportData",
-"Obj_Meter_Formal_VerifySession",
-"Obj_Meter_Formal_VerifySessionForECard",
-"Obj_Meter_JL_VerifyReadData",
-"Obj_Meter_JL_VerifyReportData",
-"Obj_Meter_Test_GetTrmKeyData",
-"Obj_Meter_Test_VerifyESAMData",
-"Obj_NMeter_Formal_GetESAMData",
-"Obj_NMeter_Formal_SetESAMData",
-"Obj_Normal_Formal_InitSession",
-"Obj_Normal_Formal_VerifySession",
-"Obj_Send_Formal_Data",
-"Obj_Send_Formal_DataForGetKey",
-"Obj_Terminal_Formal_ChangeDataAuthorize",
-"Obj_Terminal_Formal_ExternalAuth",
-"Obj_Terminal_Formal_GetCACertificateData",
-"Obj_Terminal_Formal_GetGrpBrdCstData",
-"Obj_Terminal_Formal_GetMeterSessionKey",
-"Obj_Terminal_Formal_GetResponseData",
-"Obj_Terminal_Formal_GetSessionData",
-"Obj_Terminal_Formal_GetSessionDataForMeter",
-"Obj_Terminal_Formal_GetTerminalSetData",
-"Obj_Terminal_Formal_GetTerminlMeterKey",
-"Obj_Terminal_Formal_GetTrmKeyData",
-"Obj_Terminal_Formal_InitSession",
-"Obj_Terminal_Formal_InitSession_RH",
-"Obj_Terminal_Formal_InitTrmKeyData",
-"Obj_Terminal_Formal_VerifyReadData",
-"Obj_Terminal_Formal_VerifyReportData",
-"Obj_Terminal_Formal_VerifySession",
-"Obj_Terminal_Formal_VerifyTerminalData",
-"OpenDevice",
-"OpenUsbkey",
-"ParameterElseUpdate",
-"ParameterUpdate",
-"ParameterUpdate1",
-"ParameterUpdate2",
-"Pcsc_CloseDevice",
-"Pcsc_GetDeviceList",
-"Pcsc_OpenDevice",
-"Pcsc_OpenDeviceSgchip",
-"RDID_Formal_RFIDChangeKey",
-"RDID_Formal_RFIDCheckData",
-"RDID_Formal_RFIDDataMAC",
-"RDID_Formal_RFIDDisEncrptData",
-"RDID_Formal_RFIDEncrptData",
-"RDID_Formal_RFIDGetPin",
-"RDID_Formal_SealRFIDChangeKey",
-"Seal_ChangekeyF",
-"Seal_ChangekeySgchip",
-"Seal_ReadData",
-"Seal_ReadDataSgchip",
-"Seal_WriteCodeDataF",
-"Seal_WriteCodeDataSgchip",
-"Seal_WriteDataSgchip",
-"Set_MeterType",
-"Terminal_Formal_CACertificateUpdate",
-"Terminal_Formal_CertificateStateChange",
-"Terminal_Formal_ChangeDataAuthorize",
-"Terminal_Formal_EncTaskData",
-"Terminal_Formal_ExternalAuth",
-"Terminal_Formal_GetCipherMeterKey",
-"Terminal_Formal_GetR1",
-"Terminal_Formal_GroupBroadcast",
-"Terminal_Formal_InternalAuth",
-"Terminal_Formal_MACVerify",
-"Terminal_Formal_SessionConsultVerify",
-"Terminal_Formal_SessionConsultVerify_",
-"Terminal_Formal_SessionInitRec",
-"Terminal_Formal_SessionKeyConsult",
-"Terminal_Formal_SessionKeyConsult_",
-"Terminal_Formal_SessionRecoveryVerify",
-"Terminal_Formal_SessionRecoveryVerify_",
-"Terminal_Formal_SetOfflineCounter",
-"Terminal_Formal_SymmetricKeyUpdate",
-"Terminal_Formal_SymmetricKeyUpdateCT",
-"Terminal_Formal_SymmetricKeyUpdateNT",
-"Terminal_Formal_SystemBroadcast",
-"Terminal_Formal_WriteTEsam",
-"UserControl",
-"WESAM_Formal_EncrypteData",
-"WESAM_Formal_GetSessionData",
-"WESAM_Formal_GetTrmKeyDataForMeteringBox",
-"WESAM_Formal_InitSession",
-"WESAM_Formal_SetESAMData",
-"WESAM_Formal_VerifyData",
-"WESAM_Formal_VerifyReadData",
-"WESAM_Formal_VerifyReportData",
-"WESAM_Formal_VerifySession",
-"Write_SealRDID",
-"Write_SealRFIDForCheckData",
-"Write_SealRFIDForSceneData",
-"YESAM_Formal_ChangeSealKey",
-"YESAM_Formal_GetSealKey",
-"YESAM_Formal_GetSessionData",
-"YESAM_Formal_GetTrmKeyData",
-"YESAM_Formal_GetWESAMEncrptKey",
-"YESAM_Formal_GetWESAMSessionKeyForMeteringBox",
-"YESAM_Formal_InitSessionOffline",
-"YESAM_Formal_VerifyData",
-"YESAM_Formal_VerifySessionOffline",
-"testapi",
-            };
+            return _serviceCatalog.GetServiceNames().ToList();
         }
         #region IDisposable
 

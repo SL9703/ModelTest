@@ -120,7 +120,7 @@ namespace ModelTest.SerialPortImp
                         _serialPort.Write(temp, 0, 1);
                         ByteNumber++;
                     }
-                    LogMessage.Debug(data);
+                    LogMessage.Debug("发送消息成功："+ data);
                     SerialPortNumber += ByteNumber;
                     return SerialPortNumber;
                 }

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics.Metrics;
 using System.Drawing.Printing;
@@ -15,6 +16,14 @@ namespace ModelTest
     public class XYCtr : IDisposable
     {
         private readonly object lockObject = new object();//lock对象
+        private static readonly TimeSpan DefaultAsyncTimeout = TimeSpan.FromSeconds(5);
+        private static readonly BlockingCollection<Action> _asyncDllQueue = new BlockingCollection<Action>();
+        private static readonly Thread _asyncDllWorkerThread = CreateAsyncDllWorkerThread();
+        private static int _openCommAsyncState;
+        private static int _readStandValueAsyncState;
+        public static bool IsSourcePortOpen { get; private set; }
+        public const int TimeoutResult = -2;
+        public const int BusyResult = -3;
         private static int AnyUIOutput_Result;//控源输出接口返回值
         private static int OpenComm_Result;//打开源串口接口返回值
         private static int ShutPowerSource_Result;//降源接口返回值
@@ -46,12 +55,10 @@ namespace ModelTest
                     ShutPowerSource_Result = ShutPowerSource(shutPowerSource);
                     if (ShutPowerSource_Result == 1)
                     {
-                        LogMessage.Debug("降源正常" + ShutPowerSource_Result);
                         return (true, ShutPowerSource_Result);
                     }
                     else
                     {
-                        LogMessage.Debug("调用降源接口异常" + ShutPowerSource_Result);
                         return (false, ShutPowerSource_Result);
                     }
                 }
@@ -92,32 +99,46 @@ namespace ModelTest
                     OpenComm_Result = OpenComm(Port);
                     if (OpenComm_Result == 1)
                     {
-                        LogMessage.Debug("打开源串口正常" + OpenComm_Result);
+                        IsSourcePortOpen = true;
                         return (true, OpenComm_Result);
                     }
                     else
                     {
-                        LogMessage.Debug("调用打开源串口接口异常" + OpenComm_Result);
+                        IsSourcePortOpen = false;
                         return (false, OpenComm_Result);
                     }
                 }
                 catch (AccessViolationException ex)
                 {
+                    IsSourcePortOpen = false;
                     LogMessage.Error("内存访问冲突", ex);
                     return (false, -1);
                 }
                 catch (BadImageFormatException ex)
                 {
+                    IsSourcePortOpen = false;
                     LogMessage.Error("DLL格式错误", ex);
                     return (false, -1);
                 }
                 catch (Exception ex)
                 {
+                    IsSourcePortOpen = false;
                     LogMessage.Error("DLL调用异常", ex);
                     return (false, -1);
                 }
             }
 
+        }
+
+        public Task<(bool Success, int Result)> CallOpenCommAsync(int Port, TimeSpan? timeout = null)
+        {
+            return ExecuteExclusiveWithTimeoutAsync(
+                () => Interlocked.CompareExchange(ref _openCommAsyncState, 1, 0) == 0,
+                () => Volatile.Write(ref _openCommAsyncState, 0),
+                () => CallOpenComm(Port),
+                nameof(OpenComm),
+                timeout,
+                () => IsSourcePortOpen = false);
         }
         /// <summary>
         /// 关闭源串口
@@ -132,10 +153,11 @@ namespace ModelTest
                 try
                 {
                     CloseComm();
-                    LogMessage.Debug("调用关闭源串口接口正常");
+                    IsSourcePortOpen = false;
                 }
                 catch (Exception ex)
                 {
+                    IsSourcePortOpen = false;
                     LogMessage.Error(ex);
                 }
             });
@@ -166,13 +188,11 @@ namespace ModelTest
                     ReadStandMeter_data = ReadStandValue(standModel, sStandValue);
                     if (IsValidResult(ReadStandMeter_data, sStandValue))
                     {
-                        LogMessage.Debug($"DLL返回有效内容:{ReadStandMeter_data.ToString()}");
                         return (true, ReadStandMeter_data);
 
                     }
                     else
                     {
-                        LogMessage.Debug($"DLL返回无效内容:{ReadStandMeter_data.ToString()}");
                         return (false, ReadStandMeter_data);
                     }
                 }
@@ -194,20 +214,102 @@ namespace ModelTest
             }
         }
 
+        public Task<(bool Success, int Result)> CallReadStandValueAsync(string standModel, byte[] sStandValue, TimeSpan? timeout = null)
+        {
+            return ExecuteExclusiveWithTimeoutAsync(
+                () => Interlocked.CompareExchange(ref _readStandValueAsyncState, 1, 0) == 0,
+                () => Volatile.Write(ref _readStandValueAsyncState, 0),
+                () => CallReadStandValue(standModel, sStandValue),
+                nameof(ReadStandValue),
+                timeout);
+        }
+
         private bool IsValidResult(int readStandMeter_data, byte[] sStandValue)
         {
             if (readStandMeter_data == 1)
             {
-                LogMessage.Debug("标准表数据返回成功");
-                LogMessage.Debug("新跃源标准表数据：" + System.Text.Encoding.Default.GetString(sStandValue));
                 return true;
             }
             else
             {
-                LogMessage.Debug("标准表数据返回失败，错误代码：" + readStandMeter_data);
                 return false;
             }
         }
+
+        private static async Task<(bool Success, int Result)> ExecuteExclusiveWithTimeoutAsync(
+            Func<bool> tryEnter,
+            Action exit,
+            Func<(bool Success, int Result)> action,
+            string operationName,
+            TimeSpan? timeout = null,
+            Action? onTimeout = null)
+        {
+            if (!tryEnter())
+            {
+                LogMessage.Info($"{operationName} 调用被拒绝，上一条同类调用仍未完成");
+                return (false, BusyResult);
+            }
+
+            TimeSpan effectiveTimeout = timeout ?? DefaultAsyncTimeout;
+            Task<(bool Success, int Result)> callTask = EnqueueAsyncDllCall(action);
+
+            try
+            {
+                Task completedTask = await Task.WhenAny(callTask, Task.Delay(effectiveTimeout)).ConfigureAwait(false);
+                if (completedTask == callTask)
+                {
+                    return await callTask.ConfigureAwait(false);
+                }
+
+                onTimeout?.Invoke();
+                LogMessage.Error(new TimeoutException($"{operationName} 调用超时，超时时间: {effectiveTimeout.TotalMilliseconds}ms"));
+                _ = callTask.ContinueWith(_ => exit(), TaskScheduler.Default);
+                return (false, TimeoutResult);
+            }
+            finally
+            {
+                if (callTask.IsCompleted)
+                {
+                    exit();
+                }
+            }
+        }
+
+        private static Thread CreateAsyncDllWorkerThread()
+        {
+            var thread = new Thread(() =>
+            {
+                foreach (var workItem in _asyncDllQueue.GetConsumingEnumerable())
+                {
+                    workItem();
+                }
+            })
+            {
+                IsBackground = true,
+                Name = "XYCtrAsyncWorker"
+            };
+            thread.SetApartmentState(ApartmentState.STA);
+            thread.Start();
+            return thread;
+        }
+
+        private static Task<(bool Success, int Result)> EnqueueAsyncDllCall(Func<(bool Success, int Result)> action)
+        {
+            var tcs = new TaskCompletionSource<(bool Success, int Result)>(TaskCreationOptions.RunContinuationsAsynchronously);
+            _asyncDllQueue.Add(() =>
+            {
+                try
+                {
+                    tcs.TrySetResult(action());
+                }
+                catch (Exception ex)
+                {
+                    tcs.TrySetException(ex);
+                }
+            });
+            return tcs.Task;
+        }
+
         #endregion
 
         /// <summary>

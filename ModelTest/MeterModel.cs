@@ -11,27 +11,27 @@ namespace ModelTest
         /// <summary>
         /// 起始符
         /// </summary>
-        public static string StartByte { get; set; }
+        public static string StartByte { get; set; } = string.Empty;
         /// <summary>
         /// 数据长度
         /// </summary>
-        public static string DataLength { get; set; }
+        public static string DataLength { get; set; } = string.Empty;
         /// <summary>
         /// 数据方向
         /// </summary>
-        public static string DataDirection { get; set; }
+        public static string DataDirection { get; set; } = string.Empty;
         /// <summary>
         /// 地址
         /// </summary>
-        public static string Address { get; set; }
+        public static string Address { get; set; } = string.Empty;
         /// <summary>
         /// 协议类型
         /// </summary>
-        public static string Portocol { get; set; }
+        public static string Portocol { get; set; } = string.Empty;
         /// <summary>
         /// 命令码
         /// </summary>
-        public static string Command { get; set; }
+        public static string Command { get; set; } = string.Empty;
         /// <summary>
         /// 数据项
         /// </summary>
@@ -39,18 +39,18 @@ namespace ModelTest
         /// <summary>
         /// 校验和
         /// </summary>
-        public static string CheekSum { get; set; }
+        public static string CheekSum { get; set; } = string.Empty;
         /// <summary>
         /// 停止位
         /// </summary>
-        public static string StopByte { get; set; }
+        public static string StopByte { get; set; } = string.Empty;
         /// <summary>
         /// 完整数据报文
         /// </summary>
-        public static string MeterV1Meassage { get; set; }
+        public static string MeterV1Meassage { get; set; } = string.Empty;
 
-        
-        public static string MeterByte(string startByte, string dataLength, string dataDirection ,string address, string portocol, string command, string dataIteam, string stopByte)
+
+        public static string MeterByte(string startByte, string dataLength, string dataDirection, string address, string portocol, string command, string dataIteam, string stopByte)
         {
             StartByte = startByte;
             DataLength = dataLength;
@@ -60,8 +60,8 @@ namespace ModelTest
             Command = command;
             DataItem = dataIteam;
             StopByte = stopByte;
-            CheekSum = MessagesCheckSum.CalculateChecksum(DataLength + Address + Portocol + Command + DataItem);
-            MeterV1Meassage = StartByte + DataLength+ DataDirection + Address + Portocol + Command + DataItem + CheekSum + StopByte;
+            CheekSum = MessagesCheckSum.CalculateChecksum(DataLength + DataDirection + Address + Portocol + Command + DataItem);
+            MeterV1Meassage = StartByte + DataLength + DataDirection + Address + Portocol + Command + DataItem + CheekSum + StopByte;
             LogMessage.Debug("电表单元-准备发送消息：" + MeterV1Meassage);
             return MeterV1Meassage;
         }

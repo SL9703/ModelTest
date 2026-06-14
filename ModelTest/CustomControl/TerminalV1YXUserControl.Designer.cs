@@ -29,6 +29,7 @@
         private void InitializeComponent()
         {
             groupBox1 = new GroupBox();
+            label11 = new Label();
             tbx_YXAddr = new TextBox();
             label3 = new Label();
             btn_YXConnect = new Button();
@@ -63,10 +64,16 @@
             label5 = new Label();
             label4 = new Label();
             tableLayoutPanel1 = new TableLayoutPanel();
-            label11 = new Label();
+            groupBox3 = new GroupBox();
+            cbxChange232And485 = new ComboBox();
+            btnChange232485 = new Button();
+            cbxYXCan = new CheckBox();
+            cbxYX485 = new CheckBox();
+            btnChangeCAN485 = new Button();
             groupBox1.SuspendLayout();
             groupBox2.SuspendLayout();
             tableLayoutPanel1.SuspendLayout();
+            groupBox3.SuspendLayout();
             SuspendLayout();
             // 
             // groupBox1
@@ -86,6 +93,16 @@
             groupBox1.TabIndex = 0;
             groupBox1.TabStop = false;
             groupBox1.Text = "数据汇总通信单元";
+            // 
+            // label11
+            // 
+            label11.AutoSize = true;
+            label11.ForeColor = Color.Red;
+            label11.Location = new Point(808, 41);
+            label11.Name = "label11";
+            label11.Size = new Size(111, 28);
+            label11.TabIndex = 7;
+            label11.Text = "广播：255";
             // 
             // tbx_YXAddr
             // 
@@ -444,6 +461,7 @@
             tableLayoutPanel1.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
             tableLayoutPanel1.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
             tableLayoutPanel1.Controls.Add(groupBox2, 0, 0);
+            tableLayoutPanel1.Controls.Add(groupBox3, 0, 1);
             tableLayoutPanel1.Dock = DockStyle.Fill;
             tableLayoutPanel1.Location = new Point(0, 92);
             tableLayoutPanel1.Name = "tableLayoutPanel1";
@@ -453,15 +471,71 @@
             tableLayoutPanel1.Size = new Size(2588, 932);
             tableLayoutPanel1.TabIndex = 14;
             // 
-            // label11
+            // groupBox3
             // 
-            label11.AutoSize = true;
-            label11.ForeColor = Color.Red;
-            label11.Location = new Point(808, 41);
-            label11.Name = "label11";
-            label11.Size = new Size(111, 28);
-            label11.TabIndex = 7;
-            label11.Text = "广播：255";
+            groupBox3.Controls.Add(btnChangeCAN485);
+            groupBox3.Controls.Add(cbxYXCan);
+            groupBox3.Controls.Add(cbxYX485);
+            groupBox3.Controls.Add(btnChange232485);
+            groupBox3.Controls.Add(cbxChange232And485);
+            groupBox3.Dock = DockStyle.Fill;
+            groupBox3.Location = new Point(3, 469);
+            groupBox3.Name = "groupBox3";
+            groupBox3.Size = new Size(1288, 460);
+            groupBox3.TabIndex = 14;
+            groupBox3.TabStop = false;
+            groupBox3.Text = "232/485/CAN切换   ---------------表位地址在上方↑↑↑填写";
+            // 
+            // cbxChange232And485
+            // 
+            cbxChange232And485.FormattingEnabled = true;
+            cbxChange232And485.Items.AddRange(new object[] { "485-3切换到232", "485-4切换到232", "232切换到485-3", "232切换到485-4" });
+            cbxChange232And485.Location = new Point(21, 48);
+            cbxChange232And485.Name = "cbxChange232And485";
+            cbxChange232And485.Size = new Size(230, 36);
+            cbxChange232And485.TabIndex = 0;
+            // 
+            // btnChange232485
+            // 
+            btnChange232485.Location = new Point(272, 48);
+            btnChange232485.Name = "btnChange232485";
+            btnChange232485.Size = new Size(180, 40);
+            btnChange232485.TabIndex = 17;
+            btnChange232485.Tag = "01";
+            btnChange232485.Text = "切换232485";
+            btnChange232485.UseVisualStyleBackColor = true;
+            btnChange232485.Click += btnChange232485_Click;
+            // 
+            // cbxYXCan
+            // 
+            cbxYXCan.AutoSize = true;
+            cbxYXCan.Location = new Point(23, 163);
+            cbxYXCan.Name = "cbxYXCan";
+            cbxYXCan.Size = new Size(84, 32);
+            cbxYXCan.TabIndex = 19;
+            cbxYXCan.Text = "CAN";
+            cbxYXCan.UseVisualStyleBackColor = true;
+            // 
+            // cbxYX485
+            // 
+            cbxYX485.AutoSize = true;
+            cbxYX485.Location = new Point(23, 112);
+            cbxYX485.Name = "cbxYX485";
+            cbxYX485.Size = new Size(74, 32);
+            cbxYX485.TabIndex = 18;
+            cbxYX485.Text = "485";
+            cbxYX485.UseVisualStyleBackColor = true;
+            // 
+            // btnChangeCAN485
+            // 
+            btnChangeCAN485.Location = new Point(113, 112);
+            btnChangeCAN485.Name = "btnChangeCAN485";
+            btnChangeCAN485.Size = new Size(180, 84);
+            btnChangeCAN485.TabIndex = 20;
+            btnChangeCAN485.Tag = "01";
+            btnChangeCAN485.Text = "切换CAN485";
+            btnChangeCAN485.UseVisualStyleBackColor = true;
+            btnChangeCAN485.Click += btnChangeCAN485_Click;
             // 
             // TerminalV1YXUserControl
             // 
@@ -476,6 +550,8 @@
             groupBox2.ResumeLayout(false);
             groupBox2.PerformLayout();
             tableLayoutPanel1.ResumeLayout(false);
+            groupBox3.ResumeLayout(false);
+            groupBox3.PerformLayout();
             ResumeLayout(false);
         }
 
@@ -517,5 +593,11 @@
         private Label label9;
         private Label label10;
         private Label label11;
+        private GroupBox groupBox3;
+        private Button btnChange232485;
+        private ComboBox cbxChange232And485;
+        private CheckBox cbxYXCan;
+        private CheckBox cbxYX485;
+        private Button btnChangeCAN485;
     }
 }

@@ -9,6 +9,7 @@ namespace ModelTest.Socket_DLL.Socket_Client
     // 事件参数类
     public class TcpClientMessageEventArgs : EventArgs
     {
+        public string ConnectionId { get; set; }
         public string Message { get; set; }
         public byte[] RawData { get; set; }
         public DateTime Timestamp { get; set; }

@@ -28,6 +28,9 @@ namespace ModelTest
 
         //加密机对象
         private WinSocketServer winSocketServer = new WinSocketServer();
+        private WinSocketServiceInvoker _winSocketServiceInvoker;
+        private WinSocketServiceInvoker WinSocketInvoker =>
+            _winSocketServiceInvoker ??= new WinSocketServiceInvoker(winSocketServer, AddLogThreadSafe);
         //自定义串口对象
         private SerialPortSocket portSocket = new SerialPortSocket();
         // 获取UI线程的SynchronizationContext
@@ -38,6 +41,8 @@ namespace ModelTest
         private ShowStandValueUserControl _standValueUserControl;
         private TerminalV1YXUserControl _terminalV1YXUserControl;
         private ElectricEnergyMeterControlV1 _MeterV1UserControl;
+        private UDPMessageUserControl _udpMessageUserControl;
+        private SHUserControl _shUserControl;
         public enum TerminalCLASS : byte
         {
             [Description("专变III")]
@@ -85,9 +90,21 @@ namespace ModelTest
         string UABC = string.Empty;
         string IABCN = string.Empty;
         string STAPINSET = string.Empty;
+        private TerminalTest? _terminalTestForm;
+        private MeterTest.MeterTest? _meterTestForm;
+        private DatabaseTestForm? _databaseTestForm;
+        private LinuxCommandForm? _linuxCommandForm;
+        private ProtocolParserForm? _protocolParserForm;
         public ModelMain()
         {
             InitializeComponent();
+            LoadApplicationIcon();
+            UpdateStatusTime();
+            InitializeSGCCTestTab();
+            _winSocketServiceInvoker = new WinSocketServiceInvoker(winSocketServer, AddLogThreadSafe);
+            ultrSimpleDisplay1.TerminalAddressProvider = () => tbxTerminalAdds.Text;
+            ultrSimpleDisplay1.LogRequested += AddLog;
+            ultrSimpleDisplay1.SendCommandRequested += SeedMethod;
             //源界面初始化
             _standValueUserControl = new ShowStandValueUserControl();
             _standValueUserControl.OnUpdateRequested += MyControl_OnUpdateRequested;
@@ -105,6 +122,18 @@ namespace ModelTest
             tabPage4.Controls.Add(_MeterV1UserControl);
             _MeterV1UserControl.Dock = DockStyle.Fill;
 
+            //UDP 消息界面
+            _udpMessageUserControl = new UDPMessageUserControl();
+            _udpMessageUserControl.OnUpdateRequested_UDPMessage += MyControl_OnUpdateRequested;
+            tabPage_UDP.Controls.Add(_udpMessageUserControl);
+            _udpMessageUserControl.Dock = DockStyle.Fill;
+
+            //SH源控制界面
+            _shUserControl = new SHUserControl();
+            _shUserControl.OnUpdateRequestedSHLog += MyControl_OnUpdateRequested;
+            tabPage11.Controls.Add(_shUserControl);
+            _shUserControl.Dock = DockStyle.Fill;
+
             _uiContext = SynchronizationContext.Current;
             // 处理UI线程异常
             Application.ThreadException += (sender, e) =>
@@ -112,6 +141,40 @@ namespace ModelTest
                 MessageBox.Show($"UI线程异常: {e.Exception.Message}");
                 LogMessage.Error(e.Exception);
             };
+        }
+        private void UpdateStatusTime()
+        {
+            toolStripStatusTime.Text = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+        }
+
+        private void StatusTimeTimer_Tick(object? sender, EventArgs e)
+        {
+            UpdateStatusTime();
+        }
+
+        private void LoadApplicationIcon()
+        {
+            string iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "AppIcon.ico");
+            if (!File.Exists(iconPath))
+            {
+                iconPath = Path.Combine(Application.StartupPath, "Assets", "AppIcon.ico");
+            }
+            if (File.Exists(iconPath))
+            {
+                Icon = new Icon(iconPath);
+            }
+        }
+        private void InitializeSGCCTestTab()
+        {
+            SGCCTestUserControl sgccTestUserControl = new SGCCTestUserControl
+            {
+                Dock = DockStyle.Fill
+            };
+            sgccTestUserControl.SendMessageRequested += SeedMethod;
+            sgccTestUserControl.LogRequested += AddLog;
+
+            tabPage2.Controls.Clear();
+            tabPage2.Controls.Add(sgccTestUserControl);
         }
         private SerialPort MainSerialPort = new SerialPort();//初始化串口
         private void ModelMain_Load(object sender, EventArgs e)
@@ -148,13 +211,11 @@ namespace ModelTest
             this.UpdateStyles();
 
             CheckItemSetUpFrom();//加密机接口初始化
-            SGCCItemSetUpFrom();//国网698读取报文初始化
             ModelTool.BindMutexCheckBoxes(checkBox1, checkBox2);//初始化模组0x01 0x31命令选择状态
             ModelTool.BindMutexCheckBoxes(checkBoxC, checkBoxN);//初始化模组IC和IN命令选择状态
             ModelTool.BindMutexCheckBoxes(cbx_TerminalV1_IC, cbx_TerminalV1_IN);//初始化终端IC和IN命令选择状态
             ModelTool.BindMutexCheckBoxes(cbxRevcHEX, cbxRevcASCII);//初始化接收HEX状态。tcpserver用到
             ModelTool.BindMutexCheckBoxes(cbxSendHEX, cbxSendASCII);//初始化发送HEX状态。tcpserver用到
-            ModelTool.BindMutexCheckBoxes(cbxSGCC_Meter, cbxSGCC_Terminal);//初始化国网电表还是终端。
 
             AddLog("应用程序已启动成功");
             LogMessage.Info("应用程序已启动成功");
@@ -200,8 +261,6 @@ namespace ModelTest
             cbxSTAModePinStatus.SelectedIndex = 0;//sta模块引脚状态
             comboBoxSTAStutas.SelectedIndex = 0;//读取sta模块状态用到
             cbxSocketClass.SelectedIndex = 1;//socket类型选择 tcpclient
-            cbxErrorTest.SelectedIndex = 0;//误差测试类型
-            cbxErrorTextClass.SelectedIndex = 0;//误差方式
             cbxTerminalV1.DataSource = Enum.GetValues(typeof(TerminalV1CLASS)).Cast<TerminalV1CLASS>().Select(x => new
             {
                 终端类型 = ModelTool.GetDescription(x)
@@ -277,6 +336,7 @@ namespace ModelTest
                 //{
                 AddLog($"接收消息成功[PC<--MCU] : {hexData}", Color.Lime);
                 LogMessage.Debug($"接受消息成功[PC<-- MCU]的数据: {hexData}");
+                ultrSimpleDisplay1.HandleReceivedMessage(hexData);
                 //}
             });
         }
@@ -328,7 +388,16 @@ namespace ModelTest
                             }
                             else if (buttonOpen.Text == "CLOSE")
                             {
-                                portSocket.SerialPortSendACSIIDataOrHexData(mCU, true);
+                                var msglong = portSocket.SerialPortSendACSIIDataOrHexData(mCU, true);
+                                if (msglong != 0)
+                                {
+                                    AddLog($"发送消息成功[PC-->MCU] : {BitConverter.ToString(ModelTool.HexStringToByteArray(mCU)).Replace("-", " ")}", Color.Red);
+                                }
+                                else
+                                {
+                                    AddLog($"发送消息失败[PC-->MCU] : {BitConverter.ToString(ModelTool.HexStringToByteArray(mCU)).Replace("-", " ")}", Color.White);
+                                }
+                               
                             }
                         }
                     }
@@ -347,7 +416,6 @@ namespace ModelTest
                 AddLog("地址不能为空");
             }
         }
-        string TerminalDataLength = string.Empty;
         string A0600_DataLength = "0600";
         string A0700_DataLength = "0700";
         string A0800_DataLength = "0800";
@@ -520,6 +588,16 @@ namespace ModelTest
             textBoxlog.ScrollToCaret();
             LogMessage.Debug(Message);
         }
+        private void AddLogThreadSafe(string message)
+        {
+            if (InvokeRequired)
+            {
+                BeginInvoke(new Action<string>(AddLogThreadSafe), message);
+                return;
+            }
+
+            AddLog(message);
+        }
         public void MyControl_OnUpdateRequested(string message, Color? color = null)
         {
             // 确保在UI线程执行
@@ -560,74 +638,7 @@ namespace ModelTest
             btn_cilentSocket_Close.Enabled = false;
             btn_cilentSocket.Enabled = true;
         }
-        /// <summary>
-        /// 国网645报文
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private async void SGCC645FF_Click(object sender, EventArgs e)
-        {
-            await SeedMethod(label11.Text);
-        }
-        /// <summary>
-        /// 南网698报文
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private async void CSG698FF_Click(object sender, EventArgs e)
-        {
-            await SeedMethod(label13.Text);
-        }
-        /// <summary>
-        /// 读取电表终端信息
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private async void btnReadMSG_Click(object sender, EventArgs e)
-        {
-            string _68H = "68";//起始符
-            string _16H = "16";//结束符
-            string apdu, SGCCMessage;//长度
-            string Ctrl = "43";//控制域
-            string SASgin = "05";//服务器标识
-            string CAAddr = "00";//客户机地址
-            string SAAddr = tbxMeterTerminalAddr.Text;//服务器地址
-            if (cbxSGCC_Meter.Checked)
-            {
-                CAAddr = "A0";
-            }
-            else
-            {
-                CAAddr = "10";
-            }
 
-            if (SAAddr.Length != 12)
-            {
-                AddLog("698报文服务器地址不对,重新检查地址");
-                return;
-            }
-            else
-            {
-                //反转地址
-                SAAddr = ModelTool.ReverseHexString(SAAddr);
-                switch (cbxSgccOAD.Text)
-                {
-                    case "读取终端或电表485属性":
-                        apdu = "050101f201020000";
-                        SGCCMessage = SGCCTools.BytesToSGCCMessage(_68H, Ctrl, SASgin, SAAddr, CAAddr, apdu, _16H);
-                        break;
-                    case "读取广播终端或电表地址":
-                        SAAddr = "AAAAAAAAAAAA";
-                        apdu = "0501004001020000";
-                        SGCCMessage = SGCCTools.BytesToSGCCMessage(_68H, Ctrl, SASgin, SAAddr, CAAddr, apdu, _16H);
-                        break;
-                    default:
-                        SGCCMessage = "";
-                        break;
-                }
-                await SeedMethod(SGCCMessage);
-            }
-        }
         /// <summary>
         /// 打开串口
         /// </summary>
@@ -712,23 +723,7 @@ namespace ModelTest
         {
             string portstr = portSocket.SeriPortDataRevice(true);
             AddLog(portstr);
-        }
-
-
-        /// <summary>
-        /// 控制回路
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-
-        private async void buttonKZHLStatus_Click(object sender, EventArgs e)
-        {
-            await SeedMethod(label18.Text);
-        }
-
-        private async void buttonKZHLID_Click(object sender, EventArgs e)
-        {
-            await SeedMethod(label19.Text);
+            ultrSimpleDisplay1.HandleReceivedMessage(portstr);
         }
 
         /// <summary>
@@ -1495,77 +1490,6 @@ namespace ModelTest
         {
 
         }
-        /// <summary>
-        /// 开始误差
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-
-        private async void btnStartError_Terminal_Click(object sender, EventArgs e)
-        {
-            //设置标准表常数
-            LogMessage.Info(sender.ToString());
-            bool a = double.TryParse(tbxBZBC.Text, out double tbxbzb);
-            bool b = double.TryParse(tbxDNBC.Text, out double tbxdnb);
-            bool c = double.TryParse(tbxRJSC.Text, out double tbxrjs);
-            if (cbxErrorTextClass.SelectedIndex == 0)
-            {
-                string Terminal_SetBZBContants = SetErrorConstant("01", tbxbzb);
-                AddLog("设置标准表有功常数命令：" + Terminal_SetBZBContants);
-                await SeedMethod(Terminal_SetBZBContants);
-                await Task.Delay(3000); // 延迟3秒，不阻塞UI
-                //设置电能表常数
-                string Terminal_SetDNBContants = SetErrorConstant("03", tbxdnb);
-                AddLog("设置电能表有功常数命令：" + Terminal_SetDNBContants);
-                await SeedMethod(Terminal_SetDNBContants);
-            }
-            else if (cbxErrorTextClass.SelectedIndex == 1)//设置无功
-            {
-                string Terminal_SetBZBContants = SetErrorConstant("02", tbxbzb);
-                AddLog("设置标准表无功常数命令：" + Terminal_SetBZBContants);
-                await SeedMethod(Terminal_SetBZBContants);
-                await Task.Delay(3000); // 延迟3秒，不阻塞UI
-                //设置电能表常数
-                string Terminal_SetDNBContants = SetErrorConstant("04", tbxdnb);
-                AddLog("设置电能表无功常数命令：" + Terminal_SetDNBContants);
-                await SeedMethod(Terminal_SetDNBContants);
-            }
-            else if (cbxErrorTextClass.SelectedIndex == 2) //设置日记时
-            {
-                string Terminal_SetRJS = SetErrorConstant("05", tbxrjs);
-                AddLog("设置日记时圈数命令：" + Terminal_SetRJS);
-                await SeedMethod((Terminal_SetRJS));
-            }
-            await Task.Delay(3000); // 延迟3秒，不阻塞UI，开始启动误差实验
-
-        }
-        /// <summary>
-        /// 设置标准表常数，电能表常数，发给总控
-        /// </summary>
-        /// <param name="BZB">标准表字节，兼容时钟</param>
-        /// <param name="BZBC">标准表常数</param>
-        /// <param name="DNB">电能表字节</param>
-        /// <param name="DNBC">电能表常数</param>
-        /// <param name="ErrorClass">1,2设置标准表有功无功，3,4设置电能表有功无功，5设置时钟</param>
-        public string SetErrorConstant(string DNB_BZBbyte, double DNB_BZBC)
-        {
-            MCUAddr = tbxTerminalAdds.Text;//地址
-            int DNB_BZBCbytelength = ModelTool.CalculateByteLengthExact(ModelTool.ToHex(DNB_BZBC));//标准表常数字节长度
-            var DNB_BZBCstr = HexConverter.ConvertHex(ModelTool.ToHex(DNB_BZBC));//标准表常数16进制字符串,电能表常数16进制字符串
-            //55 07 00 01 00 32 字节1 ，字节2 AA
-            //设置标准表常数,分有功无功 01 标准表有功脉冲常数 02标准表无功脉冲常数
-            //32常数设置命令字SetBZBEroor = MCUAddr + MCUCtrl + "32" + BZB + BZBC;SetDNBError = MCUAddr + MCUCtrl + "32" + DNB + DNBC;
-            //计算命令长度 +2 01 00 32 字节1 +字节2（变量）+校验码
-            TerminalDataLength = HexConverter.ConvertHex(ModelTool.ToHex(((2 + 3 + DNB_BZBCbytelength + 1))));
-            var SetDNBBZBError = TerminalModel.TerminalByte(
-                MCUStartByte,
-                TerminalDataLength + "00",
-                MCUAddr,
-                MCUCtrl,
-                "32", DNB_BZBbyte + DNB_BZBCstr, MCUStopByte); //电能表常数设置命令校验完整的命令
-            TerminalDataLength = HexConverter.ConvertHex(ModelTool.ToHex(((2 + 3 + DNB_BZBCbytelength + 1))));
-            return SetDNBBZBError;
-        }
         private void ModelMain_Resize(object sender, EventArgs e)
         {
             if (this.WindowState == FormWindowState.Maximized)
@@ -1674,40 +1598,23 @@ namespace ModelTest
             e.NewValue = CheckState.Checked;
         }
 
-        private void LgServer_Click(object sender, EventArgs e)
+        private async void LgServer_Click(object sender, EventArgs e)
         {
-            byte[] OutRandNum = new byte[128];
             string ServerIp = textBox4.Text;
             string ServerPort = textBox3.Text;
-            Thread thread = new Thread(() =>
-            {
-                AddLog("开始连接加密服务器！！！");
-                var rtnConnnt = winSocketServer.ConnectDeviceEx(ServerIp, ServerPort, "8000");
-                if (rtnConnnt.Code == 0)
-                {
-                    AddLog("连接加密服务器成功！");
-                    label115.Text = "加密服务器连接状态：已连接";
-                    //获取随机数
-                    var randEx = winSocketServer.CreateRandEx(16, OutRandNum);
-                    if (randEx.Code == 0)
-                    {
-                        richTextBox1.Text = "";
-                        richTextBox1.AppendText("获取随机数成功！随机数结果 = " + System.Text.Encoding.Default.GetString(OutRandNum));
-                    }
-                    else
-                    {
-                        richTextBox1.AppendText("获取随机数失败！" + System.Text.Encoding.Default.GetString(OutRandNum));
-                    }
+            var result = await Task.Run(() => WinSocketInvoker.ConnectServerAndGetRandom(ServerIp, ServerPort));
 
-                }
-                else
-                {
-                    AddLog("连接加密服务器失败，错误代码：" + rtnConnnt);
-                    label115.Text = "服务器连接状态：连接失败";
-                }
-            });
-            thread.IsBackground = true;
-            thread.Start();
+            if (!result.Connected)
+            {
+                label115.Text = "加密服务器连接状态：连接失败";
+                return;
+            }
+
+            label115.Text = "加密服务器连接状态：已连接";
+            richTextBox1.Clear();
+            richTextBox1.AppendText(result.RandCode == 0
+                ? $"获取随机数成功！随机数结果 = {result.RandText}"
+                : $"获取随机数失败！错误码：{result.RandCode}");
         }
 
         /// <summary>
@@ -1717,300 +1624,7 @@ namespace ModelTest
         /// <param name="e"></param>
         private void button5_Click(object sender, EventArgs e)
         {
-            Thread thread = new Thread(() => { });
-            byte[] cOutSID = new byte[256];
-            byte[] cOutAttachData = new byte[256];
-            byte[] cOutData = new byte[256];
-            byte[] cOutMAC = new byte[256];
-            try
-            {
-                //得到数据，分割数据，
-                string ServerData = textBox5.Text;
-
-                // 分割字符串并移除空条目
-                string[] parts = ServerData.Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
-                // 处理特殊值：将 "None" 转换为 null，数值保持原样
-                var ServerDataNew = parts.Select(p => p == "None" ? "None" : p).ToArray();
-                int result = 0;
-                switch (ServerImp.Text)
-                {
-
-                    case "":
-                        AddLog("请右上角选择加密算法！");
-                        break;
-                    case "RESAM_Formal_GetKeyData_AppLayer":
-                        AddLog($"调用接口：{ServerImp.Text}----------开始加密计算\r\n");
-                        AddLog($"iOperateMode = {ServerDataNew[0]}\r\n" +
-                            $"cTESAMID = {ServerDataNew[1]}\r\n" +
-                            $"cSessionKey = {ServerDataNew[2]}\r\n" +
-                            $"cTaskType = {ServerDataNew[3]}\r\n" +
-                            $"cTaskData = {ServerDataNew[4]}");
-                        var GetKeyData_AppLayer = winSocketServer.CallReSAM_Formal_GetKeyData_AppLayer
-                           (int.Parse(ServerDataNew[0]),
-                           ServerDataNew[1],
-                           ServerDataNew[2],
-                           int.Parse(ServerDataNew[3]),
-                           ServerDataNew[4],
-                            cOutSID,
-                            cOutAttachData,
-                            cOutData,
-                            cOutMAC
-                           );
-                        PrintServerMeassRes(GetKeyData_AppLayer.Code);
-                        break;
-                    case "CloseDevice":
-                        AddLog($"调用接口：{ServerImp.Text}----------开始加密计算\r\n");
-                        var CloseDevice = winSocketServer.CloseDeviceEx();
-                        PrintServerMeassRes(CloseDevice.Code);
-                        break;
-                    case "ClseUsbkey":
-                        thread = new Thread(() =>
-                        {
-                            AddLog($"调用接口：{ServerImp.Text}----------开始加密计算\r\n");
-                            result = winSocketServer.ClseUsbkeyEx();
-                            PrintServerMeassRes(result);
-                        });
-                        break;
-                    case "Meter_Formal_DataClear1":
-                        AddLog($"调用接口：{ServerImp.Text}----------开始加密计算\r\n");
-                        AddLog($"Flag = {ServerDataNew[0]}\r\n" +
-                            $"PutRand = {ServerDataNew[1]}\r\n" +
-                           $"PutDiv = {ServerDataNew[2]}\r\n" +
-                           $"PutData = {ServerDataNew[3]}\r\n");
-                        var DataClear1 = winSocketServer.CallMeter_Formal_DataClear1(int.Parse(ServerDataNew[0]), ServerDataNew[1], ServerDataNew[2], ServerDataNew[3], cOutData);
-                        PrintServerMeassRes(DataClear1.Code);
-                        break;
-                    case "Meter_Formal_DataClear2":
-                        AddLog($"调用接口：{ServerImp.Text}");
-                        AddLog($"Flag = {ServerDataNew[0]}\r\n" +
-                            $"PutRand = {ServerDataNew[1]}\r\n" +
-                           $"PutDiv = {ServerDataNew[2]}\r\n" +
-                           $"PutData = {ServerDataNew[3]}\r\n");
-                        var DataClear2 = winSocketServer.CallMeter_Formal_DataClear2(int.Parse(ServerDataNew[0]), ServerDataNew[1], ServerDataNew[2], ServerDataNew[3], cOutData);
-                        PrintServerMeassRes(DataClear2.Code);
-                        break;
-                    case "Obj_Meter_Formal_SetESAMData":
-                        AddLog($"调用接口：{ServerImp.Text}----------开始加密计算\r\n");
-                        AddLog($"InKeyState = {ServerDataNew[0]}\r\n" +
-                            $"InOperateMode = {ServerDataNew[1]}\r\n" +
-                            $"cESAMNO = {ServerDataNew[2]}\r\n" +
-                            $"cSessionKey = {ServerDataNew[3]}\r\n" +
-                            $"cMeterNo = {ServerDataNew[4]}\r\n" +
-                            $"cESAMRand = {ServerDataNew[5]}\r\n" +
-                            $"cData = {ServerDataNew[6]} \r\n");
-                        var SetESAMData = winSocketServer.CallObj_Meter_Formal_SetESAMData
-                            (int.Parse(ServerDataNew[0]),
-                            int.Parse(ServerDataNew[1]),
-                            ServerDataNew[2],
-                            ServerDataNew[3],
-                            ServerDataNew[4],
-                            ServerDataNew[5],
-                            ServerDataNew[6],
-                             cOutSID,
-                             cOutAttachData,
-                             cOutData,
-                             cOutMAC
-                            );
-                        PrintServerMeassRes(SetESAMData.Code);
-                        break;
-                    case "Obj_Terminal_Formal_GetTrmKeyData":
-                        AddLog($"调用接口：{ServerImp.Text}----------开始加密计算\r\n");
-                        AddLog($"iKeyVersion = {ServerDataNew[0]}\r\n" +
-                            $"strEsamNo = {ServerDataNew[1]}\r\n" +
-                            $"strSessionKey = {ServerDataNew[2]}\r\n" +
-                            $"cTerminalAddress = {ServerDataNew[3]}\r\n" +
-                            $"strKeyType = {ServerDataNew[4]}\r\n");
-                        var GetTrmKeyData = winSocketServer.CallObj_Terminal_Formal_GetTrmKeyData(
-                            int.Parse(ServerDataNew[0]),
-                            ServerDataNew[1],
-                            ServerDataNew[2],
-                            ServerDataNew[3],
-                            ServerDataNew[4],
-                             cOutSID,
-                             cOutAttachData,
-                             cOutData,
-                             cOutMAC
-                            );
-                        PrintServerMeassRes(GetTrmKeyData.Code);
-                        break;
-                    case "Obj_Terminal_Formal_InitSession":
-                        AddLog($"调用接口：{ServerImp.Text}----------开始加密计算\r\n");
-                        AddLog($"iKeyVersion = {ServerDataNew[0]}\r\n" +
-                            $"strEsamNo = {ServerDataNew[1]}\r\n" +
-                           $"strSessionKey = {ServerDataNew[2]}\r\n" +
-                           $"cTerminalAddress = {ServerDataNew[3]}\r\n" +
-                           $"strKeyType = {ServerDataNew[4]}\r\n");
-                        var InitSession = winSocketServer.CallObj_Terminal_Formal_InitSession(
-                             int.Parse(ServerDataNew[0]),
-                             ServerDataNew[1],
-                             ServerDataNew[2],
-                             ServerDataNew[3],
-                             ServerDataNew[4],
-                              cOutSID,
-                              cOutAttachData,
-                              cOutData
-                             );
-                        PrintServerMeassRes(InitSession.Code);
-                        break;
-                    case "Obj_Terminal_Formal_InitSession_RH":
-                        AddLog($"调用接口：{ServerImp.Text}----------开始加密计算\r\n");
-                        AddLog($"iKeyState = {ServerDataNew[0]}\r\n" +
-                            $"cTESAMNO = {ServerDataNew[1]}\r\n" +
-                           $"cASCTR = {ServerDataNew[2]}\r\n" +
-                           $"cMasterCert = {ServerDataNew[3]}\r\n");
-                        Thread threadRH = new Thread(() => {
-                            var InitSession_RH = winSocketServer.CallObj_Terminal_Formal_InitSession_RH(
-                             int.Parse(ServerDataNew[0]),
-                             ServerDataNew[1],
-                             ServerDataNew[2],
-                             ServerDataNew[3],
-                              cOutSID,
-                              cOutAttachData,
-                              cOutData
-                             );
-                            PrintServerMeassRes(InitSession_RH.Code);
-                        });
-                        threadRH.Start();
-                        threadRH.IsBackground = true;
-                        break;
-                    case "Obj_Terminal_Formal_GetSessionData":
-                        AddLog($"调用接口：{ServerImp.Text}----------开始加密计算\r\n");
-                        AddLog($"iKeyVersion = {ServerDataNew[0]}\r\n" +
-                            $"strEsamNo = {ServerDataNew[1]}\r\n" +
-                           $"strSessionKey = {ServerDataNew[2]}\r\n" +
-                           $"cTerminalAddress = {ServerDataNew[3]}\r\n");
-                        var GetSessionData = winSocketServer.CallObj_Terminal_Formal_GetSessionData(
-                            int.Parse(ServerDataNew[0]),
-                            ServerDataNew[1],
-                            ServerDataNew[2],
-                            int.Parse(ServerDataNew[3]),
-                            ServerDataNew[4], cOutSID, cOutAttachData, cOutData, cOutMAC
-                            );
-                        PrintServerMeassRes(GetSessionData.Code);
-                        break;
-                    case "Obj_Terminal_Formal_GetTerminalSetData":
-                        AddLog($"调用接口：{ServerImp.Text}----------开始加密计算\r\n");
-                        AddLog($"iOperateMode = {ServerDataNew[0]}\r\n" +
-                            $"cEasmid = {ServerDataNew[1]}\r\n" +
-                           $"cSessionKey = {ServerDataNew[2]}\r\n" +
-                           $"cTaskData = {ServerDataNew[3]}\r\n");
-                        var GetTerminalSetData = winSocketServer.CallObj_Terminal_Formal_GetTerminalSetData(
-                            int.Parse(ServerDataNew[0]),
-                            ServerDataNew[1],
-                            ServerDataNew[2],
-                            ServerDataNew[3],
-                            cOutSID, cOutAttachData, cOutData, cOutMAC
-                            );
-                        PrintServerMeassRes(GetTerminalSetData.Code);
-                        break;
-                    case "Obj_Terminal_Formal_VerifyTerminalData":
-                        AddLog($"调用接口：{ServerImp.Text}----------开始加密计算");
-                        AddLog($"ikeyState = {ServerDataNew[0]}\r\n" +
-                           $"iOperateMode = {ServerDataNew[1]}\r\n" +
-                          $"cEasmid = {ServerDataNew[2]}\r\n" +
-                          $"cSessionKey = {ServerDataNew[3]}\r\n" +
-                          $"cTaskData = {ServerDataNew[4]}\r\n" +
-                          $"cMac = {ServerDataNew[5]}");
-                        var VerifyTerminalData = winSocketServer.CallObj_Terminal_Formal_VerifyTerminalData(
-                            int.Parse(ServerDataNew[0]),
-                            int.Parse(ServerDataNew[1]),
-                            ServerDataNew[2],
-                            ServerDataNew[3],
-                            ServerDataNew[4],
-                            ServerDataNew[5],
-                            cOutData
-                            );
-                        PrintServerMeassRes(VerifyTerminalData.Code);
-                        break;
-                    case "Obj_Send_Formal_DataForGetKey":
-                        AddLog($"调用接口：{ServerImp.Text}----------开始加密计算");
-                        AddLog($"\r\nInDeviceType = {ServerDataNew[0]}\r\n" +
-                          $"cTastType = {ServerDataNew[1]}\r\n" +
-                         $"cKeyState = {ServerDataNew[2]}\r\n" +
-                         $"cTESAMID = {ServerDataNew[3]}\r\n" +
-                         $"InMeterNo = {ServerDataNew[4]}\r\n" +
-                         $"cSessionKey = {ServerDataNew[5]}");
-                        var DataForGetKey = winSocketServer.CallObj_Send_Formal_DataForGetKey(
-                            ServerDataNew[0],
-                            ServerDataNew[1],
-                            ServerDataNew[2],
-                            ServerDataNew[3],
-                            ServerDataNew[4],
-                            ServerDataNew[5],
-                            cOutSID, cOutAttachData, cOutData, cOutMAC
-                            );
-                        break;
-
-                    case "Obj_Meter_Formal_GenReadData":
-                        AddLog($"调用接口：{ServerImp.Text}----------开始加密计算");
-                        AddLog($"\r\niKeyVersion = {ServerDataNew[0]}\r\n" +
-                          $"strEsamNo = {ServerDataNew[1]}\r\n" +
-                         $"strMeterNo = {ServerDataNew[2]}\r\n" +
-                         $"iOperateMode = {ServerDataNew[3]}\r\n" +
-                         $"randHost = {ServerDataNew[4]}\r\n" +
-                         $"cReadData = {ServerDataNew[5]}");
-                        var GenReadData = winSocketServer.CallObj_Meter_Formal_GenReadData(
-                            ServerDataNew[0],
-                            ServerDataNew[1],
-                            ServerDataNew[2],
-                            ServerDataNew[3],
-                            ServerDataNew[4],
-                            ServerDataNew[5],
-                            cOutData, cOutMAC
-                            );
-                        break;
-
-                    case "Obj_Terminal_Formal_GetSessionDataForMeter":
-                        AddLog($"调用接口：{ServerImp.Text}----------开始加密计算");
-                        AddLog($"\r\ncOperateMode = {ServerDataNew[0]}\r\n" +
-                          $"cTESAMID = {ServerDataNew[1]}\r\n" +
-                         $"cSessionKey = {ServerDataNew[2]}\r\n" +
-                         $"iTaskType = {ServerDataNew[3]}\r\n" +
-                         $"cApdu = {ServerDataNew[4]}\r\n" +
-                         $"cTaskData = {ServerDataNew[5]}");
-                        var GetSessionDataForMeter = winSocketServer.CallObj_Terminal_Formal_GetSessionDataForMeter(
-                            int.Parse(ServerDataNew[0]),
-                            ServerDataNew[1],
-                            ServerDataNew[2],
-                            int.Parse(ServerDataNew[3]),
-                            ServerDataNew[4],
-                            ServerDataNew[5],
-                            cOutSID, cOutAttachData, cOutData, cOutMAC
-                            );
-                        break;
-                    default:
-                        break;
-                }
-            }
-            catch (Exception ex)
-            {
-                AddLog(ex.Message);
-            }
-
-        }
-
-        private void PrintServerMeassRes((bool Success, int Result) result)
-        {
-            if (result.Result == 0)
-            {
-                AddLog($"调用接口：{ServerImp.Text}----------成功,返回值：{result.Result}");
-            }
-            else
-            {
-                AddLog($"调用接口：{ServerImp.Text}----------失败,返回值：{result.Result}");
-            }
-        }
-
-        private void PrintServerMeassRes(int result)
-        {
-            if (result == 0)
-            {
-                AddLog($"调用接口：{ServerImp.Text}----------成功,返回值：{result}");
-            }
-            else
-            {
-                AddLog($"调用接口：{ServerImp.Text}----------失败,返回值：{result}");
-            }
+            WinSocketInvoker.Execute(ServerImp.Text, textBox5.Text);
         }
 
         private void button6_Click(object sender, EventArgs e)
@@ -2024,73 +1638,10 @@ namespace ModelTest
         /// <param name="e"></param>
         private void ServerImp_SelectedIndexChanged(object sender, EventArgs e)
         {
-            string ServerImpType = (string)ServerImp.SelectedItem;
-            switch (ServerImpType)
+            var description = WinSocketInvoker.GetParameterDescription(ServerImp.SelectedItem as string);
+            if (!string.IsNullOrWhiteSpace(description))
             {
-                case "RESAM_Formal_GetKeyData_AppLayer":
-                    AddLog($"选择加密机函数 {ServerImpType}，调用接口参数：");
-                    AddLog("int iOperateMode,char * cTESAMID, char * cSessionKey,int cTaskType, char * cTaskData, char * cOutSID,char * cOutAttachData, char * cOutData ,char * cOutMAC");
-                    break;
-                case "CloseDevice":
-                    AddLog($"连接密码机，用于断开服务器或密码机连接；选择加密机函数 {ServerImpType}，调用接口参数：");
-                    AddLog("无参数");
-                    break;
-                case "ClseUsbkey":
-                    AddLog($"释放服务器登录权限，兼容 09 版电能表使用的函数；选择加密机函数 {ServerImpType}，调用接口参数：");
-                    AddLog("无参数");
-                    break;
-                case "Meter_Formal_DataClear1":
-                    AddLog($"用于远程费控电能表清零；选择加密机函数 {ServerImpType}，调用接口参数：");
-                    AddLog("int Flag整型,0:公钥;1,私钥；10，双协议公钥；11，双协议私钥；,char *PutRand随机数 2,电表身份认证成功返回, 4 字节,char *PutDiv分散因子,8 字节,“0000”+表号,char *PutData入参,清零数据,char *Outdata  20字节密文；");
-                    break;
-                case "Meter_Formal_DataClear2":
-                    AddLog($"用于事件或需量清零函数；选择加密机函数 {ServerImpType}，调用接口参数：");
-                    AddLog("int Flag13 版，整型,0:公钥;1,私钥； 16 版，1,私钥；10，面向对象；,char *PutRand随机数 2,电表身份认证成功返回, 4 字节,char *PutDiv分散因子,8 字节,“0000”+表号,char *PutData入参,清零数据,char *Outdata  20字节密文；");
-                    break;
-                case "Obj_Meter_Formal_SetESAMData":
-                    AddLog($"选择加密机函数 {ServerImpType}，调用接口参数：");
-                    AddLog("int InKeyState,int InOperateMode,char * cESAMNO, char * cSessionKey, char * cMeterNo, char * cESAMRand, char * cData, char * OutSID,char * OutAddData, char * OutData,char * OutMAC");
-                    break;
-                case "Obj_Terminal_Formal_GetTrmKeyData":
-                    AddLog($"选择加密机函数 {ServerImpType}，调用接口参数：");
-                    AddLog("char* iKeyVersion 密钥更新的目标状态  “00000000000000000000000000000000” 表示恢复到公钥，其他相同长度非全零数据表示更新到私钥\r\nchar* strEsamNo ESAM 序列号\r\nchar* strSessionKey 会话密钥\r\nchar* cTerminalAddress 终端地址(8 Bytes)\r\nchar* strKeyType 密钥类型，00 应用密钥，01 链路密钥");
-                    break;
-                case "Obj_Terminal_Formal_InitSession":
-                    AddLog($"选择加密机函数 {ServerImpType}，调用接口参数：");
-                    AddLog("输入参数iKeyState，cTESAMID，cASCTR，cFLG，cMasterCert");
-                    break;
-                case "Obj_Terminal_Formal_InitSession_RH":
-                    AddLog($"选择加密机函数 {ServerImpType}，调用接口参数：");
-                    AddLog("输入参数int iKeyState，string cTESAMID，string cASCT，string cMasterCert");
-                    break;
-                case "Obj_Terminal_Formal_GetSessionData":
-                    AddLog($"选择加密机函数 {ServerImpType}，调用接口参数：");
-                    AddLog("输入参数:int iOperateMode, char cTeasmid, char cSessionKey ,int cTaskType, char cTaskData ");
-                    break;
-                case "Obj_Terminal_Formal_GetTerminalSetData":
-                    AddLog($"选择加密机函数 {ServerImpType}，调用接口参数：");
-                    AddLog("输入参数:int iOperateMode, char cTeasmid, char cSessionKey , char cTaskData");
-                    break;
-                case "Obj_Terminal_Formal_VerifyTerminalData":
-                    AddLog($"选择加密机函数 {ServerImpType}，调用接口参数：");
-                    AddLog("输入参数:int ikeyState, int iOperateMode, char cTeasmid, char cSessionKey , char cTaskData,char cMac");
-                    break;
-                case "Obj_Send_Formal_DataForGetKey":
-                    AddLog($"选择加密机函数 {ServerImpType}，调用接口参数：");
-                    AddLog("输入参数:string InDeviceType, " +
-                        "string cTastType, " +
-                        "string cKeyState, " +
-                        "string cTeasmid, " +
-                        "string InMeterNo, " +
-                        "string cSessionKey");
-                    break;
-
-                case "Obj_Meter_Formal_GenReadData":
-                    AddLog($"选择加密机函数 {ServerImpType}，调用接口参数：");
-                    AddLog("输入参数:string _iKeyVersion,string _strEsamNo,string _strMeterNo,  string _iOperateMode, string _randHost, string _cReadData,");
-                    break;
-                default:
-                    break;
+                AddLog(description);
             }
         }
         private void CheckItemSetUpFrom()
@@ -2100,14 +1651,6 @@ namespace ModelTest
             ServerImp.DataSource = winSocketServer.WinSocketSericeImp();
             ServerImp.SelectedIndex = -1;
             ServerImp.SelectedIndexChanged += ServerImp_SelectedIndexChanged;
-        }
-        private void SGCCItemSetUpFrom()
-        {
-
-            //cbxSgccOAD.SelectedIndexChanged -= ServerImp_SelectedIndexChanged;
-            cbxSgccOAD.DataSource = SGCCTools.SGCCSericeImp();
-            cbxSgccOAD.SelectedIndex = -1;
-           // cbxSgccOAD.SelectedIndexChanged += ServerImp_SelectedIndexChanged;
         }
         /// <summary>
         /// textbox只能输入数字
@@ -2614,6 +2157,7 @@ namespace ModelTest
             rtbxSendData.Text = "";
         }
 
+
         /// <summary>
         /// 终端检测
         /// </summary>
@@ -2622,10 +2166,7 @@ namespace ModelTest
 
         private void tsbtnTerminalTest_Click(object sender, EventArgs e)
         {
-            TerminalTest terminalTest = new TerminalTest();
-            terminalTest.OwnerForm = this;
-            this.Hide();
-            terminalTest.Show();
+            ShowNonModalToolWindow(_terminalTestForm, () => new TerminalTest(), form => _terminalTestForm = form);
         }
         /// <summary>
         /// 电表检测
@@ -2634,10 +2175,53 @@ namespace ModelTest
         /// <param name="e"></param>
         private void tsbtnMeterTest_Click(object sender, EventArgs e)
         {
-            MeterTest.MeterTest meterTest = new MeterTest.MeterTest();
-            meterTest.OwnerForm = this;
-            this.Hide();
-            meterTest.Show();
+            ShowNonModalToolWindow(_meterTestForm, () => new MeterTest.MeterTest(), form => _meterTestForm = form);
+        }
+        /// <summary>
+        /// 新窗口
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void tsbtnNewWindow_Click(object sender, EventArgs e)
+        {
+            ShowNonModalToolWindow(_databaseTestForm, () => new DatabaseTestForm(), form => _databaseTestForm = form);
+        }
+        /// <summary>
+        /// Linux命令大全
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void tsbtnLinuxCommand_Click(object sender, EventArgs e)
+        {
+            ShowNonModalToolWindow(_linuxCommandForm, () => new LinuxCommandForm(), form => _linuxCommandForm = form);
+        }
+        /// <summary>
+        /// 报文解析工具
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void tsbtnProtocolParser_Click(object sender, EventArgs e)
+        {
+            ShowNonModalToolWindow(_protocolParserForm, () => new ProtocolParserForm(), form => _protocolParserForm = form);
+        }
+        private void ShowNonModalToolWindow<TForm>(TForm? form, Func<TForm> factory, Action<TForm?> setForm)
+            where TForm : Form
+        {
+            if (form != null && !form.IsDisposed)
+            {
+                if (form.WindowState == FormWindowState.Minimized)
+                {
+                    form.WindowState = FormWindowState.Normal;
+                }
+
+                form.Activate();
+                return;
+            }
+
+            form = factory();
+            setForm(form);
+            form.FormClosed += (_, _) => setForm(null);
+            form.Show(this);
         }
     }
 }

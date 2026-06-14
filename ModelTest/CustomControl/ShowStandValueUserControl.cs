@@ -193,7 +193,6 @@ namespace ModelTest.CustomControl
             LogMessage.Info(sender.ToString());
             if (OpenComm_data == 1)
             {
-
                 var result = xyCtr.CallReadStandValue(XYModel, sStandValue);
                 int ReadStandMeterResult = result.Result;
                 if (ReadStandMeterResult == 1)

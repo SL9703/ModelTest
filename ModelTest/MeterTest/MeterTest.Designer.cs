@@ -34,6 +34,7 @@
             // 
             AutoScaleDimensions = new SizeF(13F, 28F);
             AutoScaleMode = AutoScaleMode.Font;
+            BackColor = Color.FromArgb(88, 149, 127);
             ClientSize = new Size(800, 450);
             MaximizeBox = false;
             MinimizeBox = false;

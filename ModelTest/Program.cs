@@ -11,6 +11,7 @@ namespace ModelTest
         // 在文件顶部添加
         // 静态主窗体引用
         public static ModelMain MainForm { get; private set; }
+        public static DatabaseTestForm _databaseTestForm { get; private set; }
         [STAThread]
         static void Main()
         {
@@ -28,6 +29,8 @@ namespace ModelTest
                 Application.SetCompatibleTextRenderingDefault(false);
                 MainForm = new ModelMain();
                 Application.Run(MainForm);
+                //_databaseTestForm = new DatabaseTestForm();
+                //Application.Run(_databaseTestForm);
                 //Application.Run(new MeterTest.MeterTest());
             }
             catch (Exception ex)

@@ -123,6 +123,7 @@ namespace ModelTest.Socket_DLL.Socket_Client
         public bool NoDelay { get; set; } = true;
         public bool EnableAutoReconnect { get; set; } = true;
         public bool EnableHeartbeat { get; set; } = true;
+        public bool EnableInactivityProbe { get; set; } = true;
         public int MaxReconnectAttempts { get; set; } = 10;
         #endregion
         #region 构造函数
@@ -230,7 +231,10 @@ namespace ModelTest.Socket_DLL.Socket_Client
                 }
 
                 // 启动活动检测
-                StartInactivityMonitoring();
+                if (EnableInactivityProbe)
+                {
+                    StartInactivityMonitoring();
+                }
 
                 OnConnectionStatusChanged(new TcpClientStatusEventArgs
                 {
@@ -373,7 +377,7 @@ namespace ModelTest.Socket_DLL.Socket_Client
             // 触发消息接收事件
             OnMessageReceived(new TcpClientMessageEventArgs
             {
-                Message = _encoding.GetString(receivedData,0, receivedData.Length),
+                Message = _encoding.GetString(receivedData, 0, receivedData.Length),
                 RawData = receivedData,
                 Timestamp = DateTime.Now,
                 Direction = TcpClientMessageEventArgs.MessageDirection.Received
