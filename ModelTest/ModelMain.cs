@@ -31,6 +31,13 @@ namespace ModelTest
         private WinSocketServiceInvoker _winSocketServiceInvoker;
         private WinSocketServiceInvoker WinSocketInvoker =>
             _winSocketServiceInvoker ??= new WinSocketServiceInvoker(winSocketServer, AddLogThreadSafe);
+        private readonly System.Windows.Forms.Timer _winSocketHeartbeatTimer = new System.Windows.Forms.Timer();
+        private bool _winSocketHeartbeatRunning;
+        private const int ServerImpLazyPageSize = 80;
+        private const string ServerImpPlaceholderText = "输入关键字搜索接口";
+        private readonly List<string> _serverImpServices = new();
+        private bool _serverImpCatalogLoaded;
+        private bool _serverImpUpdating;
         //自定义串口对象
         private SerialPortSocket portSocket = new SerialPortSocket();
         // 获取UI线程的SynchronizationContext
@@ -102,6 +109,9 @@ namespace ModelTest
             UpdateStatusTime();
             InitializeSGCCTestTab();
             _winSocketServiceInvoker = new WinSocketServiceInvoker(winSocketServer, AddLogThreadSafe);
+            _winSocketHeartbeatTimer.Interval = 30_000;
+            _winSocketHeartbeatTimer.Tick += WinSocketHeartbeatTimer_Tick;
+            FormClosed += ModelMain_FormClosed;
             ultrSimpleDisplay1.TerminalAddressProvider = () => tbxTerminalAdds.Text;
             ultrSimpleDisplay1.LogRequested += AddLog;
             ultrSimpleDisplay1.SendCommandRequested += SeedMethod;
@@ -1615,8 +1625,56 @@ namespace ModelTest
             richTextBox1.AppendText(result.RandCode == 0
                 ? $"获取随机数成功！随机数结果 = {result.RandText}"
                 : $"获取随机数失败！错误码：{result.RandCode}");
+            StartWinSocketHeartbeat();
+        }
+        private void StartWinSocketHeartbeat()
+        {
+            if (!_winSocketHeartbeatTimer.Enabled)
+            {
+                _winSocketHeartbeatTimer.Start();
+            }
         }
 
+        private async void WinSocketHeartbeatTimer_Tick(object? sender, EventArgs e)
+        {
+            if (_winSocketHeartbeatRunning)
+            {
+                return;
+            }
+
+            const int flag = 0;
+            const string putDiv = "0000000000000001";
+            string sendTime = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+            AddLog($"{sendTime}发送心跳身份认证数据:flag={flag};putDiv={putDiv}");
+
+            _winSocketHeartbeatRunning = true;
+            try
+            {
+                var result = await Task.Run(() => WinSocketInvoker.SendIdentityHeartbeat(flag, putDiv));
+                string receiveTime = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+                AddLog($"数据连接测试, 接收心跳身份认证数据:{receiveTime}result={result.Code};outRand={result.OutRand};outEndata={result.OutEndata}");
+            }
+            catch (Exception ex)
+            {
+                AddLog($"数据连接测试, 接收心跳身份认证数据:{DateTime.Now:yyyy-MM-dd HH:mm:ss}result=异常;outRand=;outEndata=;error={ex.Message}");
+            }
+            finally
+            {
+                _winSocketHeartbeatRunning = false;
+            }
+        }
+        private void StopWinSocketHeartbeat()
+        {
+            _winSocketHeartbeatTimer.Stop();
+            _winSocketHeartbeatRunning = false;
+        }
+
+        private void ModelMain_FormClosed(object? sender, FormClosedEventArgs e)
+        {
+            StopWinSocketHeartbeat();
+            _winSocketHeartbeatTimer.Tick -= WinSocketHeartbeatTimer_Tick;
+            _winSocketHeartbeatTimer.Dispose();
+        }
         /// <summary>
         /// 加密数据接口
         /// </summary>
@@ -1638,6 +1696,10 @@ namespace ModelTest
         /// <param name="e"></param>
         private void ServerImp_SelectedIndexChanged(object sender, EventArgs e)
         {
+            if (_serverImpUpdating)
+            {
+                return;
+            }
             var description = WinSocketInvoker.GetParameterDescription(ServerImp.SelectedItem as string);
             if (!string.IsNullOrWhiteSpace(description))
             {
@@ -1646,11 +1708,97 @@ namespace ModelTest
         }
         private void CheckItemSetUpFrom()
         {
+            _serverImpCatalogLoaded = false;
+            _serverImpServices.Clear();
 
             ServerImp.SelectedIndexChanged -= ServerImp_SelectedIndexChanged;
-            ServerImp.DataSource = winSocketServer.WinSocketSericeImp();
-            ServerImp.SelectedIndex = -1;
+            ServerImp.DropDown -= ServerImp_DropDown;
+            ServerImp.TextUpdate -= ServerImp_TextUpdate;
+            ServerImp.BeginUpdate();
+            try
+            {
+                ServerImp.DropDownStyle = ComboBoxStyle.DropDown;
+                ServerImp.DataSource = null;
+                ServerImp.Items.Clear();
+                ServerImp.Text = ServerImpPlaceholderText;
+                ServerImp.SelectedIndex = -1;
+            }
+            finally
+            {
+                ServerImp.EndUpdate();
+            }
+
+            ServerImp.DropDown += ServerImp_DropDown;
+            ServerImp.TextUpdate += ServerImp_TextUpdate;
             ServerImp.SelectedIndexChanged += ServerImp_SelectedIndexChanged;
+        }
+        private void ServerImp_DropDown(object? sender, EventArgs e)
+        {
+            var filter = string.Equals(ServerImp.Text, ServerImpPlaceholderText, StringComparison.Ordinal)
+                ? string.Empty
+                : ServerImp.Text;
+            RenderServerImpItems(filter, keepText: false);
+        }
+
+        private void ServerImp_TextUpdate(object? sender, EventArgs e)
+        {
+            if (_serverImpUpdating)
+            {
+                return;
+            }
+
+            RenderServerImpItems(ServerImp.Text, keepText: true);
+            ServerImp.DroppedDown = true;
+            ServerImp.SelectionStart = ServerImp.Text.Length;
+            Cursor.Current = Cursors.Default;
+        }
+
+        private void EnsureServerImpCatalogLoaded()
+        {
+            if (_serverImpCatalogLoaded)
+            {
+                return;
+            }
+
+            _serverImpServices.Clear();
+            _serverImpServices.AddRange(winSocketServer.WinSocketSericeImp());
+            _serverImpCatalogLoaded = true;
+        }
+
+        private void RenderServerImpItems(string filter, bool keepText)
+        {
+            EnsureServerImpCatalogLoaded();
+
+            var currentText = keepText ? ServerImp.Text : string.Empty;
+            var selectionStart = ServerImp.SelectionStart;
+            var items = string.IsNullOrWhiteSpace(filter)
+                ? _serverImpServices.Take(ServerImpLazyPageSize).ToArray()
+                : _serverImpServices
+                    .Where(name => name.Contains(filter, StringComparison.OrdinalIgnoreCase))
+                    .Take(ServerImpLazyPageSize)
+                    .ToArray();
+
+            _serverImpUpdating = true;
+            ServerImp.SelectedIndexChanged -= ServerImp_SelectedIndexChanged;
+            ServerImp.BeginUpdate();
+            try
+            {
+                ServerImp.Items.Clear();
+                ServerImp.Items.AddRange(items);
+                ServerImp.SelectedIndex = -1;
+                if (keepText)
+                {
+                    ServerImp.Text = currentText;
+                    ServerImp.SelectionStart = Math.Min(selectionStart, ServerImp.Text.Length);
+                    ServerImp.SelectionLength = 0;
+                }
+            }
+            finally
+            {
+                ServerImp.EndUpdate();
+                ServerImp.SelectedIndexChanged += ServerImp_SelectedIndexChanged;
+                _serverImpUpdating = false;
+            }
         }
         /// <summary>
         /// textbox只能输入数字
