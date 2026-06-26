@@ -1,5 +1,6 @@
 ﻿using System.ComponentModel;
 using System.Drawing.Drawing2D;
+using ModelTest.Protocol;
 using ModelTest.Tools;
 
 namespace ModelTest.CustomControl
@@ -23,6 +24,7 @@ namespace ModelTest.CustomControl
         private double _displayValue;
         private readonly object _responseLock = new();
         private PendingResponse? _pendingResponse;
+        private ErrorInstrumentProtocolVersion _protocolVersion = ErrorInstrumentProtocolVersion.V1;
 
         public UltrSimpleDisplay()
         {
@@ -48,6 +50,14 @@ namespace ModelTest.CustomControl
         public event Action<string>? LogRequested;
 
         public Func<string>? TerminalAddressProvider { get; set; }
+
+        [Category("Behavior")]
+        [Description("误差仪协议版本。V1 使用 55...AA，V2 使用 55 44...AA BB。")]
+        public ErrorInstrumentProtocolVersion ProtocolVersion
+        {
+            get => _protocolVersion;
+            set => _protocolVersion = value;
+        }
 
         public void HandleReceivedMessage(string messageHex)
         {
@@ -272,24 +282,24 @@ namespace ModelTest.CustomControl
 
                 if (experimentType == "01")
                 {
-                    if (!await SendCommandAndWaitAsync("设置标准表有功脉冲常数", "32", BuildConstantData("01", standardConstant)))
+                    if (!await SendCommandAndWaitAsync("设置标准表有功脉冲常数", GetConstantCommand(), BuildConstantData("01", standardConstant)))
                     {
                         return;
                     }
 
-                    if (!await SendCommandAndWaitAsync("设置待测表有功脉冲常数", "32", BuildConstantData("03", meterConstant)))
+                    if (!await SendCommandAndWaitAsync("设置待测表有功脉冲常数", GetConstantCommand(), BuildConstantData("03", meterConstant)))
                     {
                         return;
                     }
                 }
                 else if (experimentType == "02")
                 {
-                    if (!await SendCommandAndWaitAsync("设置标准表无功脉冲常数", "32", BuildConstantData("02", standardConstant)))
+                    if (!await SendCommandAndWaitAsync("设置标准表无功脉冲常数", GetConstantCommand(), BuildConstantData("02", standardConstant)))
                     {
                         return;
                     }
 
-                    if (!await SendCommandAndWaitAsync("设置待测表无功脉冲常数", "32", BuildConstantData("04", meterConstant)))
+                    if (!await SendCommandAndWaitAsync("设置待测表无功脉冲常数", GetConstantCommand(), BuildConstantData("04", meterConstant)))
                     {
                         return;
                     }
@@ -302,20 +312,20 @@ namespace ModelTest.CustomControl
                         return;
                     }
 
-                    if (!await SendCommandAndWaitAsync("设置时钟频率", "32", BuildConstantData("05", standardConstant)))
+                    if (!await SendCommandAndWaitAsync("设置时钟频率", GetConstantCommand(), BuildConstantData("05", standardConstant)))
                     {
                         return;
                     }
                 }
 
                 string circleData = BuildExperimentData(experimentType, experimentMode, "03", circleCount);
-                if (!await SendCommandAndWaitAsync("设置实验圈数", "2F", circleData, GetExperimentAckPrefix(experimentType, experimentMode, "03")))
+                if (!await SendCommandAndWaitAsync("设置实验圈数", GetExperimentCommand(), circleData, GetExperimentAckPrefix(experimentType, experimentMode, "03")))
                 {
                     return;
                 }
 
                 string startData = BuildExperimentData(experimentType, experimentMode, "01", circleCount);
-                await SendCommandAndWaitAsync("启动误差实验", "2F", startData, GetExperimentAckPrefix(experimentType, experimentMode, "01"));
+                await SendCommandAndWaitAsync("启动误差实验", GetExperimentCommand(), startData, GetExperimentAckPrefix(experimentType, experimentMode, "01"));
             }
             finally
             {
@@ -342,7 +352,7 @@ namespace ModelTest.CustomControl
                 }
 
                 string stopData = BuildExperimentData(experimentType, experimentMode, "02", circleCount);
-                await SendCommandAndWaitAsync("停止误差实验", "2F", stopData, GetExperimentAckPrefix(experimentType, experimentMode, "02"));
+                await SendCommandAndWaitAsync("停止误差实验", GetExperimentCommand(), stopData, GetExperimentAckPrefix(experimentType, experimentMode, "02"));
             }
             finally
             {
@@ -509,9 +519,10 @@ namespace ModelTest.CustomControl
             };
         }
 
-        private static string BuildConstantData(string constantType, uint value)
+        private string BuildConstantData(string constantType, uint value)
         {
-            return constantType + HexConverter.ConvertHex(value.ToString("X"), 4);
+            int byteCount = ProtocolVersion == ErrorInstrumentProtocolVersion.V2 ? 5 : 4;
+            return constantType + HexConverter.ConvertHex(value.ToString("X"), byteCount);
         }
 
         private static string BuildExperimentData(string experimentType, string experimentMode, string action, ushort circleCount)
@@ -527,6 +538,17 @@ namespace ModelTest.CustomControl
         private string BuildMcuMessage(string command, string dataItem)
         {
             string terminalAddress = TerminalAddressProvider?.Invoke() ?? string.Empty;
+            if (ProtocolVersion == ErrorInstrumentProtocolVersion.V2)
+            {
+                byte address = string.IsNullOrWhiteSpace(terminalAddress)
+                    ? (byte)0x01
+                    : new DetectionBoardProtocolV2().ConvertStationDecimalToByte(terminalAddress);
+                byte commandCode = Convert.ToByte(command, 16);
+                byte[] data = ModelTool.HexStringToByteArray(dataItem);
+                byte[] frame = new DetectionBoardProtocolV2().BuildControlFrame(address, deviceType: 2, commandCode, data);
+                return DetectionBoardProtocolV2.ToHexString(frame).Replace(" ", string.Empty);
+            }
+
             string terminalDataLength = HexConverter.ConvertHex(ModelTool.ToHex(2 + 3 + dataItem.Length / 2 + 1), 2);
 
             return TerminalModel.TerminalByte(
@@ -568,6 +590,11 @@ namespace ModelTest.CustomControl
             command = string.Empty;
             dataItem = string.Empty;
 
+            if (TryParseV2Frame(messageHex, out command, out dataItem))
+            {
+                return true;
+            }
+
             if (messageHex.Length < 16 ||
                 !messageHex.StartsWith("55", StringComparison.OrdinalIgnoreCase) ||
                 !messageHex.EndsWith("AA", StringComparison.OrdinalIgnoreCase))
@@ -582,7 +609,7 @@ namespace ModelTest.CustomControl
 
         private void TryDisplayErrorResult(string command, string dataItem)
         {
-            if (!string.Equals(command, "2F", StringComparison.OrdinalIgnoreCase) ||
+            if (!string.Equals(command, GetExperimentCommand(), StringComparison.OrdinalIgnoreCase) ||
                 dataItem.Length < 14 ||
                 !string.Equals(dataItem.Substring(4, 2), "AA", StringComparison.OrdinalIgnoreCase))
             {
@@ -612,6 +639,53 @@ namespace ModelTest.CustomControl
             return new string(message.Where(Uri.IsHexDigit).ToArray()).ToUpperInvariant();
         }
 
+        private string GetExperimentCommand()
+        {
+            return ProtocolVersion == ErrorInstrumentProtocolVersion.V2 ? "3D" : "2F";
+        }
+
+        private string GetConstantCommand()
+        {
+            return ProtocolVersion == ErrorInstrumentProtocolVersion.V2 ? "3E" : "32";
+        }
+
+        private static bool TryParseV2Frame(string messageHex, out string command, out string dataItem)
+        {
+            command = string.Empty;
+            dataItem = string.Empty;
+
+            if (messageHex.Length < 20 ||
+                !messageHex.StartsWith("5544", StringComparison.OrdinalIgnoreCase) ||
+                !messageHex.EndsWith("AABB", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            try
+            {
+                byte[] frameBytes = ModelTool.HexStringToByteArray(messageHex);
+                DetectionBoardProtocolV2 protocol = new();
+                if (!protocol.TryParseFrame(frameBytes, out DetectionBoardProtocolV2Frame? frame, out _))
+                {
+                    return false;
+                }
+
+                command = frame!.CommandCode.ToString("X2");
+                dataItem = BitConverter.ToString(frame.Data).Replace("-", string.Empty);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         private sealed record PendingResponse(string Command, string DataPrefix, TaskCompletionSource<string> TaskSource);
+    }
+
+    public enum ErrorInstrumentProtocolVersion
+    {
+        V1,
+        V2
     }
 }

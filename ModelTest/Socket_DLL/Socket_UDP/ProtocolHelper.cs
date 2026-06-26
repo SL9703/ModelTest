@@ -5,6 +5,8 @@ using System.Linq;
 using System.IO.Ports;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 using ModelTest.Tools;
 
@@ -13,10 +15,20 @@ namespace ModelTest.Socket_DLL.Socket_UDP
     public static class ProtocolHelper
     {
         private static readonly string ConfigPath = Path.Combine(Application.StartupPath, "XCKJcomfig.ini");
+        private static readonly string PcbConfigPath = Path.Combine(Application.StartupPath, "PcbCommunicationConfig.ini");
         private const string TaiTiNoSection = "TaiTiNo";
         private const string SgccTaiTiNoKey = "SGCCTaitiNo";
         private const string DefaultSgccTaiTiNo = "xxxxxxxxxxxxxx";
+        private const string Pcb0401Section = "0401PostSend";
+        private const string Pcb0401AfterResponseDelayKey = "AfterResponseDelayMs";
+        private const int PcbCommunicationMethod = 6;
+        private const int PcbBroadcastCommunicationMethod = 7;
+        private const int DefaultPcbPowerOnAfterResponseDelayMs = 100;
+        private const int DefaultPcbIndex = 1;
         private static Func<string?, int, int, string, Task<(bool Success, string CallResult)>>? _messageSender;
+        private static readonly Channel<List<string>> PcbPowerOnQueue = Channel.CreateUnbounded<List<string>>(
+            new UnboundedChannelOptions { SingleReader = true, SingleWriter = false });
+        private static int _pcbPowerOnQueueStarted;
         private static readonly XYCtr SourceController = new XYCtr();
         public static void RegisterMessageSender(Func<string?, int, int, string, Task<(bool Success, string CallResult)>> messageSender)
         {
@@ -196,6 +208,8 @@ namespace ModelTest.Socket_DLL.Socket_UDP
                         return Process0510(dataList);
                     case "0301":
                         return await Process0301Async(dataList).ConfigureAwait(false);
+                    case "0401":
+                        return Process0401(dataList);
                     case "1001":
                         await Process1001Async(clientId, dataList);
                         return string.Empty;
@@ -381,6 +395,171 @@ namespace ModelTest.Socket_DLL.Socket_UDP
                 LogMessage.Error("0104参数配置处理异常", ex);
                 return EncodeReturnData("0104", 1, null);
             }
+        }
+
+        /// <summary>
+        /// 处理 0401 初始化台体表位。
+        /// 收到后先直接回复成功，具体业务后续补充。
+        /// </summary>
+        private static string Process0401(List<string> dataList)
+        {
+            try
+            {
+                LogMessage.Info($"0401初始化台体表位命令已收到，data={string.Join(";", dataList ?? [])}");
+                return EncodeReturnData("0401", 0, null);
+            }
+            catch (Exception ex)
+            {
+                LogMessage.Error("0401初始化台体表位处理异常", ex);
+                return EncodeReturnData("0401", 1, null);
+            }
+        }
+
+        public static void Execute0401PostReplyBusiness(string receiveData)
+        {
+            var (_, dataList) = ParseReceiveData(receiveData);
+            if (dataList == null)
+            {
+                return;
+            }
+
+            Ensure0401QueueConsumerStarted();
+            if (!PcbPowerOnQueue.Writer.TryWrite(new List<string>(dataList)))
+            {
+                LogMessage.Info("0401后置PCB任务入队失败");
+            }
+        }
+
+        private static void Ensure0401QueueConsumerStarted()
+        {
+            if (Interlocked.CompareExchange(ref _pcbPowerOnQueueStarted, 1, 0) != 0)
+            {
+                return;
+            }
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await foreach (var dataList in PcbPowerOnQueue.Reader.ReadAllAsync().ConfigureAwait(false))
+                    {
+                        await SendPcbPowerOnAfter0401Async(dataList).ConfigureAwait(false);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    LogMessage.Error("0401后置PCB队列消费者异常", ex);
+                }
+            });
+        }
+
+        private static async Task SendPcbPowerOnAfter0401Async(List<string> dataList)
+        {
+            if (_messageSender == null)
+            {
+                LogMessage.Info("0401后置PCB上电失败: 发送器未注册");
+                return;
+            }
+
+            var pcbPowerOnMessages = BuildPcbPowerOnMessages(dataList);
+            bool isBroadcast = IsPcbBroadcastData(dataList);
+            int communicationMethod = isBroadcast
+                ? PcbBroadcastCommunicationMethod
+                : PcbCommunicationMethod;
+
+            if (isBroadcast)
+            {
+                string broadcastMessage = string.Concat(pcbPowerOnMessages);
+                var result = await _messageSender(null, DefaultPcbIndex, communicationMethod, broadcastMessage).ConfigureAwait(false);
+                if (!result.Success)
+                {
+                    LogMessage.Info($"0401后置PCB广播上电命令发送失败: {result.CallResult}");
+                    return;
+                }
+
+                LogMessage.Info("0401后置PCB广播上电命令发送成功");
+                return;
+            }
+
+            string pcbPowerOnMessage = string.Concat(pcbPowerOnMessages);
+            var sendResult = await _messageSender(null, DefaultPcbIndex, communicationMethod, pcbPowerOnMessage).ConfigureAwait(false);
+            if (sendResult.Success)
+            {
+                LogMessage.Info($"0401后置PCB上电命令发送成功: {sendResult.CallResult}");
+                await Task.Delay(GetPcbPowerOnAfterResponseDelayMs()).ConfigureAwait(false);
+                return;
+            }
+
+            LogMessage.Info($"0401后置PCB上电命令发送失败: {sendResult.CallResult}");
+        }
+
+        private static List<string> BuildPcbPowerOnMessages(List<string> dataList)
+        {
+            if (dataList.Count < 2)
+            {
+                throw new ArgumentException("0401数据项不足，无法生成PCB表位上电命令");
+            }
+
+            string addressByte = ToOneByteHex(dataList[0]);
+            string powerByte = dataList[1].Trim() == "1" ? "07" : "00";
+            string voltageMessage = BuildPcbFrame(addressByte, "21", powerByte);
+            string currentMessage = BuildPcbFrame(addressByte, "22", powerByte);
+            return new List<string> { voltageMessage, currentMessage };
+        }
+
+        private static string BuildPcbFrame(string addressByte, string command, string dataByte)
+        {
+            string frameBody = $"0700{addressByte}00{command}{dataByte}";
+            string checksum = MessagesCheckSum.CalculateChecksum(frameBody);
+            return $"55{frameBody}{checksum}AA";
+        }
+
+        private static bool IsPcbBroadcastData(List<string> dataList)
+        {
+            return dataList.Count > 0 && dataList[0].Trim() == "0";
+        }
+
+        private static int GetPcbPowerOnAfterResponseDelayMs()
+        {
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(PcbConfigPath) ?? Application.StartupPath);
+                string configuredDelay = Confighelper
+                    .ReadIni(Pcb0401Section, Pcb0401AfterResponseDelayKey, "", 255, PcbConfigPath)
+                    .Trim();
+
+                if (int.TryParse(configuredDelay, out int delayMs) && delayMs >= 0)
+                {
+                    return delayMs;
+                }
+
+                Confighelper.WriteIni(
+                    Pcb0401Section,
+                    Pcb0401AfterResponseDelayKey,
+                    DefaultPcbPowerOnAfterResponseDelayMs.ToString(CultureInfo.InvariantCulture),
+                    PcbConfigPath);
+            }
+            catch (Exception ex)
+            {
+                LogMessage.Error("读取0401后置PCB发送延迟配置异常", ex);
+            }
+
+            return DefaultPcbPowerOnAfterResponseDelayMs;
+        }
+
+        private static string ToOneByteHex(string value)
+        {
+            if (!int.TryParse(value?.Trim(), out int number) || number < 0 || number > 255)
+            {
+                throw new ArgumentException($"表位号无效: {value}");
+            }
+
+            if (number == 0)
+            {
+                return "FF";
+            }
+
+            return number.ToString("X2", CultureInfo.InvariantCulture);
         }
 
         /// <summary>

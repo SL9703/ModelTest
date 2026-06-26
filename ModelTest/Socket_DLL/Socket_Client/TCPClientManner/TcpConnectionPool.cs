@@ -18,6 +18,7 @@ namespace ModelTest.Socket_DLL.Socket_Client.TCPClientManner
         private BatchTcpClientManager _clientManager;
 
         private ConcurrentDictionary<string, string> _addressToConnectionId; // 地址 -> 连接ID
+        private ConcurrentDictionary<string, string> _nameToConnectionId; // 名称 -> 连接ID
         private ConcurrentDictionary<string, ConnectionInfo> _connectionInfoMap; // 连接ID -> 详细信息
 
         //private HashSet<string> _connectedAddresses; // 存储已连接的地址
@@ -31,6 +32,7 @@ namespace ModelTest.Socket_DLL.Socket_Client.TCPClientManner
             _clientManager.EnableHeartbeat = true;
             _clientManager.ConnectionStatusChanged += OnConnectionStatusChanged;
             _addressToConnectionId = new ConcurrentDictionary<string, string>();
+            _nameToConnectionId = new ConcurrentDictionary<string, string>();
             _connectionInfoMap = new ConcurrentDictionary<string, ConnectionInfo>();
             //_connectedAddresses = new HashSet<string>();
         }
@@ -63,7 +65,9 @@ namespace ModelTest.Socket_DLL.Socket_Client.TCPClientManner
             if (_addressToConnectionId.ContainsKey(addressKey))
             {
                 LogMessage.SocketLog($"连接 {addressKey} 已存在，跳过创建");
-                return _addressToConnectionId[addressKey];
+                string existingConnectionId = _addressToConnectionId[addressKey];
+                _nameToConnectionId[name] = existingConnectionId;
+                return existingConnectionId;
             }
 
             // 创建新连接
@@ -73,6 +77,7 @@ namespace ModelTest.Socket_DLL.Socket_Client.TCPClientManner
             {
                 string connectionId = results.First();
                 _addressToConnectionId[addressKey] = connectionId;
+                _nameToConnectionId[name] = connectionId;
                 _connectionInfoMap[connectionId] = new ConnectionInfo
                 {
                     ConnectionId = connectionId,
@@ -92,15 +97,23 @@ namespace ModelTest.Socket_DLL.Socket_Client.TCPClientManner
         public async Task<List<string>> AddConnectionsBatchAsync(List<(string ip, int port, string name)> connections)
         {
             var newConnections = new List<(string ip, int port, string name)>();
+            var seenAddresses = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             foreach (var conn in connections)
             {
                 string addressKey = $"{conn.ip}:{conn.port}";
-                if (!_addressToConnectionId.ContainsKey(addressKey))
+                if (_addressToConnectionId.TryGetValue(addressKey, out string existingConnectionId))
                 {
-                    newConnections.Add(conn);
+                    _nameToConnectionId[conn.name] = existingConnectionId;
+                    continue;
                 }
 
+                if (!seenAddresses.Add(addressKey))
+                {
+                    continue;
+                }
+
+                newConnections.Add(conn);
             }
 
             if (newConnections.Any())
@@ -110,6 +123,11 @@ namespace ModelTest.Socket_DLL.Socket_Client.TCPClientManner
                 {
                     string addressKey = $"{newConnections[i].ip}:{newConnections[i].port}";
                     _addressToConnectionId[addressKey] = results[i];
+                    foreach (var alias in connections.Where(conn => $"{conn.ip}:{conn.port}" == addressKey))
+                    {
+                        _nameToConnectionId[alias.name] = results[i];
+                    }
+
                     _connectionInfoMap[results[i]] = new ConnectionInfo
                     {
                         ConnectionId = results[i],
@@ -150,23 +168,34 @@ namespace ModelTest.Socket_DLL.Socket_Client.TCPClientManner
         /// </summary>
         public async Task<bool> SendToServerByNameAsync(string name, string message)
         {
+            if (_nameToConnectionId.TryGetValue(name, out string connectionId))
+            {
+                return await _clientManager.SendAsync(connectionId, message);
+            }
+
             var connection = _connectionInfoMap.Values.FirstOrDefault(c => c.Name == name);
             if (connection != null)
             {
+                _nameToConnectionId[name] = connection.ConnectionId;
                 return await _clientManager.SendAsync(connection.ConnectionId, message);
             }
-            else
-            {
-                LogMessage.SocketLog($"未找到名称为 '{name}' 的连接");
-                return false;
-            }
+
+            LogMessage.SocketLog($"未找到名称为 '{name}' 的连接");
+            return false;
         }
 
         public async Task<bool> SendHexToServerByNameAsync(string name, string hexMessage)
         {
+            if (_nameToConnectionId.TryGetValue(name, out string connectionId))
+            {
+                byte[] data = ModelTool.HexStringToByteArray(hexMessage);
+                return await _clientManager.SendBytesAsync(connectionId, data);
+            }
+
             var connection = _connectionInfoMap.Values.FirstOrDefault(c => c.Name == name);
             if (connection != null)
             {
+                _nameToConnectionId[name] = connection.ConnectionId;
                 byte[] data = ModelTool.HexStringToByteArray(hexMessage);
                 return await _clientManager.SendBytesAsync(connection.ConnectionId, data);
             }
@@ -336,7 +365,31 @@ namespace ModelTest.Socket_DLL.Socket_Client.TCPClientManner
         /// </summary>
         public ConnectionInfo GetConnectionByName(string name)
         {
+            if (_nameToConnectionId.TryGetValue(name, out string connectionId) &&
+                _connectionInfoMap.TryGetValue(connectionId, out var connection))
+            {
+                return connection;
+            }
+
             return _connectionInfoMap.Values.FirstOrDefault(c => c.Name == name);
+        }
+
+        public List<string> GetConnectionNamesById(string connectionId)
+        {
+            var names = _nameToConnectionId
+                .Where(pair => string.Equals(pair.Value, connectionId, StringComparison.OrdinalIgnoreCase))
+                .Select(pair => pair.Key)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (names.Count == 0 &&
+                _connectionInfoMap.TryGetValue(connectionId, out var connection) &&
+                !string.IsNullOrWhiteSpace(connection.Name))
+            {
+                names.Add(connection.Name);
+            }
+
+            return names;
         }
         #endregion
 
@@ -357,6 +410,14 @@ namespace ModelTest.Socket_DLL.Socket_Client.TCPClientManner
 
             if (_addressToConnectionId.TryRemove(addressKey, out string connectionId))
             {
+                var namesToRemove = _nameToConnectionId
+                    .Where(pair => string.Equals(pair.Value, connectionId, StringComparison.OrdinalIgnoreCase))
+                    .Select(pair => pair.Key)
+                    .ToList();
+                foreach (var name in namesToRemove)
+                {
+                    _nameToConnectionId.TryRemove(name, out _);
+                }
                 _connectionInfoMap.TryRemove(connectionId, out _);
                 _clientManager.RemoveConnection(connectionId);
             }
@@ -366,12 +427,14 @@ namespace ModelTest.Socket_DLL.Socket_Client.TCPClientManner
         {
             _clientManager.DisconnectAll();
         }
+
         public void StopAndClearAll()
         {
             _clientManager.EnableAutoReconnect = false;
             _clientManager.EnableHeartbeat = false;
             _clientManager.ClearAllConnections();
             _addressToConnectionId.Clear();
+            _nameToConnectionId.Clear();
             _connectionInfoMap.Clear();
         }
         #endregion

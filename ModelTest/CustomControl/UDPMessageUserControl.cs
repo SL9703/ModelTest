@@ -28,12 +28,18 @@ namespace ModelTest.CustomControl
         private const string StationCountConfigKey = "BWNumbers";
         private const string UdpServerListenSection = "UDPServerListen";
         private const string UdpListenIpKey = "udpip";
+        private const string UdpListenPortKey = "udpport";
         private const string DefaultUdpListenIp = "127.0.0.1";
+        private const int DefaultUdpListenPort = 10001;
         private OptimizedUdpServer? _udpServer;
         private readonly SynchronizationContext _uiContext;
         private readonly TcpConnectionPool connectionPool;
         private System.Timers.Timer? _logTimer;
         private bool _autoScrollLog = true;
+        private const int PcbCommunicationMethod = 6;
+        private const int PcbBroadcastCommunicationMethod = 7;
+        private const int PcbResponseTimeoutMs = 5000;
+        private readonly ConcurrentDictionary<string, List<string>> _tcpReceiveCache = new();
         private static readonly (string Section, string KeyPrefix)[] DefaultTcpConfigKeys =
         [
             ("232", "232_No_"),
@@ -48,6 +54,7 @@ namespace ModelTest.CustomControl
             InitializeComponent();
             LoadStationCountConfig();
             EnsureDefaultConfig();
+            LoadUdpListenConfig();
             NUDBWNumbers.ValueChanged += NUDBWNumbers_ValueChanged;
             this.BackColor = Color.FromArgb(88, 149, 127);
             //InitializeUdpServer(10001);
@@ -145,6 +152,32 @@ namespace ModelTest.CustomControl
             {
                 Confighelper.WriteIni(UdpServerListenSection, UdpListenIpKey, DefaultUdpListenIp, configpath);
             }
+
+            string port = Confighelper
+                .ReadIni(UdpServerListenSection, UdpListenPortKey, "", 255, configpath)
+                .Trim();
+
+            if (!int.TryParse(port, out int portValue) || portValue <= 0 || portValue > 65535)
+            {
+                Confighelper.WriteIni(UdpServerListenSection, UdpListenPortKey, DefaultUdpListenPort.ToString(), configpath);
+            }
+        }
+
+        private void LoadUdpListenConfig()
+        {
+            string port = Confighelper
+                .ReadIni(UdpServerListenSection, UdpListenPortKey, "", 255, configpath)
+                .Trim();
+
+            tbx_UDPServerport.Text = int.TryParse(port, out int portValue) && portValue > 0 && portValue <= 65535
+                ? portValue.ToString()
+                : DefaultUdpListenPort.ToString();
+        }
+
+        private void SaveUdpListenConfig(string ip, int port)
+        {
+            Confighelper.WriteIni(UdpServerListenSection, UdpListenIpKey, ip, configpath);
+            Confighelper.WriteIni(UdpServerListenSection, UdpListenPortKey, port.ToString(), configpath);
         }
 
 
@@ -156,10 +189,16 @@ namespace ModelTest.CustomControl
         private async void btnUDPServerListen_Click(object sender, EventArgs e)
         {
             string _ip = GetUdpListenIp();
-            int _udpPort = int.Parse(tbx_UDPServerport.Text.Trim());//udp 端口
+            if (!int.TryParse(tbx_UDPServerport.Text.Trim(), out int _udpPort) || _udpPort <= 0 || _udpPort > 65535)
+            {
+                _udpPort = DefaultUdpListenPort;
+                tbx_UDPServerport.Text = _udpPort.ToString();
+            }
+
+            SaveUdpListenConfig(_ip, _udpPort);
             InitializeUdpServer(_ip, _udpPort);
             connectionPool.Manager.EnableAutoReconnect = true;
-            connectionPool.Manager.EnableHeartbeat = true;
+            connectionPool.Manager.EnableHeartbeat = false;
 
             // 更新配置
             if (_udpServer == null)
@@ -289,12 +328,31 @@ namespace ModelTest.CustomControl
                 return (false, $"未找到配置连接: {connectionName}");
             }
 
+            bool waitForPcbResponse = communicationMethod == PcbCommunicationMethod;
+            if (waitForPcbResponse)
+            {
+                ClearTcpReceiveCache(connection.ConnectionId);
+            }
+
             bool success = await connectionPool.SendHexToServerByNameAsync(connectionName, msg);
 
             if (success)
             {
                 string resultText = $"发送到 {connectionName} ({connection.Endpoint}): {msg}";
                 OnUpdateRequested_UDPMessage?.Invoke(resultText);
+                if (waitForPcbResponse)
+                {
+                    bool responseMatched = await WaitForTcpReceiveContainsAsync(connection.ConnectionId, msg, PcbResponseTimeoutMs);
+                    if (!responseMatched)
+                    {
+                        string timeoutText = $"等待PCB回包超时: {connectionName} ({connection.Endpoint}) 未收到 {msg}";
+                        OnUpdateRequested_UDPMessage?.Invoke(timeoutText);
+                        return (false, timeoutText);
+                    }
+
+                    resultText = $"{resultText}，已收到匹配回包";
+                }
+
                 return (true, resultText);
             }
 
@@ -310,6 +368,8 @@ namespace ModelTest.CustomControl
                 0 => $"232_No_{meterPos}",
                 1 => $"485_1No_{meterPos}",
                 5 => $"485_2No_{meterPos}",
+                PcbCommunicationMethod => $"xckjpcbCtrl_{meterPos}",
+                PcbBroadcastCommunicationMethod => $"xckjpcbCtrl_{meterPos}",
                 _ => null
             };
         }
@@ -343,11 +403,16 @@ namespace ModelTest.CustomControl
             // 获取连接信息
             var server = connectionPool.GetAllConnectionInfos()
                 .FirstOrDefault(s => s.ConnectionId == e.ConnectionId);
-            string serverName = server?.Name ?? e.ConnectionId;
+            List<string> serverNames = connectionPool.GetConnectionNamesById(e.ConnectionId);
+            string serverName = serverNames.FirstOrDefault() ?? server?.Name ?? e.ConnectionId;
+            string displayName = serverNames.Count > 1
+                ? $"{serverName}({string.Join(",", serverNames)})"
+                : serverName;
             string hexMessage = NormalizeServerHexPayload(e.RawData);
+            AppendTcpReceiveCache(e.ConnectionId, hexMessage);
             _uiContext.Post(_ =>
             {
-                OnUpdateRequested_UDPMessage?.Invoke($"[收到] {serverName}: {hexMessage}");
+                OnUpdateRequested_UDPMessage?.Invoke($"[收到] {displayName}: {hexMessage}");
             }, null);
 
             if ((serverName.StartsWith("485_1No_") || serverName.StartsWith("485_2No_")) && _udpServer != null)
@@ -361,6 +426,73 @@ namespace ModelTest.CustomControl
                 int forwardedCount = await _udpServer.BroadcastAsync(ret);
                 LogMessage.Info($"{cmd}通道数据已广播到上层客户端，来源={serverName}，客户端数={forwardedCount}");
             }
+        }
+
+        private void AppendTcpReceiveCache(string serverName, string hexMessage)
+        {
+            if (string.IsNullOrWhiteSpace(serverName) || string.IsNullOrWhiteSpace(hexMessage))
+            {
+                return;
+            }
+
+            var cache = _tcpReceiveCache.GetOrAdd(serverName, _ => new List<string>());
+            lock (cache)
+            {
+                cache.Add(hexMessage);
+                if (cache.Count > 200)
+                {
+                    cache.RemoveRange(0, cache.Count - 200);
+                }
+            }
+        }
+
+        private void ClearTcpReceiveCache(string serverName)
+        {
+            if (string.IsNullOrWhiteSpace(serverName))
+            {
+                return;
+            }
+
+            var cache = _tcpReceiveCache.GetOrAdd(serverName, _ => new List<string>());
+            lock (cache)
+            {
+                cache.Clear();
+            }
+        }
+
+        private async Task<bool> WaitForTcpReceiveContainsAsync(string serverName, string expectedHex, int timeoutMs)
+        {
+            string expected = NormalizeHexText(expectedHex);
+            DateTime deadline = DateTime.Now.AddMilliseconds(timeoutMs);
+
+            while (DateTime.Now < deadline)
+            {
+                if (_tcpReceiveCache.TryGetValue(serverName, out var cache))
+                {
+                    lock (cache)
+                    {
+                        string receivedStream = string.Concat(cache.Select(NormalizeHexText));
+                        if (receivedStream.Contains(expected, StringComparison.OrdinalIgnoreCase))
+                        {
+                            return true;
+                        }
+                    }
+                }
+
+                await Task.Delay(50);
+            }
+
+            return false;
+        }
+
+        private static string NormalizeHexText(string hexText)
+        {
+            return (hexText ?? string.Empty)
+                .Replace(" ", string.Empty)
+                .Replace("\t", string.Empty)
+                .Replace("\r", string.Empty)
+                .Replace("\n", string.Empty)
+                .ToUpperInvariant();
         }
 
         private static string Trim645Frame(string hexMessage)

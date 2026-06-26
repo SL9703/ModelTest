@@ -40,7 +40,7 @@ namespace ModelTest.Socket_DLL.Socket_Client.TCPClientManner
         public int HeartbeatInterval { get; set; } = 30000;
         public int ReceiveTimeout { get; set; } = 30000;
         public int SendTimeout { get; set; } = 30000;
-        public bool EnableHeartbeat { get; set; } = true;
+        public bool EnableHeartbeat { get; set; } = false;
         public string HeartbeatMessage { get; set; } = "PING";
         #endregion
 

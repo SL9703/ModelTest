@@ -102,6 +102,7 @@ namespace ModelTest
         private DatabaseTestForm? _databaseTestForm;
         private LinuxCommandForm? _linuxCommandForm;
         private ProtocolParserForm? _protocolParserForm;
+        private TerminalV2UserControl? _terminalV2UserControl;
         public ModelMain()
         {
             InitializeComponent();
@@ -125,7 +126,11 @@ namespace ModelTest
             _terminalV1YXUserControl.OnUpdateRequestedTYXLog += MyControl_OnUpdateRequested;
             tabPage10.Controls.Add(_terminalV1YXUserControl);
             _terminalV1YXUserControl.Dock = DockStyle.Fill;
-
+            //终端V2界面初始化
+            _terminalV2UserControl = new TerminalV2UserControl();
+            _terminalV2UserControl.OnUpdateRequestedTerminalV2Log += MyControl_OnUpdateRequested;
+            tabPage5.Controls.Add(_terminalV2UserControl);
+            _terminalV2UserControl.Dock = DockStyle.Fill;
             //电表V1界面初始化
             _MeterV1UserControl = new ElectricEnergyMeterControlV1();
             _MeterV1UserControl.OnUpdateRequested_MeterV1 += MyControl_OnUpdateRequested;

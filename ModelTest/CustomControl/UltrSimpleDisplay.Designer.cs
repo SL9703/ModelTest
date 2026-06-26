@@ -58,19 +58,19 @@
             errorPanel.BackColor = Color.FromArgb(88, 149, 127);
             errorPanel.Controls.Add(errorLayout);
             errorPanel.Dock = DockStyle.Bottom;
-            errorPanel.Location = new Point(12, 218);
+            errorPanel.Location = new Point(12, 252);
             errorPanel.Name = "errorPanel";
-            errorPanel.Padding = new Padding(8, 5, 8, 7);
-            errorPanel.Size = new Size(836, 122);
+            errorPanel.Padding = new Padding(8, 8, 8, 10);
+            errorPanel.Size = new Size(976, 138);
             errorPanel.TabIndex = 0;
             // 
             // errorLayout
             // 
             errorLayout.ColumnCount = 4;
-            errorLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25F));
-            errorLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25F));
-            errorLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25F));
-            errorLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25F));
+            errorLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 170F));
+            errorLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 170F));
+            errorLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 170F));
+            errorLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 430F));
             errorLayout.Controls.Add(labelErrorClass, 0, 0);
             errorLayout.Controls.Add(cbxErrorTextClass, 0, 1);
             errorLayout.Controls.Add(labelErrorMode, 1, 0);
@@ -88,14 +88,14 @@
             errorLayout.Controls.Add(labelOperation, 3, 2);
             errorLayout.Controls.Add(operationPanel, 3, 3);
             errorLayout.Dock = DockStyle.Fill;
-            errorLayout.Location = new Point(8, 5);
+            errorLayout.Location = new Point(8, 8);
             errorLayout.Name = "errorLayout";
             errorLayout.RowCount = 4;
-            errorLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 23F));
-            errorLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32F));
-            errorLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 23F));
-            errorLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32F));
-            errorLayout.Size = new Size(820, 110);
+            errorLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 28F));
+            errorLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 36F));
+            errorLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 28F));
+            errorLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 36F));
+            errorLayout.Size = new Size(960, 120);
             errorLayout.TabIndex = 0;
             // 
             // labelErrorClass
@@ -107,7 +107,7 @@
             labelErrorClass.Location = new Point(8, 0);
             labelErrorClass.Margin = new Padding(8, 0, 4, 0);
             labelErrorClass.Name = "labelErrorClass";
-            labelErrorClass.Size = new Size(96, 23);
+            labelErrorClass.Size = new Size(60, 20);
             labelErrorClass.TabIndex = 0;
             labelErrorClass.Text = "实验类型";
             // 
@@ -118,10 +118,10 @@
             cbxErrorTextClass.Font = new Font("Microsoft YaHei UI", 9.5F, FontStyle.Regular, GraphicsUnit.Point, 134);
             cbxErrorTextClass.FormattingEnabled = true;
             cbxErrorTextClass.Items.AddRange(new object[] { "有功", "无功", "日记时" });
-            cbxErrorTextClass.Location = new Point(8, 26);
+            cbxErrorTextClass.Location = new Point(8, 31);
             cbxErrorTextClass.Margin = new Padding(8, 3, 10, 2);
             cbxErrorTextClass.Name = "cbxErrorTextClass";
-            cbxErrorTextClass.Size = new Size(187, 38);
+            cbxErrorTextClass.Size = new Size(152, 31);
             cbxErrorTextClass.TabIndex = 1;
             // 
             // labelErrorMode
@@ -130,10 +130,10 @@
             labelErrorMode.AutoSize = true;
             labelErrorMode.Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Regular, GraphicsUnit.Point, 134);
             labelErrorMode.ForeColor = Color.Red;
-            labelErrorMode.Location = new Point(213, 0);
+            labelErrorMode.Location = new Point(178, 0);
             labelErrorMode.Margin = new Padding(8, 0, 4, 0);
             labelErrorMode.Name = "labelErrorMode";
-            labelErrorMode.Size = new Size(96, 23);
+            labelErrorMode.Size = new Size(60, 20);
             labelErrorMode.TabIndex = 2;
             labelErrorMode.Text = "实验方式";
             // 
@@ -144,10 +144,10 @@
             cbxErrorTest.Font = new Font("Microsoft YaHei UI", 9.5F, FontStyle.Regular, GraphicsUnit.Point, 134);
             cbxErrorTest.FormattingEnabled = true;
             cbxErrorTest.Items.AddRange(new object[] { "电脉冲", "蓝牙脉冲", "光脉冲" });
-            cbxErrorTest.Location = new Point(213, 26);
+            cbxErrorTest.Location = new Point(178, 31);
             cbxErrorTest.Margin = new Padding(8, 3, 10, 2);
             cbxErrorTest.Name = "cbxErrorTest";
-            cbxErrorTest.Size = new Size(187, 38);
+            cbxErrorTest.Size = new Size(152, 31);
             cbxErrorTest.TabIndex = 3;
             // 
             // labelVoltage
@@ -156,10 +156,10 @@
             labelVoltage.AutoSize = true;
             labelVoltage.Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Regular, GraphicsUnit.Point, 134);
             labelVoltage.ForeColor = Color.Red;
-            labelVoltage.Location = new Point(418, 0);
+            labelVoltage.Location = new Point(348, 0);
             labelVoltage.Margin = new Padding(8, 0, 4, 0);
             labelVoltage.Name = "labelVoltage";
-            labelVoltage.Size = new Size(82, 23);
+            labelVoltage.Size = new Size(64, 20);
             labelVoltage.TabIndex = 4;
             labelVoltage.Text = "电压(V)";
             // 
@@ -167,10 +167,10 @@
             // 
             tbxVoltage.Anchor = AnchorStyles.Left | AnchorStyles.Right;
             tbxVoltage.Font = new Font("Microsoft YaHei UI", 9.5F, FontStyle.Regular, GraphicsUnit.Point, 134);
-            tbxVoltage.Location = new Point(418, 26);
+            tbxVoltage.Location = new Point(348, 31);
             tbxVoltage.Margin = new Padding(8, 3, 10, 2);
             tbxVoltage.Name = "tbxVoltage";
-            tbxVoltage.Size = new Size(187, 36);
+            tbxVoltage.Size = new Size(152, 30);
             tbxVoltage.TabIndex = 5;
             tbxVoltage.TextChanged += VoltageOrCurrent_TextChanged;
             // 
@@ -180,10 +180,10 @@
             labelCurrent.AutoSize = true;
             labelCurrent.Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Regular, GraphicsUnit.Point, 134);
             labelCurrent.ForeColor = Color.Red;
-            labelCurrent.Location = new Point(623, 0);
+            labelCurrent.Location = new Point(518, 0);
             labelCurrent.Margin = new Padding(8, 0, 4, 0);
             labelCurrent.Name = "labelCurrent";
-            labelCurrent.Size = new Size(83, 23);
+            labelCurrent.Size = new Size(65, 20);
             labelCurrent.TabIndex = 6;
             labelCurrent.Text = "电流(A)";
             // 
@@ -191,10 +191,10 @@
             // 
             tbxCurrent.Anchor = AnchorStyles.Left | AnchorStyles.Right;
             tbxCurrent.Font = new Font("Microsoft YaHei UI", 9.5F, FontStyle.Regular, GraphicsUnit.Point, 134);
-            tbxCurrent.Location = new Point(623, 26);
+            tbxCurrent.Location = new Point(518, 31);
             tbxCurrent.Margin = new Padding(8, 3, 10, 2);
             tbxCurrent.Name = "tbxCurrent";
-            tbxCurrent.Size = new Size(187, 36);
+            tbxCurrent.Size = new Size(112, 30);
             tbxCurrent.TabIndex = 7;
             tbxCurrent.TextChanged += VoltageOrCurrent_TextChanged;
             // 
@@ -204,10 +204,10 @@
             labelStandardConstant.AutoSize = true;
             labelStandardConstant.Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Regular, GraphicsUnit.Point, 134);
             labelStandardConstant.ForeColor = Color.Red;
-            labelStandardConstant.Location = new Point(8, 55);
+            labelStandardConstant.Location = new Point(8, 64);
             labelStandardConstant.Margin = new Padding(8, 0, 4, 0);
             labelStandardConstant.Name = "labelStandardConstant";
-            labelStandardConstant.Size = new Size(117, 23);
+            labelStandardConstant.Size = new Size(80, 20);
             labelStandardConstant.TabIndex = 8;
             labelStandardConstant.Text = "标准表常数";
             // 
@@ -215,10 +215,10 @@
             // 
             tbxBZBC.Anchor = AnchorStyles.Left | AnchorStyles.Right;
             tbxBZBC.Font = new Font("Microsoft YaHei UI", 9.5F, FontStyle.Regular, GraphicsUnit.Point, 134);
-            tbxBZBC.Location = new Point(8, 81);
+            tbxBZBC.Location = new Point(8, 95);
             tbxBZBC.Margin = new Padding(8, 3, 10, 2);
             tbxBZBC.Name = "tbxBZBC";
-            tbxBZBC.Size = new Size(187, 36);
+            tbxBZBC.Size = new Size(152, 30);
             tbxBZBC.TabIndex = 9;
             // 
             // labelMeterConstant
@@ -227,10 +227,10 @@
             labelMeterConstant.AutoSize = true;
             labelMeterConstant.Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Regular, GraphicsUnit.Point, 134);
             labelMeterConstant.ForeColor = Color.Red;
-            labelMeterConstant.Location = new Point(213, 55);
+            labelMeterConstant.Location = new Point(178, 64);
             labelMeterConstant.Margin = new Padding(8, 0, 4, 0);
             labelMeterConstant.Name = "labelMeterConstant";
-            labelMeterConstant.Size = new Size(117, 23);
+            labelMeterConstant.Size = new Size(80, 20);
             labelMeterConstant.TabIndex = 10;
             labelMeterConstant.Text = "电能表常数";
             // 
@@ -238,10 +238,10 @@
             // 
             tbxDNBC.Anchor = AnchorStyles.Left | AnchorStyles.Right;
             tbxDNBC.Font = new Font("Microsoft YaHei UI", 9.5F, FontStyle.Regular, GraphicsUnit.Point, 134);
-            tbxDNBC.Location = new Point(213, 81);
+            tbxDNBC.Location = new Point(178, 95);
             tbxDNBC.Margin = new Padding(8, 3, 10, 2);
             tbxDNBC.Name = "tbxDNBC";
-            tbxDNBC.Size = new Size(187, 36);
+            tbxDNBC.Size = new Size(152, 30);
             tbxDNBC.TabIndex = 11;
             // 
             // labelClockCircle
@@ -250,10 +250,10 @@
             labelClockCircle.AutoSize = true;
             labelClockCircle.Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Regular, GraphicsUnit.Point, 134);
             labelClockCircle.ForeColor = Color.Red;
-            labelClockCircle.Location = new Point(418, 55);
+            labelClockCircle.Location = new Point(348, 64);
             labelClockCircle.Margin = new Padding(8, 0, 4, 0);
             labelClockCircle.Name = "labelClockCircle";
-            labelClockCircle.Size = new Size(54, 23);
+            labelClockCircle.Size = new Size(47, 23);
             labelClockCircle.TabIndex = 12;
             labelClockCircle.Text = "圈数";
             // 
@@ -261,10 +261,10 @@
             // 
             tbxRJSC.Anchor = AnchorStyles.Left | AnchorStyles.Right;
             tbxRJSC.Font = new Font("Microsoft YaHei UI", 9.5F, FontStyle.Regular, GraphicsUnit.Point, 134);
-            tbxRJSC.Location = new Point(418, 81);
+            tbxRJSC.Location = new Point(348, 95);
             tbxRJSC.Margin = new Padding(8, 3, 10, 2);
             tbxRJSC.Name = "tbxRJSC";
-            tbxRJSC.Size = new Size(187, 36);
+            tbxRJSC.Size = new Size(152, 30);
             tbxRJSC.TabIndex = 13;
             // 
             // labelOperation
@@ -273,22 +273,22 @@
             labelOperation.AutoSize = true;
             labelOperation.Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Regular, GraphicsUnit.Point, 134);
             labelOperation.ForeColor = Color.Red;
-            labelOperation.Location = new Point(623, 55);
+            labelOperation.Location = new Point(518, 64);
             labelOperation.Margin = new Padding(8, 0, 4, 0);
             labelOperation.Name = "labelOperation";
-            labelOperation.Size = new Size(54, 23);
+            labelOperation.Size = new Size(40, 23);
             labelOperation.TabIndex = 14;
             labelOperation.Text = "操作";
             // 
             // operationPanel
             // 
-            operationPanel.Anchor = AnchorStyles.Left | AnchorStyles.Right;
+            operationPanel.Anchor = AnchorStyles.Left;
             operationPanel.Controls.Add(btnStartErrorTerminal);
             operationPanel.Controls.Add(btnStopErrorTerminal);
-            operationPanel.Location = new Point(623, 81);
+            operationPanel.Location = new Point(518, 95);
             operationPanel.Margin = new Padding(8, 3, 10, 2);
             operationPanel.Name = "operationPanel";
-            operationPanel.Size = new Size(187, 27);
+            operationPanel.Size = new Size(282, 34);
             operationPanel.TabIndex = 15;
             operationPanel.WrapContents = false;
             // 
@@ -299,7 +299,7 @@
             btnStartErrorTerminal.Location = new Point(0, 0);
             btnStartErrorTerminal.Margin = new Padding(0, 0, 6, 0);
             btnStartErrorTerminal.Name = "btnStartErrorTerminal";
-            btnStartErrorTerminal.Size = new Size(88, 30);
+            btnStartErrorTerminal.Size = new Size(120, 34);
             btnStartErrorTerminal.TabIndex = 0;
             btnStartErrorTerminal.Text = "开始试验";
             btnStartErrorTerminal.UseVisualStyleBackColor = true;
@@ -309,10 +309,10 @@
             // 
             btnStopErrorTerminal.Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Regular, GraphicsUnit.Point, 134);
             btnStopErrorTerminal.ForeColor = Color.Black;
-            btnStopErrorTerminal.Location = new Point(94, 0);
+            btnStopErrorTerminal.Location = new Point(126, 0);
             btnStopErrorTerminal.Margin = new Padding(0);
             btnStopErrorTerminal.Name = "btnStopErrorTerminal";
-            btnStopErrorTerminal.Size = new Size(88, 30);
+            btnStopErrorTerminal.Size = new Size(120, 34);
             btnStopErrorTerminal.TabIndex = 1;
             btnStopErrorTerminal.Text = "停止试验";
             btnStopErrorTerminal.UseVisualStyleBackColor = true;
@@ -320,23 +320,23 @@
             // 
             // UltrSimpleDisplay
             // 
-            AutoScaleDimensions = new SizeF(14F, 30F);
+            AutoScaleDimensions = new SizeF(10F, 20F);
             AutoScaleMode = AutoScaleMode.Font;
             BackColor = Color.Black;
             Controls.Add(errorPanel);
             DoubleBuffered = true;
-            Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Regular, GraphicsUnit.Point, 134);
             ForeColor = Color.White;
-            MinimumSize = new Size(760, 350);
+            Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Regular, GraphicsUnit.Point, 134);
+            MinimumSize = new Size(1000, 400);
             Name = "UltrSimpleDisplay";
             Padding = new Padding(12, 8, 12, 10);
-            Size = new Size(860, 350);
+            Size = new Size(1000, 400);
             Paint += simpleDisplay;
             Resize += UltrSimpleDisplay_Resize;
+            operationPanel.ResumeLayout(false);
             errorPanel.ResumeLayout(false);
             errorLayout.ResumeLayout(false);
             errorLayout.PerformLayout();
-            operationPanel.ResumeLayout(false);
             ResumeLayout(false);
 
 

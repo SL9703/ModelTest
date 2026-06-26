@@ -100,7 +100,7 @@ namespace ModelTest
             button_SETLED3 = new Button();
             groupBox20 = new GroupBox();
             panel12 = new Panel();
-            ultrSimpleDisplay1 = new CustomControl.UltrSimpleDisplay();
+            ultrSimpleDisplay1 = new ModelTest.CustomControl.UltrSimpleDisplay();
             panel5 = new Panel();
             groupBox6 = new GroupBox();
             btnReleasemagnet = new Button();
@@ -1099,6 +1099,7 @@ namespace ModelTest
             ultrSimpleDisplay1.Padding = new Padding(12, 8, 12, 10);
             ultrSimpleDisplay1.Size = new Size(796, 354);
             ultrSimpleDisplay1.TabIndex = 0;
+            ultrSimpleDisplay1.TerminalAddressProvider = null;
             // 
             // panel5
             // 
@@ -1583,7 +1584,7 @@ namespace ModelTest
             tabPage10.Margin = new Padding(4);
             tabPage10.Name = "tabPage10";
             tabPage10.Padding = new Padding(4);
-            tabPage10.Size = new Size(2220, 804);
+            tabPage10.Size = new Size(192, 59);
             tabPage10.TabIndex = 1;
             tabPage10.Text = "数据汇总";
             tabPage10.UseVisualStyleBackColor = true;
@@ -2305,7 +2306,7 @@ namespace ModelTest
             // toolStripStatusTime
             // 
             toolStripStatusTime.Name = "toolStripStatusTime";
-            toolStripStatusTime.Size = new Size(180, 28);
+            toolStripStatusTime.Size = new Size(214, 28);
             toolStripStatusTime.Text = "2026-06-14 21:11:11";
             // 
             // lblconnectStatus
@@ -2318,14 +2319,13 @@ namespace ModelTest
             // toolStripStatusSpring
             // 
             toolStripStatusSpring.Name = "toolStripStatusSpring";
-            toolStripStatusSpring.Size = new Size(1544, 28);
+            toolStripStatusSpring.Size = new Size(1764, 28);
             toolStripStatusSpring.Spring = true;
-            toolStripStatusSpring.Text = "";
             // 
             // toolStripStatusVersion
             // 
             toolStripStatusVersion.Name = "toolStripStatusVersion";
-            toolStripStatusVersion.Size = new Size(117, 28);
+            toolStripStatusVersion.Size = new Size(163, 28);
             toolStripStatusVersion.Text = "测试版本：2.0.0";
             // 
             // statusTimeTimer
@@ -2746,7 +2746,6 @@ namespace ModelTest
             panel6.PerformLayout();
             groupBox20.ResumeLayout(false);
             panel12.ResumeLayout(false);
-            panel12.PerformLayout();
             panel5.ResumeLayout(false);
             groupBox6.ResumeLayout(false);
             groupBox6.PerformLayout();

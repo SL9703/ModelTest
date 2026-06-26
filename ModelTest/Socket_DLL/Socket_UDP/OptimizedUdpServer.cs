@@ -366,6 +366,10 @@ namespace ModelTest.Socket_DLL.Socket_UDP
                     if (sent)
                     {
                         TraceUdp($"CMD命令响应已发送 客户端={clientId} 端点={clientEndpoint} 响应={ret}");
+                        if (message.StartsWith("cmd=0401", StringComparison.OrdinalIgnoreCase))
+                        {
+                            ProtocolHelper.Execute0401PostReplyBusiness(message);
+                        }
                     }
                     else
                     {
