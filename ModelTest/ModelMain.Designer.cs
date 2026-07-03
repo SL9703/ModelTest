@@ -242,6 +242,7 @@ namespace ModelTest
             tsbtnProtocolParser = new ToolStripButton();
             panel2 = new Panel();
             panel3 = new Panel();
+            mainLayoutPanel = new TableLayoutPanel();
             tabControl1.SuspendLayout();
             tabPage1.SuspendLayout();
             TestUnit.SuspendLayout();
@@ -296,6 +297,7 @@ namespace ModelTest
             toolStrip1.SuspendLayout();
             panel2.SuspendLayout();
             panel3.SuspendLayout();
+            mainLayoutPanel.SuspendLayout();
             SuspendLayout();
             // 
             // tabControl1
@@ -2326,7 +2328,7 @@ namespace ModelTest
             // 
             toolStripStatusVersion.Name = "toolStripStatusVersion";
             toolStripStatusVersion.Size = new Size(163, 28);
-            toolStripStatusVersion.Text = "测试版本：2.0.0";
+            toolStripStatusVersion.Text = "测试版本：2.0.3";
             // 
             // statusTimeTimer
             // 
@@ -2708,6 +2710,24 @@ namespace ModelTest
             panel3.Size = new Size(2244, 219);
             panel3.TabIndex = 5;
             // 
+            // mainLayoutPanel
+            // 
+            mainLayoutPanel.ColumnCount = 1;
+            mainLayoutPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+            mainLayoutPanel.Controls.Add(panel1, 0, 0);
+            mainLayoutPanel.Controls.Add(panel2, 0, 1);
+            mainLayoutPanel.Controls.Add(panel3, 0, 2);
+            mainLayoutPanel.Dock = DockStyle.Fill;
+            mainLayoutPanel.Location = new Point(0, 0);
+            mainLayoutPanel.Margin = new Padding(0);
+            mainLayoutPanel.Name = "mainLayoutPanel";
+            mainLayoutPanel.RowCount = 3;
+            mainLayoutPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 220F));
+            mainLayoutPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+            mainLayoutPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 219F));
+            mainLayoutPanel.Size = new Size(2244, 1333);
+            mainLayoutPanel.TabIndex = 6;
+            // 
             // ModelMain
             // 
             AutoScaleDimensions = new SizeF(13F, 28F);
@@ -2724,8 +2744,6 @@ namespace ModelTest
             Text = "习承科技测试";
             WindowState = FormWindowState.Maximized;
             Load += ModelMain_Load;
-            SizeChanged += ModelMain_SizeChanged;
-            Resize += ModelMain_Resize;
             tabControl1.ResumeLayout(false);
             tabPage1.ResumeLayout(false);
             TestUnit.ResumeLayout(false);
@@ -2801,6 +2819,7 @@ namespace ModelTest
             toolStrip1.PerformLayout();
             panel2.ResumeLayout(false);
             panel3.ResumeLayout(false);
+            mainLayoutPanel.ResumeLayout(false);
             ResumeLayout(false);
             PerformLayout();
 
@@ -2847,6 +2866,7 @@ namespace ModelTest
         private Panel panel1;
         private Panel panel2;
         private Panel panel3;
+        private TableLayoutPanel mainLayoutPanel;
         private TabPage tabPage3;
         private Label label3;
         private Label label12;

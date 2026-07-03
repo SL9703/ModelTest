@@ -16,16 +16,6 @@ namespace ModelTest
 {
     public partial class ModelMain : Form
     {
-
-        // 在窗体类内部定义这个结构
-        private struct ControlInfo
-        {
-            public string Name;
-            public float FontSize;
-            public System.Drawing.SizeF Size;
-            public System.Drawing.Point Location;
-        }
-
         //加密机对象
         private WinSocketServer winSocketServer = new WinSocketServer();
         private WinSocketServiceInvoker _winSocketServiceInvoker;
@@ -42,12 +32,10 @@ namespace ModelTest
         private SerialPortSocket portSocket = new SerialPortSocket();
         // 获取UI线程的SynchronizationContext
         private readonly SynchronizationContext _uiContext;
-        // 定义字典来存储所有控件的初始信息
-        private Dictionary<System.Windows.Forms.Control, ControlInfo> _originalControlsInfo = new Dictionary<System.Windows.Forms.Control, ControlInfo>();
-        private System.Drawing.Size _originalFormSize;
         private ShowStandValueUserControl _standValueUserControl;
         private TerminalV1YXUserControl _terminalV1YXUserControl;
         private ElectricEnergyMeterControlV1 _MeterV1UserControl;
+        private ElectricEnergyMeterControlV2 _MeterV2UserControl;
         private UDPMessageUserControl _udpMessageUserControl;
         private SHUserControl _shUserControl;
         public enum TerminalCLASS : byte
@@ -137,6 +125,13 @@ namespace ModelTest
             tabPage4.Controls.Add(_MeterV1UserControl);
             _MeterV1UserControl.Dock = DockStyle.Fill;
 
+            //电表V2界面初始化
+            _MeterV2UserControl = new ElectricEnergyMeterControlV2();
+            _MeterV2UserControl.OnUpdateRequested_MeterV2 += MyControl_OnUpdateRequested;
+            tabPage6.Controls.Add(_MeterV2UserControl);
+            _MeterV2UserControl.Dock = DockStyle.Fill;
+
+
             //UDP 消息界面
             _udpMessageUserControl = new UDPMessageUserControl();
             _udpMessageUserControl.OnUpdateRequested_UDPMessage += MyControl_OnUpdateRequested;
@@ -214,11 +209,6 @@ namespace ModelTest
             SerialPortinitialization();
             // 例如：初始化数据、配置控件等
             Control.CheckForIllegalCrossThreadCalls = false;//跨线程
-
-            _originalFormSize = this.Size; // 保存窗体的初始大小
-            // 递归遍历窗体上的所有控件（包括容器内的控件）
-            StoreControlInfo(this);
-
             // 为窗体本身启用双缓冲
             this.DoubleBuffered = true;
             // 更有效的方法是设置以下样式，这对包含大量控件的窗体更有效
@@ -235,28 +225,6 @@ namespace ModelTest
             AddLog("应用程序已启动成功");
             LogMessage.Info("应用程序已启动成功");
         }
-
-        private void StoreControlInfo(Control parentCtrl)
-        {
-            foreach (Control ctrl in parentCtrl.Controls)
-            {
-                // 存储当前控件的信息
-                _originalControlsInfo.Add(ctrl, new ControlInfo
-                {
-                    Name = ctrl.Name,
-                    FontSize = ctrl.Font.Size,
-                    Size = ctrl.Size,
-                    Location = ctrl.Location
-                });
-
-                // 如果当前控件本身也是一个容器（如Panel, GroupBox），则递归处理其子控件
-                if (ctrl.Controls.Count > 0)
-                {
-                    StoreControlInfo(ctrl);
-                }
-            }
-        }
-
         /// <summary>
         /// initialization port
         /// </summary>
@@ -1505,65 +1473,6 @@ namespace ModelTest
         {
 
         }
-        private void ModelMain_Resize(object sender, EventArgs e)
-        {
-            if (this.WindowState == FormWindowState.Maximized)
-            {
-                Screen currentScreen = Screen.FromControl(this);
-                this.MaximizedBounds = currentScreen.WorkingArea;
-
-                // 双重保障
-                this.Height = currentScreen.WorkingArea.Height;
-                this.Top = currentScreen.WorkingArea.Top;
-            }
-            // 防止在窗体最小化时执行计算
-            if (this.WindowState == FormWindowState.Minimized || _originalFormSize.Width == 0 || _originalFormSize.Height == 0)
-                return;
-
-            // 计算宽度和高度的缩放比例
-            float scaleX = (float)this.Width / _originalFormSize.Width;
-            float scaleY = (float)this.Height / _originalFormSize.Height;
-
-            // 选择一个保守的比例（通常取最小值以保证内容不会溢出）
-            float scale = Math.Min(scaleX, scaleY);
-            // 应用缩放到所有控件
-            ApplyScaling(this, scale);
-        }
-
-        private void ApplyScaling(Control parentCtrl, float scale)
-        {
-            foreach (Control ctrl in parentCtrl.Controls)
-            {
-                // 从字典中获取该控件的原始信息
-                if (_originalControlsInfo.TryGetValue(ctrl, out ControlInfo originalInfo))
-                {
-                    // 缩放大小
-                    ctrl.Width = (int)(originalInfo.Size.Width * scale);
-                    ctrl.Height = (int)(originalInfo.Size.Height * scale);
-
-                    // 缩放位置
-                    ctrl.Left = (int)(originalInfo.Location.X * scale);
-                    ctrl.Top = (int)(originalInfo.Location.Y * scale);
-
-                    // 缩放字体（可选，根据需求决定）
-                    // 创建一个新的Font对象，基于原始字体大小进行缩放
-                    ctrl.Font = new Font(ctrl.Font.FontFamily, originalInfo.FontSize * scale, ctrl.Font.Style);
-                }
-
-                // 递归处理子控件
-                if (ctrl.Controls.Count > 0)
-                {
-                    ApplyScaling(ctrl, scale);
-                }
-            }
-        }
-
-        private void ModelMain_SizeChanged(object sender, EventArgs e)
-        {
-            // 直接调用Resize事件的处理逻辑
-            ModelMain_Resize(sender, e);
-        }
-
         private void tabControl1_DrawItem(object sender, DrawItemEventArgs e)
         {
             Font fntTab;
