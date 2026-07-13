@@ -147,23 +147,6 @@ namespace ModelTest
             tabPage7 = new TabPage();
             panel13 = new Panel();
             tabPage8 = new TabPage();
-            tabControl4 = new TabControl();
-            tabPage14 = new TabPage();
-            richTextBox1 = new RichTextBox();
-            button6 = new Button();
-            button5 = new Button();
-            textBox5 = new TextBox();
-            tabPage15 = new TabPage();
-            tabPage16 = new TabPage();
-            panel7 = new Panel();
-            label116 = new Label();
-            ServerImp = new ComboBox();
-            label115 = new Label();
-            textBox4 = new TextBox();
-            textBox3 = new TextBox();
-            LgServer = new Button();
-            label114 = new Label();
-            label113 = new Label();
             tabPage11 = new TabPage();
             tabPage18 = new TabPage();
             tabControl6 = new TabControl();
@@ -201,6 +184,9 @@ namespace ModelTest
             contextMenuStrip1 = new ContextMenuStrip(components);
             清空ToolStripMenuItem = new ToolStripMenuItem();
             复制ToolStripMenuItem = new ToolStripMenuItem();
+            复制全部ToolStripMenuItem = new ToolStripMenuItem();
+            全选ToolStripMenuItem = new ToolStripMenuItem();
+            保存日志ToolStripMenuItem = new ToolStripMenuItem();
             切换背景色ToolStripMenuItem = new ToolStripMenuItem();
             statusStrip1 = new StatusStrip();
             toolStripStatusTime = new ToolStripStatusLabel();
@@ -272,9 +258,6 @@ namespace ModelTest
             groupBox3.SuspendLayout();
             tabPage7.SuspendLayout();
             tabPage8.SuspendLayout();
-            tabControl4.SuspendLayout();
-            tabPage14.SuspendLayout();
-            panel7.SuspendLayout();
             tabPage18.SuspendLayout();
             tabControl6.SuspendLayout();
             tabPage24.SuspendLayout();
@@ -297,7 +280,6 @@ namespace ModelTest
             toolStrip1.SuspendLayout();
             panel2.SuspendLayout();
             panel3.SuspendLayout();
-            mainLayoutPanel.SuspendLayout();
             SuspendLayout();
             // 
             // tabControl1
@@ -1096,9 +1078,11 @@ namespace ModelTest
             ultrSimpleDisplay1.Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Regular, GraphicsUnit.Point, 134);
             ultrSimpleDisplay1.ForeColor = Color.White;
             ultrSimpleDisplay1.Location = new Point(0, 0);
+            ultrSimpleDisplay1.Margin = new Padding(4, 4, 4, 4);
             ultrSimpleDisplay1.MinimumSize = new Size(760, 320);
             ultrSimpleDisplay1.Name = "ultrSimpleDisplay1";
             ultrSimpleDisplay1.Padding = new Padding(12, 8, 12, 10);
+            ultrSimpleDisplay1.ProtocolVersion = CustomControl.ErrorInstrumentProtocolVersion.V1;
             ultrSimpleDisplay1.Size = new Size(796, 354);
             ultrSimpleDisplay1.TabIndex = 0;
             ultrSimpleDisplay1.TerminalAddressProvider = null;
@@ -1647,8 +1631,6 @@ namespace ModelTest
             // 
             // tabPage8
             // 
-            tabPage8.Controls.Add(tabControl4);
-            tabPage8.Controls.Add(panel7);
             tabPage8.Location = new Point(4, 37);
             tabPage8.Margin = new Padding(4);
             tabPage8.Name = "tabPage8";
@@ -1657,203 +1639,7 @@ namespace ModelTest
             tabPage8.TabIndex = 7;
             tabPage8.Text = "加密机";
             tabPage8.UseVisualStyleBackColor = true;
-            // 
-            // tabControl4
-            // 
-            tabControl4.Controls.Add(tabPage14);
-            tabControl4.Controls.Add(tabPage15);
-            tabControl4.Controls.Add(tabPage16);
-            tabControl4.Dock = DockStyle.Fill;
-            tabControl4.Location = new Point(4, 69);
-            tabControl4.Margin = new Padding(6, 5, 6, 5);
-            tabControl4.Name = "tabControl4";
-            tabControl4.SelectedIndex = 0;
-            tabControl4.Size = new Size(2228, 780);
-            tabControl4.TabIndex = 10;
-            // 
-            // tabPage14
-            // 
-            tabPage14.Controls.Add(richTextBox1);
-            tabPage14.Controls.Add(button6);
-            tabPage14.Controls.Add(button5);
-            tabPage14.Controls.Add(textBox5);
-            tabPage14.Location = new Point(4, 37);
-            tabPage14.Margin = new Padding(6, 5, 6, 5);
-            tabPage14.Name = "tabPage14";
-            tabPage14.Padding = new Padding(6, 5, 6, 5);
-            tabPage14.Size = new Size(2220, 739);
-            tabPage14.TabIndex = 0;
-            tabPage14.Text = "加解密区";
-            tabPage14.UseVisualStyleBackColor = true;
-            // 
-            // richTextBox1
-            // 
-            richTextBox1.Dock = DockStyle.Fill;
-            richTextBox1.Location = new Point(6, 224);
-            richTextBox1.Margin = new Padding(4);
-            richTextBox1.Name = "richTextBox1";
-            richTextBox1.ReadOnly = true;
-            richTextBox1.Size = new Size(2208, 510);
-            richTextBox1.TabIndex = 3;
-            richTextBox1.Text = "使用接口函数参数使用,隔开，例如：01,02,03        请在上边输入框输入加密机参数";
-            // 
-            // button6
-            // 
-            button6.Dock = DockStyle.Top;
-            button6.Location = new Point(6, 183);
-            button6.Margin = new Padding(6, 5, 6, 5);
-            button6.Name = "button6";
-            button6.Size = new Size(2208, 41);
-            button6.TabIndex = 2;
-            button6.Text = "解密数据";
-            button6.UseVisualStyleBackColor = true;
-            button6.Click += button6_Click;
-            // 
-            // button5
-            // 
-            button5.Dock = DockStyle.Top;
-            button5.Location = new Point(6, 142);
-            button5.Margin = new Padding(6, 5, 6, 5);
-            button5.Name = "button5";
-            button5.Size = new Size(2208, 41);
-            button5.TabIndex = 1;
-            button5.Text = "加密数据";
-            button5.UseVisualStyleBackColor = true;
-            button5.Click += button5_Click;
-            // 
-            // textBox5
-            // 
-            textBox5.Dock = DockStyle.Top;
-            textBox5.Location = new Point(6, 5);
-            textBox5.Margin = new Padding(6, 5, 6, 5);
-            textBox5.Multiline = true;
-            textBox5.Name = "textBox5";
-            textBox5.Size = new Size(2208, 137);
-            textBox5.TabIndex = 0;
-            // 
-            // tabPage15
-            // 
-            tabPage15.Location = new Point(4, 37);
-            tabPage15.Margin = new Padding(6, 5, 6, 5);
-            tabPage15.Name = "tabPage15";
-            tabPage15.Padding = new Padding(6, 5, 6, 5);
-            tabPage15.Size = new Size(2220, 739);
-            tabPage15.TabIndex = 1;
-            tabPage15.Text = "tabPage15";
-            tabPage15.UseVisualStyleBackColor = true;
-            // 
-            // tabPage16
-            // 
-            tabPage16.Location = new Point(4, 37);
-            tabPage16.Margin = new Padding(6, 5, 6, 5);
-            tabPage16.Name = "tabPage16";
-            tabPage16.Padding = new Padding(6, 5, 6, 5);
-            tabPage16.Size = new Size(2220, 739);
-            tabPage16.TabIndex = 2;
-            tabPage16.Text = "tabPage16";
-            tabPage16.UseVisualStyleBackColor = true;
-            // 
-            // panel7
-            // 
-            panel7.BorderStyle = BorderStyle.FixedSingle;
-            panel7.Controls.Add(label116);
-            panel7.Controls.Add(ServerImp);
-            panel7.Controls.Add(label115);
-            panel7.Controls.Add(textBox4);
-            panel7.Controls.Add(textBox3);
-            panel7.Controls.Add(LgServer);
-            panel7.Controls.Add(label114);
-            panel7.Controls.Add(label113);
-            panel7.Dock = DockStyle.Top;
-            panel7.Location = new Point(4, 4);
-            panel7.Margin = new Padding(6, 5, 6, 5);
-            panel7.Name = "panel7";
-            panel7.Size = new Size(2228, 65);
-            panel7.TabIndex = 9;
-            // 
-            // label116
-            // 
-            label116.AutoSize = true;
-            label116.Dock = DockStyle.Right;
-            label116.Font = new Font("Microsoft YaHei UI", 14.1428576F, FontStyle.Bold, GraphicsUnit.Point, 134);
-            label116.ForeColor = Color.Red;
-            label116.Location = new Point(1558, 0);
-            label116.Margin = new Padding(6, 0, 6, 0);
-            label116.Name = "label116";
-            label116.Size = new Size(85, 44);
-            label116.TabIndex = 22;
-            label116.Text = "接口";
-            // 
-            // ServerImp
-            // 
-            ServerImp.Dock = DockStyle.Right;
-            ServerImp.FormattingEnabled = true;
-            ServerImp.Location = new Point(1643, 0);
-            ServerImp.Margin = new Padding(4);
-            ServerImp.Name = "ServerImp";
-            ServerImp.Size = new Size(583, 36);
-            ServerImp.TabIndex = 21;
-            ServerImp.SelectedIndexChanged += ServerImp_SelectedIndexChanged;
-            // 
-            // label115
-            // 
-            label115.AutoSize = true;
-            label115.Location = new Point(810, 13);
-            label115.Margin = new Padding(6, 0, 6, 0);
-            label115.Name = "label115";
-            label115.Size = new Size(180, 28);
-            label115.TabIndex = 9;
-            label115.Text = "服务器连接状态：";
-            // 
-            // textBox4
-            // 
-            textBox4.Location = new Point(43, 4);
-            textBox4.Margin = new Padding(6, 5, 6, 5);
-            textBox4.Name = "textBox4";
-            textBox4.Size = new Size(242, 34);
-            textBox4.TabIndex = 7;
-            textBox4.Text = "22.58.244.70";
-            // 
-            // textBox3
-            // 
-            textBox3.Location = new Point(353, 4);
-            textBox3.Margin = new Padding(6, 5, 6, 5);
-            textBox3.Name = "textBox3";
-            textBox3.Size = new Size(242, 34);
-            textBox3.TabIndex = 8;
-            textBox3.Text = "8001";
-            textBox3.KeyPress += TextboxOnlyNumber_KeyPressed;
-            // 
-            // LgServer
-            // 
-            LgServer.Location = new Point(615, 4);
-            LgServer.Margin = new Padding(6, 5, 6, 5);
-            LgServer.Name = "LgServer";
-            LgServer.Size = new Size(150, 52);
-            LgServer.TabIndex = 0;
-            LgServer.Text = "登录加密机";
-            LgServer.UseVisualStyleBackColor = true;
-            LgServer.Click += LgServer_Click;
-            // 
-            // label114
-            // 
-            label114.AutoSize = true;
-            label114.Location = new Point(2, 10);
-            label114.Margin = new Padding(6, 0, 6, 0);
-            label114.Name = "label114";
-            label114.Size = new Size(36, 28);
-            label114.TabIndex = 5;
-            label114.Text = "IP:";
-            // 
-            // label113
-            // 
-            label113.AutoSize = true;
-            label113.Location = new Point(288, 10);
-            label113.Margin = new Padding(6, 0, 6, 0);
-            label113.Name = "label113";
-            label113.Size = new Size(59, 28);
-            label113.TabIndex = 6;
-            label113.Text = "Port:";
+ 
             // 
             // tabPage11
             // 
@@ -2257,6 +2043,7 @@ namespace ModelTest
             // textBoxlog
             // 
             textBoxlog.BackColor = SystemColors.MenuText;
+            textBoxlog.ContextMenuStrip = contextMenuStrip1;
             textBoxlog.Dock = DockStyle.Fill;
             textBoxlog.ForeColor = Color.Lime;
             textBoxlog.Location = new Point(6, 33);
@@ -2269,16 +2056,14 @@ namespace ModelTest
             // contextMenuStrip1
             // 
             contextMenuStrip1.ImageScalingSize = new Size(24, 24);
-            contextMenuStrip1.Items.AddRange(new ToolStripItem[] { 清空ToolStripMenuItem, 复制ToolStripMenuItem, 切换背景色ToolStripMenuItem });
+            contextMenuStrip1.Items.AddRange(new ToolStripItem[] { 清空ToolStripMenuItem, 复制ToolStripMenuItem, 复制全部ToolStripMenuItem, 全选ToolStripMenuItem, 保存日志ToolStripMenuItem, 切换背景色ToolStripMenuItem });
             contextMenuStrip1.Name = "contextMenuStrip1";
-            contextMenuStrip1.Size = new Size(190, 106);
+            contextMenuStrip1.Size = new Size(190, 208);
             // 
             // 清空ToolStripMenuItem
             // 
             清空ToolStripMenuItem.Name = "清空ToolStripMenuItem";
             清空ToolStripMenuItem.Size = new Size(189, 34);
-            清空ToolStripMenuItem.Text = "清空";
-            清空ToolStripMenuItem.Click += 清空ToolStripMenuItem_Click;
             // 
             // 复制ToolStripMenuItem
             // 
@@ -2286,6 +2071,27 @@ namespace ModelTest
             复制ToolStripMenuItem.Size = new Size(189, 34);
             复制ToolStripMenuItem.Text = "复制";
             复制ToolStripMenuItem.Click += 复制ToolStripMenuItem_Click;
+            // 
+            // 复制全部ToolStripMenuItem
+            // 
+            复制全部ToolStripMenuItem.Name = "复制全部ToolStripMenuItem";
+            复制全部ToolStripMenuItem.Size = new Size(189, 34);
+            复制全部ToolStripMenuItem.Text = "复制全部";
+            复制全部ToolStripMenuItem.Click += 复制全部ToolStripMenuItem_Click;
+            // 
+            // 全选ToolStripMenuItem
+            // 
+            全选ToolStripMenuItem.Name = "全选ToolStripMenuItem";
+            全选ToolStripMenuItem.Size = new Size(189, 34);
+            全选ToolStripMenuItem.Text = "全选";
+            全选ToolStripMenuItem.Click += 全选ToolStripMenuItem_Click;
+            // 
+            // 保存日志ToolStripMenuItem
+            // 
+            保存日志ToolStripMenuItem.Name = "保存日志ToolStripMenuItem";
+            保存日志ToolStripMenuItem.Size = new Size(189, 34);
+            保存日志ToolStripMenuItem.Text = "保存日志";
+            保存日志ToolStripMenuItem.Click += 保存日志ToolStripMenuItem_Click;
             // 
             // 切换背景色ToolStripMenuItem
             // 
@@ -2328,7 +2134,7 @@ namespace ModelTest
             // 
             toolStripStatusVersion.Name = "toolStripStatusVersion";
             toolStripStatusVersion.Size = new Size(163, 28);
-            toolStripStatusVersion.Text = "测试版本：2.0.3";
+            toolStripStatusVersion.Text = "测试版本：2.0.4";
             // 
             // statusTimeTimer
             // 
@@ -2714,9 +2520,6 @@ namespace ModelTest
             // 
             mainLayoutPanel.ColumnCount = 1;
             mainLayoutPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-            mainLayoutPanel.Controls.Add(panel1, 0, 0);
-            mainLayoutPanel.Controls.Add(panel2, 0, 1);
-            mainLayoutPanel.Controls.Add(panel3, 0, 2);
             mainLayoutPanel.Dock = DockStyle.Fill;
             mainLayoutPanel.Location = new Point(0, 0);
             mainLayoutPanel.Margin = new Padding(0);
@@ -2782,11 +2585,6 @@ namespace ModelTest
             groupBox3.PerformLayout();
             tabPage7.ResumeLayout(false);
             tabPage8.ResumeLayout(false);
-            tabControl4.ResumeLayout(false);
-            tabPage14.ResumeLayout(false);
-            tabPage14.PerformLayout();
-            panel7.ResumeLayout(false);
-            panel7.PerformLayout();
             tabPage18.ResumeLayout(false);
             tabControl6.ResumeLayout(false);
             tabPage24.ResumeLayout(false);
@@ -2819,7 +2617,6 @@ namespace ModelTest
             toolStrip1.PerformLayout();
             panel2.ResumeLayout(false);
             panel3.ResumeLayout(false);
-            mainLayoutPanel.ResumeLayout(false);
             ResumeLayout(false);
             PerformLayout();
 
@@ -2923,6 +2720,9 @@ namespace ModelTest
         private ContextMenuStrip contextMenuStrip1;
         private ToolStripMenuItem 清空ToolStripMenuItem;
         private ToolStripMenuItem 复制ToolStripMenuItem;
+        private ToolStripMenuItem 复制全部ToolStripMenuItem;
+        private ToolStripMenuItem 全选ToolStripMenuItem;
+        private ToolStripMenuItem 保存日志ToolStripMenuItem;
         private ToolStripMenuItem 切换背景色ToolStripMenuItem;
         private GroupBox groupBox5;
         private PictureBox pBTaiti_yellow;
@@ -2958,23 +2758,6 @@ namespace ModelTest
         private Button button_SETLED2;
         private CheckedListBox chexblx_LEDRGY;
         private Panel panel6;
-        private Panel panel7;
-        private TextBox textBox4;
-        private TextBox textBox3;
-        private Button LgServer;
-        private Label label114;
-        private Label label113;
-        private Label label115;
-        private TabControl tabControl4;
-        private TabPage tabPage14;
-        private TabPage tabPage15;
-        private Button button5;
-        private TextBox textBox5;
-        private Button button6;
-        private TabPage tabPage16;
-        private ComboBox ServerImp;
-        private Label label116;
-        private RichTextBox richTextBox1;
         private Panel panel8;
         private GroupBox groupBox12;
         private GroupBox groupBox13;

@@ -107,38 +107,46 @@ namespace ModelTest
             }
             return "00";
         }
+
+        /// <summary>
+        /// 三相选择转换为协议数据项：
+        /// A=01，B=02，C=04，按位组合。
+        /// </summary>
+        public static string GetThreePhaseSelectionByte(bool phaseA, bool phaseB, bool phaseC)
+        {
+            byte phaseMask = 0x00;
+
+            if (phaseA)
+            {
+                phaseMask |= 0x01;
+            }
+
+            if (phaseB)
+            {
+                phaseMask |= 0x02;
+            }
+
+            if (phaseC)
+            {
+                phaseMask |= 0x04;
+            }
+
+            return phaseMask.ToString("X2");
+        }
+
         /// <summary>
         /// 00 断开，01台区智能融合终端，02 13集中器，03 13专变 ，04 22集中器，05 22专变，
         /// 06 22能源控制器，07南网-负荷管理终端，08 南网-配变监测计量终端，09南网-13集中器
         /// </summary>
         /// <param name="terminalclass">终端类型</param>
         /// <returns></returns>
-        public static string GetTerminalClass(int terminalclass)
+        public static string GetTerminalClass(byte terminalclass)
         {
-            //cbxTerminalV1.SelectedIndex
-            switch (terminalclass)
+            if (terminalclass <= 0x09)
             {
-                case 0:
-                    return "00";
-                case 1:
-                    return  "01";
-                case 2:
-                    return  "02";
-                case 3:
-                    return "03";
-                case 4:
-                    return "04";
-                case 5:
-                    return "05";
-                case 6:
-                    return "06";
-                case 7:
-                    return "07";
-                case 8:
-                    return "08";
-                case 9:
-                    return "09";
+                return terminalclass.ToString("X2");
             }
+
             return "00";
         }
         //1：表示源表2：表示功放3：表示先上源表，8秒后上功放4：读取状态

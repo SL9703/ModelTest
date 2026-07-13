@@ -193,7 +193,7 @@ namespace ModelTest
         [DllImport("WinSocketServer.dll")]
         private static extern int Obj_Terminal_Formal_InitSession_RH(
             int iKeyVersion, string cTESAMID, string cASCTR,
-            IntPtr cMasterCert, IntPtr cOutRandHost, IntPtr cOutSessionInit, IntPtr cOutSign);
+            string cMasterCert, [Out] byte[] cOutRandHost, [Out] byte[] cOutSessionInit, [Out] byte[] cOutSign);
 
         [DllImport("WinSocketServer.dll")]
         private static extern int Obj_Terminal_Formal_GetSessionData(
@@ -854,59 +854,19 @@ namespace ModelTest
             int iKeyVersion, string cTESAMID, string cASCTR, string cMasterCert,
             byte[] cOutRandHost, byte[] cOutSessionInit, byte[] cOutSign)
         {
-            EnsureNotDisposed();
-
             ValidateByteArrayParams(
                 (cOutRandHost, nameof(cOutRandHost), BufferSizes.RandHost),
                 (cOutSessionInit, nameof(cOutSessionInit), BufferSizes.SessionInit),
                 (cOutSign, nameof(cOutSign), BufferSizes.Sign));
 
-            lock (_lockObject)
-            {
-                IntPtr masterCertPtr = IntPtr.Zero;
-                IntPtr randPtr = IntPtr.Zero;
-                IntPtr sessPtr = IntPtr.Zero;
-                IntPtr signPtr = IntPtr.Zero;
-
-                try
-                {
-                    masterCertPtr = Marshal.StringToHGlobalAnsi(cMasterCert ?? string.Empty);
-                    randPtr = Marshal.AllocHGlobal(cOutRandHost.Length);
-                    sessPtr = Marshal.AllocHGlobal(cOutSessionInit.Length);
-                    signPtr = Marshal.AllocHGlobal(cOutSign.Length);
-
-                    ZeroMemory(randPtr, cOutRandHost.Length);
-                    ZeroMemory(sessPtr, cOutSessionInit.Length);
-                    ZeroMemory(signPtr, cOutSign.Length);
-
-                    int result = Obj_Terminal_Formal_InitSession_RH(
-                        iKeyVersion, cTESAMID, cASCTR,
-                        masterCertPtr, randPtr, sessPtr, signPtr);
-
-                    Marshal.Copy(randPtr, cOutRandHost, 0, cOutRandHost.Length);
-                    Marshal.Copy(sessPtr, cOutSessionInit, 0, cOutSessionInit.Length);
-                    Marshal.Copy(signPtr, cOutSign, 0, cOutSign.Length);
-
-                    bool isValid = ValidateResult(nameof(Obj_Terminal_Formal_InitSession_RH), result,
-                        (nameof(cOutRandHost), cOutRandHost),
-                        (nameof(cOutSessionInit), cOutSessionInit),
-                        (nameof(cOutSign), cOutSign));
-
-                    return new DllResult(isValid, result);
-                }
-                catch (Exception ex) when (ex is AccessViolationException or BadImageFormatException or SEHException)
-                {
-                    LogMessage.Error($"[{nameof(Obj_Terminal_Formal_InitSession_RH)}] {ex.GetType().Name}", ex);
-                    return DllResult.Fail();
-                }
-                finally
-                {
-                    if (masterCertPtr != IntPtr.Zero) Marshal.FreeHGlobal(masterCertPtr);
-                    if (randPtr != IntPtr.Zero) Marshal.FreeHGlobal(randPtr);
-                    if (sessPtr != IntPtr.Zero) Marshal.FreeHGlobal(sessPtr);
-                    if (signPtr != IntPtr.Zero) Marshal.FreeHGlobal(signPtr);
-                }
-            }
+            return ExecuteDllCallWithByteOutputs(
+                nameof(Obj_Terminal_Formal_InitSession_RH),
+                () => Obj_Terminal_Formal_InitSession_RH(
+                    iKeyVersion, cTESAMID, cASCTR, cMasterCert,
+                    cOutRandHost, cOutSessionInit, cOutSign),
+                (nameof(cOutRandHost), cOutRandHost),
+                (nameof(cOutSessionInit), cOutSessionInit),
+                (nameof(cOutSign), cOutSign));
         }
 
         public DllResult CallObj_Terminal_Formal_GetSessionData(
@@ -1611,7 +1571,6 @@ namespace ModelTest
         {
             if (resultCode == SuccessCode)
             {
-                LogMessage.Debug($"[{methodName}] 调用成功");
                 return true;
             }
 
@@ -1623,7 +1582,6 @@ namespace ModelTest
         {
             if (resultCode == SuccessCode)
             {
-                LogMessage.Debug($"[{methodName}] 调用成功");
                 foreach (var (name, data) in outputs)
                 {
                     LogMessage.Debug($"{name}: {System.Text.Encoding.Default.GetString(data)?.ToString().TrimEnd(' ')}");

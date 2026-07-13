@@ -16,18 +16,7 @@ namespace ModelTest
 {
     public partial class ModelMain : Form
     {
-        //加密机对象
-        private WinSocketServer winSocketServer = new WinSocketServer();
-        private WinSocketServiceInvoker _winSocketServiceInvoker;
-        private WinSocketServiceInvoker WinSocketInvoker =>
-            _winSocketServiceInvoker ??= new WinSocketServiceInvoker(winSocketServer, AddLogThreadSafe);
-        private readonly System.Windows.Forms.Timer _winSocketHeartbeatTimer = new System.Windows.Forms.Timer();
-        private bool _winSocketHeartbeatRunning;
-        private const int ServerImpLazyPageSize = 80;
-        private const string ServerImpPlaceholderText = "输入关键字搜索接口";
-        private readonly List<string> _serverImpServices = new();
-        private bool _serverImpCatalogLoaded;
-        private bool _serverImpUpdating;
+        private sealed record TerminalTypeOption<TEnum>(TEnum Value, string Text) where TEnum : struct, Enum;
         //自定义串口对象
         private SerialPortSocket portSocket = new SerialPortSocket();
         // 获取UI线程的SynchronizationContext
@@ -38,52 +27,9 @@ namespace ModelTest
         private ElectricEnergyMeterControlV2 _MeterV2UserControl;
         private UDPMessageUserControl _udpMessageUserControl;
         private SHUserControl _shUserControl;
-        public enum TerminalCLASS : byte
-        {
-            [Description("专变III")]
-            Terminal_1 = 0x01,
-            [Description("集中器")]
-            Terminal_2 = 0x02,
-            [Description("(模组化)专变")]
-            Terminal_3 = 0x03,
-            [Description("智能融合终端")]
-            Terminal_4 = 0x04,
-            [Description("单相物联网表")]
-            Terminal_5 = 0x05,
-            [Description("三相物联网表")]
-            Terminal_6 = 0x06,
-            [Description("单相智能电表")]
-            Terminal_7 = 0x07,
-            [Description("三相智能电表")]
-            Terminal_8 = 0x08
-        }
-        public enum TerminalV1CLASS : byte
-        {
-            [Description("断开-无终端类型")]
-            Terminal_0 = 0x00,
-            [Description("台区智能融合终端")]
-            Terminal_1 = 0x01,
-            [Description("13版集中器I型")]
-            Terminal_2 = 0x02,
-            [Description("13版专变III型")]
-            Terminal_3 = 0x03,
-            [Description("22版集中器I型")]
-            Terminal_4 = 0x04,
-            [Description("22版专变III型")]
-            Terminal_5 = 0x05,
-            [Description("22版能源控制器")]
-            Terminal_6 = 0x06,
-            [Description("南网-负荷管理终端")]
-            Terminal_7 = 0x07,
-            [Description("南网-配变监测计量终端")]
-            Terminal_8 = 0x08,
-            [Description("南网-13集中器")]
-            Terminal_9 = 0x09
-        }
+        private SGCCEncryptionServiceUserControl? _sgccEncryptionService;
         string MCUStartByte = "55";
         string MCUStopByte = "AA";
-        string UABC = string.Empty;
-        string IABCN = string.Empty;
         string STAPINSET = string.Empty;
         private TerminalTest? _terminalTestForm;
         private MeterTest.MeterTest? _meterTestForm;
@@ -97,10 +43,6 @@ namespace ModelTest
             LoadApplicationIcon();
             UpdateStatusTime();
             InitializeSGCCTestTab();
-            _winSocketServiceInvoker = new WinSocketServiceInvoker(winSocketServer, AddLogThreadSafe);
-            _winSocketHeartbeatTimer.Interval = 30_000;
-            _winSocketHeartbeatTimer.Tick += WinSocketHeartbeatTimer_Tick;
-            FormClosed += ModelMain_FormClosed;
             ultrSimpleDisplay1.TerminalAddressProvider = () => tbxTerminalAdds.Text;
             ultrSimpleDisplay1.LogRequested += AddLog;
             ultrSimpleDisplay1.SendCommandRequested += SeedMethod;
@@ -143,7 +85,12 @@ namespace ModelTest
             _shUserControl.OnUpdateRequestedSHLog += MyControl_OnUpdateRequested;
             tabPage11.Controls.Add(_shUserControl);
             _shUserControl.Dock = DockStyle.Fill;
-
+            //加密机控制界面
+            _sgccEncryptionService = new SGCCEncryptionServiceUserControl();
+            _sgccEncryptionService.OnUpdateRequestedEncryptionLog += MyControl_OnUpdateRequested;
+            tabPage8.Controls.Clear();
+            tabPage8.Controls.Add(_sgccEncryptionService);
+            _sgccEncryptionService.Dock = DockStyle.Fill;
             _uiContext = SynchronizationContext.Current;
             // 处理UI线程异常
             Application.ThreadException += (sender, e) =>
@@ -199,13 +146,7 @@ namespace ModelTest
             // this.MinimizeBox = false;
             //设置背景颜色58957f
             this.BackColor = Color.FromArgb(88, 149, 127);
-
-            // 可选：设置窗体不能最大化（额外保障）
-            this.MaximumSize = this.MinimumSize = this.Size;
-            cbxTerminalCLASS.DataSource = Enum.GetValues(typeof(TerminalCLASS)).Cast<TerminalCLASS>().Select(x => new
-            {
-                终端类型 = ModelTool.GetDescription(x)
-            }).ToList();
+            BindTerminalClassOptions();
             SerialPortinitialization();
             // 例如：初始化数据、配置控件等
             Control.CheckForIllegalCrossThreadCalls = false;//跨线程
@@ -214,8 +155,6 @@ namespace ModelTest
             // 更有效的方法是设置以下样式，这对包含大量控件的窗体更有效
             this.SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint, true);
             this.UpdateStyles();
-
-            CheckItemSetUpFrom();//加密机接口初始化
             ModelTool.BindMutexCheckBoxes(checkBox1, checkBox2);//初始化模组0x01 0x31命令选择状态
             ModelTool.BindMutexCheckBoxes(checkBoxC, checkBoxN);//初始化模组IC和IN命令选择状态
             ModelTool.BindMutexCheckBoxes(cbx_TerminalV1_IC, cbx_TerminalV1_IN);//初始化终端IC和IN命令选择状态
@@ -244,12 +183,51 @@ namespace ModelTest
             cbxSTAModePinStatus.SelectedIndex = 0;//sta模块引脚状态
             comboBoxSTAStutas.SelectedIndex = 0;//读取sta模块状态用到
             cbxSocketClass.SelectedIndex = 1;//socket类型选择 tcpclient
-            cbxTerminalV1.DataSource = Enum.GetValues(typeof(TerminalV1CLASS)).Cast<TerminalV1CLASS>().Select(x => new
+            BindTerminalV1ClassOptions();
+        }
+        private void BindTerminalClassOptions()
+        {
+            List<TerminalTypeOption<ITerminalTypeDefinitions.TerminalClass>> options =
+                Enum.GetValues(typeof(ITerminalTypeDefinitions.TerminalClass))
+                    .Cast<ITerminalTypeDefinitions.TerminalClass>()
+                    .Select(x => new TerminalTypeOption<ITerminalTypeDefinitions.TerminalClass>(x, ModelTool.GetDescription(x)))
+                    .ToList();
+
+            cbxTerminalCLASS.DisplayMember = nameof(TerminalTypeOption<ITerminalTypeDefinitions.TerminalClass>.Text);
+            cbxTerminalCLASS.ValueMember = nameof(TerminalTypeOption<ITerminalTypeDefinitions.TerminalClass>.Value);
+            cbxTerminalCLASS.DataSource = options;
+        }
+        private void BindTerminalV1ClassOptions()
+        {
+            List<TerminalTypeOption<ITerminalTypeDefinitions.TerminalV1Class>> options =
+                Enum.GetValues(typeof(ITerminalTypeDefinitions.TerminalV1Class))
+                    .Cast<ITerminalTypeDefinitions.TerminalV1Class>()
+                    .Select(x => new TerminalTypeOption<ITerminalTypeDefinitions.TerminalV1Class>(x, ModelTool.GetDescription(x)))
+                    .ToList();
+
+            cbxTerminalV1.DisplayMember = nameof(TerminalTypeOption<ITerminalTypeDefinitions.TerminalV1Class>.Text);
+            cbxTerminalV1.ValueMember = nameof(TerminalTypeOption<ITerminalTypeDefinitions.TerminalV1Class>.Value);
+            cbxTerminalV1.DataSource = options;
+        }
+        private byte GetSelectedTerminalClassValue()
+        {
+            if (cbxTerminalCLASS.SelectedValue is ITerminalTypeDefinitions.TerminalClass terminalClass)
             {
-                终端类型 = ModelTool.GetDescription(x)
-            }).ToList();
+                return (byte)terminalClass;
+            }
+
+            return 0x00;
         }
 
+        private byte GetSelectedTerminalV1ClassValue()
+        {
+            if (cbxTerminalV1.SelectedValue is ITerminalTypeDefinitions.TerminalV1Class terminalClass)
+            {
+                return (byte)terminalClass;
+            }
+
+            return 0x00;
+        }
         /// <summary>
         /// 连接client
         /// </summary>
@@ -406,7 +384,6 @@ namespace ModelTest
         string MCUTransparent = "00";//透传协议
         string MCUData_1 = string.Empty;
         string MCUData_2 = string.Empty;
-        string CommandCode = string.Empty;
         string MCUAddr = string.Empty;
         string STA = string.Empty;
         string STAPINREAD = string.Empty;
@@ -427,47 +404,11 @@ namespace ModelTest
             //AA     
             LogMessage.Info(sender.ToString());
             MCUAddr = tbx_addr.Text;//地址
-            Commande();//命令码
-            MCUData_1 = ModuleModel.TerminalMeterAddr(cbxTerminalCLASS.SelectedIndex);
-            ModelNumber();
-            string MCUDCOn = ModuleModel.ModuleByte(MCUStartByte, A0800_DataLength, MCUAddr, MCUCtrl, CommandCode, MCUData_1 + MCUData_2, MCUStopByte);
+            string commandCode = ModuleModel.GetDcCommandCode(checkBox1.Checked, checkBox2.Checked);
+            MCUData_1 = ModuleModel.TerminalMeterAddr(GetSelectedTerminalClassValue());
+            MCUData_2 = ModuleModel.GetModuleNumberMask(tbxModelNumber.Text);
+            string MCUDCOn = ModuleModel.ModuleByte(MCUStartByte, A0800_DataLength, MCUAddr, MCUCtrl, commandCode, MCUData_1 + MCUData_2, MCUStopByte);
             await SeedMethod(MCUDCOn);
-        }
-        private void Commande()
-        {
-            if (checkBox1.Checked)
-            {
-                CommandCode = "01";
-            }
-            else if (checkBox2.Checked)
-            {
-                CommandCode = "31";
-            }
-        }
-
-        private void ModelNumber()
-        {
-            if (tbxModelNumber.Text == "1" || tbxModelNumber.Text == "01")
-            {
-                MCUData_2 = "01";
-            }
-            else if (tbxModelNumber.Text == "2" || tbxModelNumber.Text == "02")
-            {
-                MCUData_2 = "02";
-            }
-            else
-            if (tbxModelNumber.Text == "3" || tbxModelNumber.Text == "03")
-            {
-                MCUData_2 = "04";
-            }
-            else if (tbxModelNumber.Text == "4" || tbxModelNumber.Text == "04")
-            {
-                MCUData_2 = "08";
-            }
-            else if (tbxModelNumber.Text == "5" || tbxModelNumber.Text == "05")
-            {
-                MCUData_2 = "10";
-            }
         }
         /// <summary>
         /// 直流下电按钮
@@ -478,9 +419,9 @@ namespace ModelTest
         {
             LogMessage.Info(sender.ToString());
             MCUAddr = tbx_addr.Text;//地址
-            Commande();//命令码
-            MCUData_1 = ModuleModel.TerminalMeterAddr(cbxTerminalCLASS.SelectedIndex);
-            var MCUDCDown = ModuleModel.ModuleByte(MCUStartByte, A0800_DataLength, MCUAddr, MCUCtrl, CommandCode, MCUData_1 + "00", MCUStopByte);
+            string commandCode = ModuleModel.GetDcCommandCode(checkBox1.Checked, checkBox2.Checked);
+            MCUData_1 = ModuleModel.TerminalMeterAddr(GetSelectedTerminalClassValue());
+            var MCUDCDown = ModuleModel.ModuleByte(MCUStartByte, A0800_DataLength, MCUAddr, MCUCtrl, commandCode, MCUData_1 + "00", MCUStopByte);
             await SeedMethod(MCUDCDown);
         }
         /// <summary>
@@ -492,51 +433,15 @@ namespace ModelTest
         {
             LogMessage.Info(sender.ToString());
             MCUAddr = tbx_addr.Text;//地址
-            MCUData_1 = ModuleModel.TerminalMeterAddr(cbxTerminalCLASS.SelectedIndex);//终端类型，表地址
-            AC_ABCN();
+            MCUData_1 = ModuleModel.TerminalMeterAddr(GetSelectedTerminalClassValue());//终端类型，表地址
+            MCUData_2 = ModuleModel.GetAcPhaseMask(
+                checkBoxA.Checked,
+                checkBoxB.Checked,
+                checkBoxC.Checked,
+                checkBoxN.Checked);
             var MCUACOn = ModuleModel.ModuleByte(MCUStartByte, A0800_DataLength, MCUAddr, MCUCtrl, "21", MCUData_1 + MCUData_2, MCUStopByte);
             await SeedMethod(MCUACOn);
         }
-        private void AC_ABCN()
-        {
-            if (checkBoxA.Checked && checkBoxB.Checked && checkBoxC.Checked && !checkBoxN.Checked)
-            {
-                MCUData_2 = "07";
-            }
-            else if (checkBoxA.Checked && checkBoxB.Checked && !checkBoxC.Checked && !checkBoxN.Checked)
-            {
-                MCUData_2 = "03";
-            }
-            else if (checkBoxA.Checked && checkBoxC.Checked && !checkBoxB.Checked && !checkBoxN.Checked)
-            {
-                MCUData_2 = "05";
-            }
-            else if (checkBoxB.Checked && checkBoxC.Checked && !checkBoxA.Checked && !checkBoxN.Checked)
-            {
-                MCUData_2 = "06";
-            }
-            else if (checkBoxA.Checked && !checkBoxB.Checked && !checkBoxC.Checked && !checkBoxN.Checked)
-            {
-                MCUData_2 = "01";
-            }
-            else if (!checkBoxA.Checked && checkBoxB.Checked && !checkBoxC.Checked && !checkBoxN.Checked)
-            {
-                MCUData_2 = "02";
-            }
-            else if (!checkBoxA.Checked && !checkBoxB.Checked && checkBoxC.Checked && !checkBoxN.Checked)
-            {
-                MCUData_2 = "04";
-            }
-            else if (!checkBoxA.Checked && !checkBoxB.Checked && !checkBoxC.Checked && checkBoxN.Checked)
-            {
-                MCUData_2 = "08";
-            }
-            else
-            {
-                MCUData_2 = "00";
-            }
-        }
-
         /// <summary>
         /// 交流下电命令
         /// </summary>
@@ -546,7 +451,7 @@ namespace ModelTest
         {
             LogMessage.Info(sender.ToString());
             MCUAddr = tbx_addr.Text;//地址
-            MCUData_1 = ModuleModel.TerminalMeterAddr(cbxTerminalCLASS.SelectedIndex);//终端类型，表地址
+            MCUData_1 = ModuleModel.TerminalMeterAddr(GetSelectedTerminalClassValue());//终端类型，表地址
             var MCUACDown = ModuleModel.ModuleByte(MCUStartByte, A0800_DataLength, MCUAddr, MCUCtrl, "21", MCUData_1 + "00", MCUStopByte);
             await SeedMethod(MCUACDown);
         }
@@ -719,9 +624,9 @@ namespace ModelTest
             //55 07 00 addr MCUCtrl 01&31  01模组1  02模组2 check AA
             LogMessage.Info(sender.ToString());
             MCUAddr = tbx_addr.Text;//地址
-            Commande();//命令码
-            ModelNumber();//得到模块地址01 02  
-            var CCODCOn = ModuleModel.ModuleByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUCtrl, CommandCode, MCUData_2, MCUStopByte);
+            string commandCode = ModuleModel.GetDcCommandCode(checkBox1.Checked, checkBox2.Checked);
+            MCUData_2 = ModuleModel.GetModuleNumberMask(tbxModelNumber.Text);//得到模块地址01 02  
+            var CCODCOn = ModuleModel.ModuleByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUCtrl, commandCode, MCUData_2, MCUStopByte);
             await SeedMethod(CCODCOn);
         }
         /// <summary>
@@ -734,15 +639,19 @@ namespace ModelTest
             //55 07 00 addr MCUCtrl 01&31  01模组1  02模组2 check AA
             LogMessage.Info(sender.ToString());
             MCUAddr = tbx_addr.Text;//地址
-            Commande();//命令码
-            var CCODCDown = ModuleModel.ModuleByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUCtrl, CommandCode, MCUData_2, MCUStopByte);
+            string commandCode = ModuleModel.GetDcCommandCode(checkBox1.Checked, checkBox2.Checked);
+            var CCODCDown = ModuleModel.ModuleByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUCtrl, commandCode, MCUData_2, MCUStopByte);
             await SeedMethod(CCODCDown);
         }
         private async void CCOACOn_Click(object sender, EventArgs e)
         {
             LogMessage.Info(sender.ToString());
             MCUAddr = tbx_addr.Text;//地址
-            AC_ABCN();
+            MCUData_2 = ModuleModel.GetAcPhaseMask(
+                checkBoxA.Checked,
+                checkBoxB.Checked,
+                checkBoxC.Checked,
+                checkBoxN.Checked);
             var CCOACOn = ModuleModel.ModuleByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUCtrl, "02", MCUData_2, MCUStopByte);
             await SeedMethod(CCOACOn);
         }
@@ -751,7 +660,6 @@ namespace ModelTest
         {
             LogMessage.Info(sender.ToString());
             MCUAddr = tbx_addr.Text;//地址
-            AC_ABCN();
             var CCOACDown = ModuleModel.ModuleByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUCtrl, "02", "00", MCUStopByte);
             await SeedMethod(CCOACDown);
         }
@@ -764,83 +672,9 @@ namespace ModelTest
         {
             LogMessage.Info(sender.ToString());
             MCUAddr = tbxTerminalAdds.Text;//地址
-            MCUData_1 = TerminalModel.GetTerminalClass(cbxTerminalV1.SelectedIndex);//选择终端类型
+            MCUData_1 = TerminalModel.GetTerminalClass(GetSelectedTerminalV1ClassValue());//选择终端类型
             var ChangeTerminalCls = TerminalModel.TerminalByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUCtrl, "2D", MCUData_1, MCUStopByte);//07 00 01 00 2d 00
             await SeedMethod(ChangeTerminalCls);
-        }
-        public void TerminalV1_UABC()
-        {
-            if (cbx_TerminalV1_UA.Checked && cbx_TerminalV1_UB.Checked && cbx_TerminalV1_UC.Checked)
-            {
-                UABC = "07";
-            }
-            else if (!cbx_TerminalV1_UA.Checked && cbx_TerminalV1_UB.Checked && cbx_TerminalV1_UC.Checked)
-            {
-                UABC = "06";
-            }
-            else if (cbx_TerminalV1_UA.Checked && !cbx_TerminalV1_UB.Checked && cbx_TerminalV1_UC.Checked)
-            {
-                UABC = "05";
-            }
-            else if (!cbx_TerminalV1_UA.Checked && !cbx_TerminalV1_UB.Checked && cbx_TerminalV1_UC.Checked)
-            {
-                UABC = "04";
-            }
-            else if (cbx_TerminalV1_UA.Checked && cbx_TerminalV1_UB.Checked && !cbx_TerminalV1_UC.Checked)
-            {
-                UABC = "03";
-            }
-            else if (!cbx_TerminalV1_UA.Checked && cbx_TerminalV1_UB.Checked && !cbx_TerminalV1_UC.Checked)
-            {
-                UABC = "02";
-            }
-            else if (cbx_TerminalV1_UA.Checked && !cbx_TerminalV1_UB.Checked && !cbx_TerminalV1_UC.Checked)
-            {
-                UABC = "01";
-            }
-            else if (!cbx_TerminalV1_UA.Checked && !cbx_TerminalV1_UB.Checked && !cbx_TerminalV1_UC.Checked)
-            {
-                UABC = "00";
-            }
-            else
-            {
-                UABC = "00";
-            }
-        }
-        public void TerminalV1_IABC()
-        {
-            if (cbx_TerminalV1_IA.Checked && cbx_TerminalV1_IB.Checked && cbx_TerminalV1_IC.Checked)
-            {
-                IABCN = "07";
-            }
-            else if (!cbx_TerminalV1_IA.Checked && cbx_TerminalV1_IB.Checked && cbx_TerminalV1_IC.Checked)
-            {
-                IABCN = "06";
-            }
-            else if (cbx_TerminalV1_IA.Checked && !cbx_TerminalV1_IB.Checked && cbx_TerminalV1_IC.Checked)
-            {
-                IABCN = "05";
-            }
-            else if (!cbx_TerminalV1_IA.Checked && !cbx_TerminalV1_IB.Checked && cbx_TerminalV1_IC.Checked)
-            {
-                IABCN = "04";
-            }
-            else if (cbx_TerminalV1_IA.Checked && cbx_TerminalV1_IB.Checked && !cbx_TerminalV1_IC.Checked)
-            {
-                IABCN = "03";
-            }
-            else if (!cbx_TerminalV1_IA.Checked && cbx_TerminalV1_IB.Checked && !cbx_TerminalV1_IC.Checked)
-            {
-                IABCN = "02";
-            }
-            else if (cbx_TerminalV1_IA.Checked && !cbx_TerminalV1_IB.Checked && !cbx_TerminalV1_IC.Checked)
-            {
-                IABCN = "01";
-            }
-            else if (!cbx_TerminalV1_IA.Checked && !cbx_TerminalV1_IB.Checked && !cbx_TerminalV1_IC.Checked)
-            {
-                IABCN = "00";
-            }
         }
         /// <summary>
         /// 接入电压 21
@@ -851,8 +685,11 @@ namespace ModelTest
         {
             LogMessage.Info(sender.ToString());
             MCUAddr = tbxTerminalAdds.Text;//地址
-            TerminalV1_UABC();//数据项
-            var Terminal_PowerOn_V = TerminalModel.TerminalByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUCtrl, "21", UABC, MCUStopByte);//07 00 01 00 21 Uabc
+            string uabc = TerminalModel.GetThreePhaseSelectionByte(
+                cbx_TerminalV1_UA.Checked,
+                cbx_TerminalV1_UB.Checked,
+                cbx_TerminalV1_UC.Checked);
+            var Terminal_PowerOn_V = TerminalModel.TerminalByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUCtrl, "21", uabc, MCUStopByte);//07 00 01 00 21 Uabc
             await SeedMethod(Terminal_PowerOn_V);
         }
         /// <summary>
@@ -876,8 +713,11 @@ namespace ModelTest
         {
             LogMessage.Info(sender.ToString());
             MCUAddr = tbxTerminalAdds.Text;//地址
-            TerminalV1_IABC();
-            var Terminal_PowerOn_A = TerminalModel.TerminalByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUCtrl, "22", IABCN, MCUStopByte);//07 00 01 00 22 Iabc
+            string iabcn = TerminalModel.GetThreePhaseSelectionByte(
+              cbx_TerminalV1_IA.Checked,
+              cbx_TerminalV1_IB.Checked,
+              cbx_TerminalV1_IC.Checked);
+            var Terminal_PowerOn_A = TerminalModel.TerminalByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUCtrl, "22", iabcn, MCUStopByte);//07 00 01 00 22 Iabc
             await SeedMethod(Terminal_PowerOn_A);
         }
         /// <summary>
@@ -987,7 +827,7 @@ namespace ModelTest
         /// <param name="e"></param>
         private void 清空ToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            textBoxlog.Text = "";
+            textBoxlog.Clear();
         }
         /// <summary>
         /// 切换背景色
@@ -996,8 +836,9 @@ namespace ModelTest
         /// <param name="e"></param>
         private void 切换背景色ToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            textBoxlog.ForeColor = Color.Black;
-            textBoxlog.BackColor = Color.White;
+            bool useLightTheme = textBoxlog.BackColor == SystemColors.MenuText || textBoxlog.BackColor == Color.Black;
+            textBoxlog.ForeColor = useLightTheme ? Color.Black : Color.Lime;
+            textBoxlog.BackColor = useLightTheme ? Color.White : SystemColors.MenuText;
         }
         /// <summary>
         /// 复制日志内容
@@ -1006,8 +847,49 @@ namespace ModelTest
         /// <param name="e"></param>
         private void 复制ToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            string strCopy = textBoxlog.SelectedText;
-            Clipboard.SetDataObject(strCopy);
+            string strCopy = string.IsNullOrWhiteSpace(textBoxlog.SelectedText)
+                ? textBoxlog.Text
+                : textBoxlog.SelectedText;
+            if (!string.IsNullOrEmpty(strCopy))
+            {
+                Clipboard.SetText(strCopy);
+            }
+        }
+        private void 复制全部ToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (!string.IsNullOrEmpty(textBoxlog.Text))
+            {
+                Clipboard.SetText(textBoxlog.Text);
+            }
+        }
+
+        private void 全选ToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            textBoxlog.SelectAll();
+            textBoxlog.Focus();
+        }
+        private void 保存日志ToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (string.IsNullOrWhiteSpace(textBoxlog.Text))
+            {
+                AddLog("当前没有可保存的日志");
+                return;
+            }
+
+            using SaveFileDialog saveFileDialog = new SaveFileDialog
+            {
+                Title = "保存日志",
+                Filter = "日志文件|*.log|文本文件|*.txt|所有文件|*.*",
+                FileName = $"ModelTest_{DateTime.Now:yyyyMMdd_HHmmss}.log"
+            };
+
+            if (saveFileDialog.ShowDialog(this) != DialogResult.OK)
+            {
+                return;
+            }
+
+            File.WriteAllText(saveFileDialog.FileName, textBoxlog.Text, Encoding.UTF8);
+            AddLog($"日志已保存：{saveFileDialog.FileName}");
         }
         private bool TaiTiRed = false;
         private bool TaiTiGreen = false;
@@ -1520,199 +1402,6 @@ namespace ModelTest
             }
             beforeindex = e.Index;//记住前一次选择的索引值
             e.NewValue = CheckState.Checked;
-        }
-
-        private async void LgServer_Click(object sender, EventArgs e)
-        {
-            string ServerIp = textBox4.Text;
-            string ServerPort = textBox3.Text;
-            var result = await Task.Run(() => WinSocketInvoker.ConnectServerAndGetRandom(ServerIp, ServerPort));
-
-            if (!result.Connected)
-            {
-                label115.Text = "加密服务器连接状态：连接失败";
-                return;
-            }
-
-            label115.Text = "加密服务器连接状态：已连接";
-            richTextBox1.Clear();
-            richTextBox1.AppendText(result.RandCode == 0
-                ? $"获取随机数成功！随机数结果 = {result.RandText}"
-                : $"获取随机数失败！错误码：{result.RandCode}");
-            StartWinSocketHeartbeat();
-        }
-        private void StartWinSocketHeartbeat()
-        {
-            if (!_winSocketHeartbeatTimer.Enabled)
-            {
-                _winSocketHeartbeatTimer.Start();
-            }
-        }
-
-        private async void WinSocketHeartbeatTimer_Tick(object? sender, EventArgs e)
-        {
-            if (_winSocketHeartbeatRunning)
-            {
-                return;
-            }
-
-            const int flag = 0;
-            const string putDiv = "0000000000000001";
-            string sendTime = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
-            AddLog($"{sendTime}发送心跳身份认证数据:flag={flag};putDiv={putDiv}");
-
-            _winSocketHeartbeatRunning = true;
-            try
-            {
-                var result = await Task.Run(() => WinSocketInvoker.SendIdentityHeartbeat(flag, putDiv));
-                string receiveTime = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
-                AddLog($"数据连接测试, 接收心跳身份认证数据:{receiveTime}result={result.Code};outRand={result.OutRand};outEndata={result.OutEndata}");
-            }
-            catch (Exception ex)
-            {
-                AddLog($"数据连接测试, 接收心跳身份认证数据:{DateTime.Now:yyyy-MM-dd HH:mm:ss}result=异常;outRand=;outEndata=;error={ex.Message}");
-            }
-            finally
-            {
-                _winSocketHeartbeatRunning = false;
-            }
-        }
-        private void StopWinSocketHeartbeat()
-        {
-            _winSocketHeartbeatTimer.Stop();
-            _winSocketHeartbeatRunning = false;
-        }
-
-        private void ModelMain_FormClosed(object? sender, FormClosedEventArgs e)
-        {
-            StopWinSocketHeartbeat();
-            _winSocketHeartbeatTimer.Tick -= WinSocketHeartbeatTimer_Tick;
-            _winSocketHeartbeatTimer.Dispose();
-        }
-        /// <summary>
-        /// 加密数据接口
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private void button5_Click(object sender, EventArgs e)
-        {
-            WinSocketInvoker.Execute(ServerImp.Text, textBox5.Text);
-        }
-
-        private void button6_Click(object sender, EventArgs e)
-        {
-
-        }
-        /// <summary>
-        /// 加密机接口选项发生改变之后
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private void ServerImp_SelectedIndexChanged(object sender, EventArgs e)
-        {
-            if (_serverImpUpdating)
-            {
-                return;
-            }
-            var description = WinSocketInvoker.GetParameterDescription(ServerImp.SelectedItem as string);
-            if (!string.IsNullOrWhiteSpace(description))
-            {
-                AddLog(description);
-            }
-        }
-        private void CheckItemSetUpFrom()
-        {
-            _serverImpCatalogLoaded = false;
-            _serverImpServices.Clear();
-
-            ServerImp.SelectedIndexChanged -= ServerImp_SelectedIndexChanged;
-            ServerImp.DropDown -= ServerImp_DropDown;
-            ServerImp.TextUpdate -= ServerImp_TextUpdate;
-            ServerImp.BeginUpdate();
-            try
-            {
-                ServerImp.DropDownStyle = ComboBoxStyle.DropDown;
-                ServerImp.DataSource = null;
-                ServerImp.Items.Clear();
-                ServerImp.Text = ServerImpPlaceholderText;
-                ServerImp.SelectedIndex = -1;
-            }
-            finally
-            {
-                ServerImp.EndUpdate();
-            }
-
-            ServerImp.DropDown += ServerImp_DropDown;
-            ServerImp.TextUpdate += ServerImp_TextUpdate;
-            ServerImp.SelectedIndexChanged += ServerImp_SelectedIndexChanged;
-        }
-        private void ServerImp_DropDown(object? sender, EventArgs e)
-        {
-            var filter = string.Equals(ServerImp.Text, ServerImpPlaceholderText, StringComparison.Ordinal)
-                ? string.Empty
-                : ServerImp.Text;
-            RenderServerImpItems(filter, keepText: false);
-        }
-
-        private void ServerImp_TextUpdate(object? sender, EventArgs e)
-        {
-            if (_serverImpUpdating)
-            {
-                return;
-            }
-
-            RenderServerImpItems(ServerImp.Text, keepText: true);
-            ServerImp.DroppedDown = true;
-            ServerImp.SelectionStart = ServerImp.Text.Length;
-            Cursor.Current = Cursors.Default;
-        }
-
-        private void EnsureServerImpCatalogLoaded()
-        {
-            if (_serverImpCatalogLoaded)
-            {
-                return;
-            }
-
-            _serverImpServices.Clear();
-            _serverImpServices.AddRange(winSocketServer.WinSocketSericeImp());
-            _serverImpCatalogLoaded = true;
-        }
-
-        private void RenderServerImpItems(string filter, bool keepText)
-        {
-            EnsureServerImpCatalogLoaded();
-
-            var currentText = keepText ? ServerImp.Text : string.Empty;
-            var selectionStart = ServerImp.SelectionStart;
-            var items = string.IsNullOrWhiteSpace(filter)
-                ? _serverImpServices.Take(ServerImpLazyPageSize).ToArray()
-                : _serverImpServices
-                    .Where(name => name.Contains(filter, StringComparison.OrdinalIgnoreCase))
-                    .Take(ServerImpLazyPageSize)
-                    .ToArray();
-
-            _serverImpUpdating = true;
-            ServerImp.SelectedIndexChanged -= ServerImp_SelectedIndexChanged;
-            ServerImp.BeginUpdate();
-            try
-            {
-                ServerImp.Items.Clear();
-                ServerImp.Items.AddRange(items);
-                ServerImp.SelectedIndex = -1;
-                if (keepText)
-                {
-                    ServerImp.Text = currentText;
-                    ServerImp.SelectionStart = Math.Min(selectionStart, ServerImp.Text.Length);
-                    ServerImp.SelectionLength = 0;
-                }
-            }
-            finally
-            {
-                ServerImp.EndUpdate();
-                ServerImp.SelectedIndexChanged += ServerImp_SelectedIndexChanged;
-                _serverImpUpdating = false;
-            }
         }
         /// <summary>
         /// textbox只能输入数字

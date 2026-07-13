@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel;
+using System.Globalization;
 using System.Drawing.Drawing2D;
 using ModelTest.Protocol;
 using ModelTest.Tools;
@@ -10,15 +11,6 @@ namespace ModelTest.CustomControl
         private const string MCUStartByte = "55";
         private const string MCUStopByte = "AA";
         private const string MCUCtrl = "00";
-        private static readonly double[] VoltageRanges = [60D, 120D, 240D, 480D];
-        private static readonly double[] CurrentRanges = [100D, 50D, 25D, 10D, 5D, 2.5D, 1D, 0.5D, 0.25D, 0.1D, 0.05D, 0.025D];
-        private static readonly double[,] StandardConstantTable =
-        {
-            { 1E7, 2E7, 4E7, 1E8, 2E8, 4E8, 1E9, 2E9, 4E9, 1E10, 2E10, 4E10 },
-            { 5E6, 1E7, 2E7, 5E7, 1E8, 2E8, 5E8, 1E9, 2E9, 5E9, 1E10, 2E10 },
-            { 2.5E6, 5E6, 1E7, 2.5E7, 5E7, 1E8, 2.5E8, 5E8, 1E9, 2.5E9, 5E9, 1E10 },
-            { 1.25E6, 2.5E6, 5E6, 1.25E7, 2.5E7, 5E7, 1.25E8, 2.5E8, 5E8, 1.25E9, 2.5E9, 5E9 }
-        };
         private const int ResponseTimeoutMilliseconds = 5000;
 
         private double _displayValue;
@@ -40,7 +32,7 @@ namespace ModelTest.CustomControl
             cbxErrorTextClass.SelectedIndex = 0;
             tbxVoltage.Text = "220";
             tbxCurrent.Text = "5";
-            tbxDNBC.Text = "10000";
+            tbxDNBC.Text = ErrorTestConstantHelper.DefaultMeterConstant.ToString(CultureInfo.InvariantCulture);
             tbxRJSC.Text = "10";
             RefreshStandardConstant();
         }
@@ -399,50 +391,16 @@ namespace ModelTest.CustomControl
 
         private void RefreshStandardConstant()
         {
-            if (!TryParseInputNumber(tbxVoltage.Text, out double voltage) ||
-                !TryParseInputNumber(tbxCurrent.Text, out double current))
+            if (!ErrorTestConstantHelper.TryCalculateConstants(
+                    tbxVoltage.Text,
+                    tbxCurrent.Text,
+                    out ulong standardConstant,
+                    out _))
             {
                 return;
             }
 
-            int voltageIndex = FindAscendingRangeIndex(VoltageRanges, voltage);
-            int currentIndex = FindDescendingRangeIndex(CurrentRanges, current);
-            tbxBZBC.Text = FormatConstant(StandardConstantTable[voltageIndex, currentIndex]);
-        }
-
-        private static bool TryParseInputNumber(string text, out double value)
-        {
-            string normalized = text
-                .Trim()
-                .Replace("V", string.Empty, StringComparison.OrdinalIgnoreCase)
-                .Replace("A", string.Empty, StringComparison.OrdinalIgnoreCase);
-            return double.TryParse(normalized, out value);
-        }
-
-        private static int FindAscendingRangeIndex(double[] ranges, double value)
-        {
-            for (int i = 0; i < ranges.Length; i++)
-            {
-                if (value <= ranges[i])
-                {
-                    return i;
-                }
-            }
-
-            return ranges.Length - 1;
-        }
-
-        private static int FindDescendingRangeIndex(double[] ranges, double value)
-        {
-            for (int i = ranges.Length - 1; i >= 0; i--)
-            {
-                if (value <= ranges[i])
-                {
-                    return i;
-                }
-            }
-
-            return 0;
+            tbxBZBC.Text = FormatConstant(standardConstant);
         }
 
         private static string FormatConstant(double value)
@@ -476,7 +434,7 @@ namespace ModelTest.CustomControl
         private bool TryParseUInt32(string text, string name, out uint value)
         {
             value = 0;
-            if (!TryParseInputNumber(text, out double parsed) || parsed < 0 || parsed > uint.MaxValue)
+            if (!ErrorTestConstantHelper.TryParseInputNumber(text, out double parsed) || parsed < 0 || parsed > uint.MaxValue)
             {
                 LogRequested?.Invoke($"{name}不合法，必须是0到{uint.MaxValue}之间的整数。");
                 return false;
@@ -489,7 +447,7 @@ namespace ModelTest.CustomControl
         private bool TryParseUInt16(string text, string name, out ushort value)
         {
             value = 0;
-            if (!TryParseInputNumber(text, out double parsed) || parsed < 0 || parsed > ushort.MaxValue)
+            if (!ErrorTestConstantHelper.TryParseInputNumber(text, out double parsed) || parsed < 0 || parsed > ushort.MaxValue)
             {
                 LogRequested?.Invoke($"{name}不合法，必须是0到{ushort.MaxValue}之间的整数。");
                 return false;

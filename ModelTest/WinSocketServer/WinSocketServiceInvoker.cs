@@ -4,11 +4,18 @@ using System.Linq;
 
 namespace ModelTest
 {
+    /// <summary>
+    /// WinSocket 接口调用器。
+    /// 负责参数解析、参数日志输出、底层 DLL 方法分派以及返回内容格式化。
+    /// </summary>
     public sealed class WinSocketServiceInvoker
     {
         private readonly WinSocketServer _server;
         private readonly Action<string> _log;
 
+        /// <summary>
+        /// 登录阶段的结果对象。
+        /// </summary>
         public sealed class ServerLoginResult
         {
             public bool Connected { get; init; }
@@ -17,6 +24,9 @@ namespace ModelTest
             public string RandText { get; init; } = string.Empty;
         }
 
+        /// <summary>
+        /// 心跳身份认证返回对象。
+        /// </summary>
         public sealed class IdentityHeartbeatResult
         {
             public int Code { get; init; }
@@ -24,6 +34,17 @@ namespace ModelTest
             public string OutEndata { get; init; } = string.Empty;
         }
 
+        /// <summary>
+        /// 接口执行结果。
+        /// DisplayMessage 会直接显示在控件输出区。
+        /// </summary>
+        public sealed class ExecutionResult
+        {
+            public bool Success { get; init; }
+            public string DisplayMessage { get; init; } = string.Empty;
+        }
+
+        // 接口参数说明字典，供 UI 选中接口时展示给用户参考。
         private static readonly Dictionary<string, string> ServiceDescriptions = new()
         {
             ["RESAM_Formal_GetKeyData_AppLayer"] = "int iOperateMode,char * cTESAMID, char * cSessionKey,int cTaskType, char * cTaskData, char * cOutSID,char * cOutAttachData, char * cOutData ,char * cOutMAC",
@@ -107,6 +128,7 @@ namespace ModelTest
             ["Obj_Terminal_Formal_GetSessionDataForMeter"] = "输入参数:int cOperateMode,string cTESAMID,string cSessionKey,int iTaskType,string cApdu,string cTaskData",
         };
 
+        // 常见错误码说明，用于把底层 DLL 返回码转成人可读的日志。
         private static readonly Dictionary<int, string> ErrorMessages = new()
         {
             [45] = "密码机密钥错",
@@ -140,6 +162,9 @@ namespace ModelTest
             _log = log ?? throw new ArgumentNullException(nameof(log));
         }
 
+        /// <summary>
+        /// 获取接口参数说明。
+        /// </summary>
         public string GetParameterDescription(string? serviceName)
         {
             if (string.IsNullOrWhiteSpace(serviceName))
@@ -152,12 +177,21 @@ namespace ModelTest
                 : $"选择加密机函数 {serviceName}，当前未配置参数说明。";
         }
 
-        public void Execute(string? serviceName, string rawParameterText)
+        /// <summary>
+        /// 执行一次 WinSocket 接口调用。
+        /// 这里负责统一校验接口名、解析参数、记录调用日志并格式化返回值。
+        /// </summary>
+        public ExecutionResult Execute(string? serviceName, string rawParameterText)
         {
             if (string.IsNullOrWhiteSpace(serviceName))
             {
-                _log("请右上角选择加密算法！");
-                return;
+                const string message = "请右上角选择加密算法！";
+                _log(message);
+                return new ExecutionResult
+                {
+                    Success = false,
+                    DisplayMessage = message
+                };
             }
 
             var args = ParseArguments(rawParameterText);
@@ -165,16 +199,31 @@ namespace ModelTest
 
             try
             {
-                _log($"调用接口：{serviceName}开始加密计算");
+                _log($"调用接口：{serviceName}开始加密计算\r\n");
                 var result = Invoke(serviceName, args, buffers);
-                PrintResult(serviceName, result);
+                string resultMessage = FormatResultMessage(serviceName, result);
+                _log(resultMessage);
+                return new ExecutionResult
+                {
+                    Success = result.Code == 0,
+                    DisplayMessage = resultMessage
+                };
             }
             catch (Exception ex)
             {
-                _log($"调用接口：{serviceName}异常：{ex.Message}");
+                string errorMessage = $"调用接口：{serviceName}异常：{ex.Message}";
+                _log(errorMessage);
+                return new ExecutionResult
+                {
+                    Success = false,
+                    DisplayMessage = errorMessage
+                };
             }
         }
 
+        /// <summary>
+        /// 连接加密服务器并立即获取一次随机数，作为登录链路检测。
+        /// </summary>
         public ServerLoginResult ConnectServerAndGetRandom(string ip, string port)
         {
             _log("开始连接加密服务器！！！");
@@ -203,6 +252,9 @@ namespace ModelTest
             };
         }
 
+        /// <summary>
+        /// 发送身份认证心跳。
+        /// </summary>
         public IdentityHeartbeatResult SendIdentityHeartbeat(int flag, string putDiv)
         {
             var outRand = new byte[256];
@@ -217,6 +269,10 @@ namespace ModelTest
             };
         }
 
+        /// <summary>
+        /// 根据接口名分派到对应底层 DLL 包装方法。
+        /// 这是整个调用器的核心路由表。
+        /// </summary>
         private WinSocketServer.DllResult Invoke(string serviceName, string[] args, OutputBuffers buffers)
         {
             switch (serviceName)
@@ -572,15 +628,14 @@ namespace ModelTest
             }
         }
 
-        private void PrintResult(string serviceName, WinSocketServer.DllResult result)
+        private string FormatResultMessage(string serviceName, WinSocketServer.DllResult result)
         {
             if (result.Code == 0)
             {
-                _log($"调用接口：{serviceName}成功,返回值：{result.Code}");
-                return;
+                return $"调用接口：{serviceName}成功,返回值：{result.Code}";
             }
 
-            _log($"调用接口：{serviceName}失败,返回值：{result.Code}，错误说明：{GetErrorMessage(result.Code)}");
+            return $"调用接口：{serviceName}失败,返回值：{result.Code}，错误说明：{GetErrorMessage(result.Code)}";
         }
 
         private static string GetErrorMessage(int code)
@@ -603,7 +658,7 @@ namespace ModelTest
 
         private void LogArgs(params (string Name, string Value)[] args)
         {
-            _log(string.Join("\r\n", args.Select(arg => $"{arg.Name} = {arg.Value}")));
+            _log("\r\n" + string.Join("\r\n", args.Select(arg => $"{arg.Name} = {arg.Value}")));
         }
 
         private static string[] ParseArguments(string rawParameterText)

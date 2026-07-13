@@ -10,6 +10,7 @@
 		<PlatformTarget>x86</PlatformTarget>
 		<Platforms>AnyCPU;x86</Platforms>
 		<ApplicationIcon>Assets\AppIcon.ico</ApplicationIcon>
+		<ApplicationManifest>app.manifest</ApplicationManifest>
 	</PropertyGroup>
 
 	<ItemGroup>
@@ -37,6 +38,10 @@
 		</None>
 		<None Update="Protocol\MeterHardwareProtocolV1.txt">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
+		<None Update="Protocol\4 JJG596-2026 安装式交流电能表检定规程分发.pdf">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+			<CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
 		</None>
 	</ItemGroup>
 

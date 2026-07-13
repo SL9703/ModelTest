@@ -40,10 +40,12 @@
             btnTestMeterCommunication = new Button();
             btnResetCommand = new Button();
             btnAcVoltagePower = new Button();
+            btnAcVoltagePowerOff = new Button();
             cbxPhaseA = new CheckBox();
             cbxPhaseB = new CheckBox();
             cbxPhaseC = new CheckBox();
             btnAcCurrentPower = new Button();
+            btnAcCurrentPowerOff = new Button();
             cbxCurrentPhaseA = new CheckBox();
             cbxCurrentPhaseB = new CheckBox();
             cbxCurrentPhaseC = new CheckBox();
@@ -59,6 +61,7 @@
             btnGetDailyTimingResult = new Button();
             btnStopDailyTiming = new Button();
             labelDailyTimingCountdown = new Label();
+            labelDailyTimingAddressHint = new Label();
             groupBoxStationDetection = new GroupBox();
             labelVoltageShortCircuitDetection = new Label();
             btnStartVoltageShortCircuitDetection = new Button();
@@ -71,6 +74,26 @@
             btnMotorCrimpPress = new Button();
             btnMotorCrimpRelease = new Button();
             btnMotorCrimpPowerOff = new Button();
+            groupBoxBasicErrorTest = new GroupBox();
+            labelBasicErrorVoltage = new Label();
+            tbxBasicErrorVoltage = new TextBox();
+            labelBasicErrorCurrent = new Label();
+            tbxBasicErrorCurrent = new TextBox();
+            labelBasicErrorStandardConstant = new Label();
+            tbxBasicErrorStandardConstant = new TextBox();
+            labelBasicErrorMeterConstant = new Label();
+            tbxBasicErrorMeterConstant = new TextBox();
+            labelBasicErrorType = new Label();
+            cbxBasicErrorType = new ComboBox();
+            cbxBasicErrorProtocol21 = new CheckBox();
+            cbxBasicErrorProtocol38 = new CheckBox();
+            labelBasicErrorPulseCount = new Label();
+            tbxBasicErrorPulseCount = new TextBox();
+            labelBasicErrorTestCount = new Label();
+            tbxBasicErrorTestCount = new TextBox();
+            btnStartBasicErrorTest = new Button();
+            btnGetBasicErrorTestResult = new Button();
+            labelBasicErrorHint = new Label();
             groupBox3 = new GroupBox();
             label4 = new Label();
             tbxMeterV1Addr = new TextBox();
@@ -82,6 +105,7 @@
             groupBoxDailyTiming.SuspendLayout();
             groupBoxStationDetection.SuspendLayout();
             groupBoxMotorCrimping.SuspendLayout();
+            groupBoxBasicErrorTest.SuspendLayout();
             groupBox3.SuspendLayout();
             SuspendLayout();
             // 
@@ -170,6 +194,7 @@
             // 
             // panel1
             // 
+            panel1.Controls.Add(groupBoxBasicErrorTest);
             panel1.Controls.Add(groupBoxMotorCrimping);
             panel1.Controls.Add(groupBoxStationDetection);
             panel1.Controls.Add(groupBoxDailyTiming);
@@ -215,13 +240,14 @@
             // 
             // groupBoxAcVoltageControl
             // 
+            groupBoxAcVoltageControl.Controls.Add(btnAcVoltagePowerOff);
             groupBoxAcVoltageControl.Controls.Add(btnAcVoltagePower);
             groupBoxAcVoltageControl.Controls.Add(cbxPhaseA);
             groupBoxAcVoltageControl.Controls.Add(cbxPhaseB);
             groupBoxAcVoltageControl.Controls.Add(cbxPhaseC);
             groupBoxAcVoltageControl.Location = new Point(24, 126);
             groupBoxAcVoltageControl.Name = "groupBoxAcVoltageControl";
-            groupBoxAcVoltageControl.Size = new Size(620, 108);
+            groupBoxAcVoltageControl.Size = new Size(760, 108);
             groupBoxAcVoltageControl.TabIndex = 1;
             groupBoxAcVoltageControl.TabStop = false;
             groupBoxAcVoltageControl.Text = "交流电压控制";
@@ -230,16 +256,26 @@
             // 
             btnAcVoltagePower.Location = new Point(12, 42);
             btnAcVoltagePower.Name = "btnAcVoltagePower";
-            btnAcVoltagePower.Size = new Size(226, 46);
+            btnAcVoltagePower.Size = new Size(140, 46);
             btnAcVoltagePower.TabIndex = 4;
             btnAcVoltagePower.Text = "上电";
             btnAcVoltagePower.UseVisualStyleBackColor = true;
             btnAcVoltagePower.Click += btnAcVoltagePower_Click;
             // 
+            // btnAcVoltagePowerOff
+            // 
+            btnAcVoltagePowerOff.Location = new Point(168, 42);
+            btnAcVoltagePowerOff.Name = "btnAcVoltagePowerOff";
+            btnAcVoltagePowerOff.Size = new Size(140, 46);
+            btnAcVoltagePowerOff.TabIndex = 5;
+            btnAcVoltagePowerOff.Text = "下电";
+            btnAcVoltagePowerOff.UseVisualStyleBackColor = true;
+            btnAcVoltagePowerOff.Click += btnAcVoltagePowerOff_Click;
+            // 
             // cbxPhaseA
             // 
             cbxPhaseA.AutoSize = true;
-            cbxPhaseA.Location = new Point(280, 50);
+            cbxPhaseA.Location = new Point(356, 50);
             cbxPhaseA.Name = "cbxPhaseA";
             cbxPhaseA.Size = new Size(84, 32);
             cbxPhaseA.TabIndex = 1;
@@ -249,7 +285,7 @@
             // cbxPhaseB
             // 
             cbxPhaseB.AutoSize = true;
-            cbxPhaseB.Location = new Point(387, 50);
+            cbxPhaseB.Location = new Point(463, 50);
             cbxPhaseB.Name = "cbxPhaseB";
             cbxPhaseB.Size = new Size(84, 32);
             cbxPhaseB.TabIndex = 2;
@@ -259,7 +295,7 @@
             // cbxPhaseC
             // 
             cbxPhaseC.AutoSize = true;
-            cbxPhaseC.Location = new Point(494, 50);
+            cbxPhaseC.Location = new Point(570, 50);
             cbxPhaseC.Name = "cbxPhaseC";
             cbxPhaseC.Size = new Size(84, 32);
             cbxPhaseC.TabIndex = 3;
@@ -268,13 +304,14 @@
             // 
             // groupBoxAcCurrentControl
             // 
+            groupBoxAcCurrentControl.Controls.Add(btnAcCurrentPowerOff);
             groupBoxAcCurrentControl.Controls.Add(btnAcCurrentPower);
             groupBoxAcCurrentControl.Controls.Add(cbxCurrentPhaseA);
             groupBoxAcCurrentControl.Controls.Add(cbxCurrentPhaseB);
             groupBoxAcCurrentControl.Controls.Add(cbxCurrentPhaseC);
             groupBoxAcCurrentControl.Location = new Point(24, 252);
             groupBoxAcCurrentControl.Name = "groupBoxAcCurrentControl";
-            groupBoxAcCurrentControl.Size = new Size(620, 108);
+            groupBoxAcCurrentControl.Size = new Size(760, 108);
             groupBoxAcCurrentControl.TabIndex = 2;
             groupBoxAcCurrentControl.TabStop = false;
             groupBoxAcCurrentControl.Text = "交流电流控制";
@@ -283,16 +320,26 @@
             // 
             btnAcCurrentPower.Location = new Point(12, 42);
             btnAcCurrentPower.Name = "btnAcCurrentPower";
-            btnAcCurrentPower.Size = new Size(226, 46);
+            btnAcCurrentPower.Size = new Size(140, 46);
             btnAcCurrentPower.TabIndex = 8;
             btnAcCurrentPower.Text = "通电流";
             btnAcCurrentPower.UseVisualStyleBackColor = true;
             btnAcCurrentPower.Click += btnAcCurrentPower_Click;
             // 
+            // btnAcCurrentPowerOff
+            // 
+            btnAcCurrentPowerOff.Location = new Point(168, 42);
+            btnAcCurrentPowerOff.Name = "btnAcCurrentPowerOff";
+            btnAcCurrentPowerOff.Size = new Size(140, 46);
+            btnAcCurrentPowerOff.TabIndex = 9;
+            btnAcCurrentPowerOff.Text = "断电流";
+            btnAcCurrentPowerOff.UseVisualStyleBackColor = true;
+            btnAcCurrentPowerOff.Click += btnAcCurrentPowerOff_Click;
+            // 
             // cbxCurrentPhaseA
             // 
             cbxCurrentPhaseA.AutoSize = true;
-            cbxCurrentPhaseA.Location = new Point(280, 50);
+            cbxCurrentPhaseA.Location = new Point(356, 50);
             cbxCurrentPhaseA.Name = "cbxCurrentPhaseA";
             cbxCurrentPhaseA.Size = new Size(84, 32);
             cbxCurrentPhaseA.TabIndex = 5;
@@ -302,7 +349,7 @@
             // cbxCurrentPhaseB
             // 
             cbxCurrentPhaseB.AutoSize = true;
-            cbxCurrentPhaseB.Location = new Point(387, 50);
+            cbxCurrentPhaseB.Location = new Point(463, 50);
             cbxCurrentPhaseB.Name = "cbxCurrentPhaseB";
             cbxCurrentPhaseB.Size = new Size(84, 32);
             cbxCurrentPhaseB.TabIndex = 6;
@@ -312,7 +359,7 @@
             // cbxCurrentPhaseC
             // 
             cbxCurrentPhaseC.AutoSize = true;
-            cbxCurrentPhaseC.Location = new Point(494, 50);
+            cbxCurrentPhaseC.Location = new Point(570, 50);
             cbxCurrentPhaseC.Name = "cbxCurrentPhaseC";
             cbxCurrentPhaseC.Size = new Size(84, 32);
             cbxCurrentPhaseC.TabIndex = 7;
@@ -321,6 +368,7 @@
             // 
             // groupBoxDailyTiming
             // 
+            groupBoxDailyTiming.Controls.Add(labelDailyTimingAddressHint);
             groupBoxDailyTiming.Controls.Add(labelDailyTimingCountdown);
             groupBoxDailyTiming.Controls.Add(btnStopDailyTiming);
             groupBoxDailyTiming.Controls.Add(btnGetDailyTimingResult);
@@ -331,7 +379,7 @@
             groupBoxDailyTiming.Controls.Add(labelDailyTimingTime);
             groupBoxDailyTiming.Location = new Point(24, 378);
             groupBoxDailyTiming.Name = "groupBoxDailyTiming";
-            groupBoxDailyTiming.Size = new Size(980, 120);
+            groupBoxDailyTiming.Size = new Size(980, 182);
             groupBoxDailyTiming.TabIndex = 3;
             groupBoxDailyTiming.TabStop = false;
             groupBoxDailyTiming.Text = "日计时试验";
@@ -410,6 +458,17 @@
             labelDailyTimingCountdown.TabIndex = 7;
             labelDailyTimingCountdown.Text = "倒计时：未开始";
             // 
+            // labelDailyTimingAddressHint
+            // 
+            labelDailyTimingAddressHint.AutoSize = false;
+            labelDailyTimingAddressHint.ForeColor = Color.Red;
+            labelDailyTimingAddressHint.Location = new Point(16, 116);
+            labelDailyTimingAddressHint.Name = "labelDailyTimingAddressHint";
+            labelDailyTimingAddressHint.Size = new Size(938, 54);
+            labelDailyTimingAddressHint.TabIndex = 8;
+            labelDailyTimingAddressHint.Text = "多表位日计时地址填写示例：单表位 1；范围 1-48、01-03；列表 1,2,3、4,5,6。"
+                + "\r\n范围和列表按十进制填写，发送时自动转 16 进制。";
+            // 
             // groupBoxStationDetection
             // 
             groupBoxStationDetection.Controls.Add(labelStationDetectionSummary);
@@ -419,7 +478,7 @@
             groupBoxStationDetection.Controls.Add(btnGetVoltageShortCircuitDetectionResult);
             groupBoxStationDetection.Controls.Add(btnStartVoltageShortCircuitDetection);
             groupBoxStationDetection.Controls.Add(labelVoltageShortCircuitDetection);
-            groupBoxStationDetection.Location = new Point(24, 516);
+            groupBoxStationDetection.Location = new Point(24, 568);
             groupBoxStationDetection.Name = "groupBoxStationDetection";
             groupBoxStationDetection.Size = new Size(980, 176);
             groupBoxStationDetection.TabIndex = 4;
@@ -498,7 +557,7 @@
             groupBoxMotorCrimping.Controls.Add(btnMotorCrimpPowerOff);
             groupBoxMotorCrimping.Controls.Add(btnMotorCrimpRelease);
             groupBoxMotorCrimping.Controls.Add(btnMotorCrimpPress);
-            groupBoxMotorCrimping.Location = new Point(24, 710);
+            groupBoxMotorCrimping.Location = new Point(24, 762);
             groupBoxMotorCrimping.Name = "groupBoxMotorCrimping";
             groupBoxMotorCrimping.Size = new Size(620, 104);
             groupBoxMotorCrimping.TabIndex = 5;
@@ -534,6 +593,211 @@
             btnMotorCrimpPowerOff.Text = "电机断电";
             btnMotorCrimpPowerOff.UseVisualStyleBackColor = true;
             btnMotorCrimpPowerOff.Click += btnMotorCrimpPowerOff_Click;
+            // 
+            // groupBoxBasicErrorTest
+            // 
+            groupBoxBasicErrorTest.Controls.Add(labelBasicErrorHint);
+            groupBoxBasicErrorTest.Controls.Add(btnGetBasicErrorTestResult);
+            groupBoxBasicErrorTest.Controls.Add(btnStartBasicErrorTest);
+            groupBoxBasicErrorTest.Controls.Add(tbxBasicErrorTestCount);
+            groupBoxBasicErrorTest.Controls.Add(labelBasicErrorTestCount);
+            groupBoxBasicErrorTest.Controls.Add(tbxBasicErrorPulseCount);
+            groupBoxBasicErrorTest.Controls.Add(labelBasicErrorPulseCount);
+            groupBoxBasicErrorTest.Controls.Add(cbxBasicErrorProtocol38);
+            groupBoxBasicErrorTest.Controls.Add(cbxBasicErrorProtocol21);
+            groupBoxBasicErrorTest.Controls.Add(cbxBasicErrorType);
+            groupBoxBasicErrorTest.Controls.Add(labelBasicErrorType);
+            groupBoxBasicErrorTest.Controls.Add(tbxBasicErrorMeterConstant);
+            groupBoxBasicErrorTest.Controls.Add(labelBasicErrorMeterConstant);
+            groupBoxBasicErrorTest.Controls.Add(tbxBasicErrorStandardConstant);
+            groupBoxBasicErrorTest.Controls.Add(labelBasicErrorStandardConstant);
+            groupBoxBasicErrorTest.Controls.Add(tbxBasicErrorCurrent);
+            groupBoxBasicErrorTest.Controls.Add(labelBasicErrorCurrent);
+            groupBoxBasicErrorTest.Controls.Add(tbxBasicErrorVoltage);
+            groupBoxBasicErrorTest.Controls.Add(labelBasicErrorVoltage);
+            groupBoxBasicErrorTest.Location = new Point(810, 20);
+            groupBoxBasicErrorTest.Name = "groupBoxBasicErrorTest";
+            groupBoxBasicErrorTest.Size = new Size(1380, 276);
+            groupBoxBasicErrorTest.TabIndex = 6;
+            groupBoxBasicErrorTest.TabStop = false;
+            groupBoxBasicErrorTest.Text = "误差测试";
+            // 
+            // labelBasicErrorVoltage
+            // 
+            labelBasicErrorVoltage.AutoSize = true;
+            labelBasicErrorVoltage.Location = new Point(20, 52);
+            labelBasicErrorVoltage.Name = "labelBasicErrorVoltage";
+            labelBasicErrorVoltage.Size = new Size(59, 28);
+            labelBasicErrorVoltage.TabIndex = 0;
+            labelBasicErrorVoltage.Text = "电压";
+            // 
+            // tbxBasicErrorVoltage
+            // 
+            tbxBasicErrorVoltage.Location = new Point(95, 47);
+            tbxBasicErrorVoltage.Name = "tbxBasicErrorVoltage";
+            tbxBasicErrorVoltage.Size = new Size(130, 34);
+            tbxBasicErrorVoltage.TabIndex = 1;
+            tbxBasicErrorVoltage.Text = "220";
+            tbxBasicErrorVoltage.TextChanged += tbxBasicErrorVoltage_TextChanged;
+            // 
+            // labelBasicErrorCurrent
+            // 
+            labelBasicErrorCurrent.AutoSize = true;
+            labelBasicErrorCurrent.Location = new Point(230, 52);
+            labelBasicErrorCurrent.Name = "labelBasicErrorCurrent";
+            labelBasicErrorCurrent.Size = new Size(59, 28);
+            labelBasicErrorCurrent.TabIndex = 2;
+            labelBasicErrorCurrent.Text = "电流";
+            // 
+            // tbxBasicErrorCurrent
+            // 
+            tbxBasicErrorCurrent.Location = new Point(295, 47);
+            tbxBasicErrorCurrent.Name = "tbxBasicErrorCurrent";
+            tbxBasicErrorCurrent.Size = new Size(120, 34);
+            tbxBasicErrorCurrent.TabIndex = 3;
+            tbxBasicErrorCurrent.Text = "5";
+            tbxBasicErrorCurrent.TextChanged += tbxBasicErrorCurrent_TextChanged;
+            // 
+            // labelBasicErrorStandardConstant
+            // 
+            labelBasicErrorStandardConstant.AutoSize = true;
+            labelBasicErrorStandardConstant.Location = new Point(450, 52);
+            labelBasicErrorStandardConstant.Name = "labelBasicErrorStandardConstant";
+            labelBasicErrorStandardConstant.Size = new Size(128, 28);
+            labelBasicErrorStandardConstant.TabIndex = 4;
+            labelBasicErrorStandardConstant.Text = "标准表常数";
+            // 
+            // tbxBasicErrorStandardConstant
+            // 
+            tbxBasicErrorStandardConstant.Location = new Point(590, 47);
+            tbxBasicErrorStandardConstant.Name = "tbxBasicErrorStandardConstant";
+            tbxBasicErrorStandardConstant.Size = new Size(200, 34);
+            tbxBasicErrorStandardConstant.TabIndex = 5;
+            // 
+            // labelBasicErrorMeterConstant
+            // 
+            labelBasicErrorMeterConstant.AutoSize = true;
+            labelBasicErrorMeterConstant.Location = new Point(20, 106);
+            labelBasicErrorMeterConstant.Name = "labelBasicErrorMeterConstant";
+            labelBasicErrorMeterConstant.Size = new Size(128, 28);
+            labelBasicErrorMeterConstant.TabIndex = 6;
+            labelBasicErrorMeterConstant.Text = "电能表常数";
+            // 
+            // tbxBasicErrorMeterConstant
+            // 
+            tbxBasicErrorMeterConstant.Location = new Point(160, 103);
+            tbxBasicErrorMeterConstant.Name = "tbxBasicErrorMeterConstant";
+            tbxBasicErrorMeterConstant.Size = new Size(170, 34);
+            tbxBasicErrorMeterConstant.TabIndex = 7;
+            tbxBasicErrorMeterConstant.Text = "10000";
+            // 
+            // labelBasicErrorType
+            // 
+            labelBasicErrorType.AutoSize = true;
+            labelBasicErrorType.Location = new Point(360, 106);
+            labelBasicErrorType.Name = "labelBasicErrorType";
+            labelBasicErrorType.Size = new Size(105, 28);
+            labelBasicErrorType.TabIndex = 8;
+            labelBasicErrorType.Text = "试验类型";
+            // 
+            // cbxBasicErrorType
+            // 
+            cbxBasicErrorType.DropDownStyle = ComboBoxStyle.DropDownList;
+            cbxBasicErrorType.FormattingEnabled = true;
+            cbxBasicErrorType.Items.AddRange(new object[] { "0x01-有功", "0x02-无功", "0x03-有功+无功", "0x04-谐波" });
+            cbxBasicErrorType.Location = new Point(480, 102);
+            cbxBasicErrorType.Name = "cbxBasicErrorType";
+            cbxBasicErrorType.Size = new Size(230, 36);
+            cbxBasicErrorType.TabIndex = 9;
+            // 
+            // cbxBasicErrorProtocol21
+            // 
+            cbxBasicErrorProtocol21.AutoSize = true;
+            cbxBasicErrorProtocol21.Location = new Point(20, 152);
+            cbxBasicErrorProtocol21.Name = "cbxBasicErrorProtocol21";
+            cbxBasicErrorProtocol21.Size = new Size(87, 32);
+            cbxBasicErrorProtocol21.TabIndex = 10;
+            cbxBasicErrorProtocol21.Text = "0x21";
+            cbxBasicErrorProtocol21.UseVisualStyleBackColor = true;
+            cbxBasicErrorProtocol21.CheckedChanged += cbxBasicErrorProtocol21_CheckedChanged;
+            // 
+            // cbxBasicErrorProtocol38
+            // 
+            cbxBasicErrorProtocol38.AutoSize = true;
+            cbxBasicErrorProtocol38.Checked = true;
+            cbxBasicErrorProtocol38.CheckState = CheckState.Checked;
+            cbxBasicErrorProtocol38.Location = new Point(130, 152);
+            cbxBasicErrorProtocol38.Name = "cbxBasicErrorProtocol38";
+            cbxBasicErrorProtocol38.Size = new Size(87, 32);
+            cbxBasicErrorProtocol38.TabIndex = 11;
+            cbxBasicErrorProtocol38.Text = "0x38";
+            cbxBasicErrorProtocol38.UseVisualStyleBackColor = true;
+            cbxBasicErrorProtocol38.CheckedChanged += cbxBasicErrorProtocol38_CheckedChanged;
+            // 
+            // labelBasicErrorPulseCount
+            // 
+            labelBasicErrorPulseCount.AutoSize = true;
+            labelBasicErrorPulseCount.Location = new Point(250, 154);
+            labelBasicErrorPulseCount.Name = "labelBasicErrorPulseCount";
+            labelBasicErrorPulseCount.Size = new Size(82, 28);
+            labelBasicErrorPulseCount.TabIndex = 12;
+            labelBasicErrorPulseCount.Text = "脉冲数";
+            // 
+            // tbxBasicErrorPulseCount
+            // 
+            tbxBasicErrorPulseCount.Location = new Point(340, 150);
+            tbxBasicErrorPulseCount.Name = "tbxBasicErrorPulseCount";
+            tbxBasicErrorPulseCount.Size = new Size(100, 34);
+            tbxBasicErrorPulseCount.TabIndex = 13;
+            tbxBasicErrorPulseCount.Text = "10";
+            // 
+            // labelBasicErrorTestCount
+            // 
+            labelBasicErrorTestCount.AutoSize = true;
+            labelBasicErrorTestCount.Location = new Point(470, 154);
+            labelBasicErrorTestCount.Name = "labelBasicErrorTestCount";
+            labelBasicErrorTestCount.Size = new Size(59, 28);
+            labelBasicErrorTestCount.TabIndex = 14;
+            labelBasicErrorTestCount.Text = "次数";
+            // 
+            // tbxBasicErrorTestCount
+            // 
+            tbxBasicErrorTestCount.Location = new Point(540, 150);
+            tbxBasicErrorTestCount.Name = "tbxBasicErrorTestCount";
+            tbxBasicErrorTestCount.Size = new Size(100, 34);
+            tbxBasicErrorTestCount.TabIndex = 15;
+            tbxBasicErrorTestCount.Text = "10";
+            // 
+            // btnStartBasicErrorTest
+            // 
+            btnStartBasicErrorTest.Location = new Point(760, 144);
+            btnStartBasicErrorTest.Name = "btnStartBasicErrorTest";
+            btnStartBasicErrorTest.Size = new Size(150, 46);
+            btnStartBasicErrorTest.TabIndex = 16;
+            btnStartBasicErrorTest.Text = "实验启动";
+            btnStartBasicErrorTest.UseVisualStyleBackColor = true;
+            btnStartBasicErrorTest.Click += btnStartBasicErrorTest_Click;
+            // 
+            // btnGetBasicErrorTestResult
+            // 
+            btnGetBasicErrorTestResult.Location = new Point(930, 144);
+            btnGetBasicErrorTestResult.Name = "btnGetBasicErrorTestResult";
+            btnGetBasicErrorTestResult.Size = new Size(170, 46);
+            btnGetBasicErrorTestResult.TabIndex = 17;
+            btnGetBasicErrorTestResult.Text = "实验结果获取";
+            btnGetBasicErrorTestResult.UseVisualStyleBackColor = true;
+            btnGetBasicErrorTestResult.Click += btnGetBasicErrorTestResult_Click;
+            // 
+            // labelBasicErrorHint
+            // 
+            labelBasicErrorHint.AutoSize = false;
+            labelBasicErrorHint.ForeColor = Color.Red;
+            labelBasicErrorHint.Location = new Point(20, 200);
+            labelBasicErrorHint.Name = "labelBasicErrorHint";
+            labelBasicErrorHint.Size = new Size(1330, 64);
+            labelBasicErrorHint.TabIndex = 18;
+            labelBasicErrorHint.Text = "0x38/0x21 二选一，默认 0x38；0x38 需要填写脉冲数(1-99)和次数(1-10)。"
+                + "\r\n若选择“有功+无功”，会分别按有功和无功发送并获取结果。";
             // 
             // groupBox3
             // 
@@ -587,6 +851,8 @@
             groupBoxStationDetection.ResumeLayout(false);
             groupBoxStationDetection.PerformLayout();
             groupBoxMotorCrimping.ResumeLayout(false);
+            groupBoxBasicErrorTest.ResumeLayout(false);
+            groupBoxBasicErrorTest.PerformLayout();
             groupBox3.ResumeLayout(false);
             groupBox3.PerformLayout();
             ResumeLayout(false);
@@ -609,10 +875,12 @@
         private Button btnTestMeterCommunication;
         private Button btnResetCommand;
         private Button btnAcVoltagePower;
+        private Button btnAcVoltagePowerOff;
         private CheckBox cbxPhaseA;
         private CheckBox cbxPhaseB;
         private CheckBox cbxPhaseC;
         private Button btnAcCurrentPower;
+        private Button btnAcCurrentPowerOff;
         private CheckBox cbxCurrentPhaseA;
         private CheckBox cbxCurrentPhaseB;
         private CheckBox cbxCurrentPhaseC;
@@ -628,6 +896,7 @@
         private Button btnGetDailyTimingResult;
         private Button btnStopDailyTiming;
         private Label labelDailyTimingCountdown;
+        private Label labelDailyTimingAddressHint;
         private GroupBox groupBoxStationDetection;
         private Label labelVoltageShortCircuitDetection;
         private Button btnStartVoltageShortCircuitDetection;
@@ -640,5 +909,25 @@
         private Button btnMotorCrimpPress;
         private Button btnMotorCrimpRelease;
         private Button btnMotorCrimpPowerOff;
+        private GroupBox groupBoxBasicErrorTest;
+        private Label labelBasicErrorVoltage;
+        private TextBox tbxBasicErrorVoltage;
+        private Label labelBasicErrorCurrent;
+        private TextBox tbxBasicErrorCurrent;
+        private Label labelBasicErrorStandardConstant;
+        private TextBox tbxBasicErrorStandardConstant;
+        private Label labelBasicErrorMeterConstant;
+        private TextBox tbxBasicErrorMeterConstant;
+        private Label labelBasicErrorType;
+        private ComboBox cbxBasicErrorType;
+        private CheckBox cbxBasicErrorProtocol21;
+        private CheckBox cbxBasicErrorProtocol38;
+        private Label labelBasicErrorPulseCount;
+        private TextBox tbxBasicErrorPulseCount;
+        private Label labelBasicErrorTestCount;
+        private TextBox tbxBasicErrorTestCount;
+        private Button btnStartBasicErrorTest;
+        private Button btnGetBasicErrorTestResult;
+        private Label labelBasicErrorHint;
     }
 }

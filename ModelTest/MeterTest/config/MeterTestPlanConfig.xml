@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<MeterTestPlanConfig xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <Scheme name="默认方案" description="MeterTest 默认测试方案">
+    <TestItem name="通信测试" description="一发一收通信验证">
+      <TestSubItem
+        name="表位通信"
+        requestHex="68 01 00 16"
+        expectedResponse="68 01 00 16"
+        responseMatchMode="Contains"
+        timeoutMs="3000"
+        description="测试表位通信是否正常"
+        mockResponse="68 01 00 16" />
+      <TestSubItem
+        name="地址读取"
+        requestHex="68 AA BB 16"
+        expectedResponse="68 AA BB 16"
+        responseMatchMode="Contains"
+        timeoutMs="5000"
+        description="读取电表地址"
+        mockResponse="68 AA BB 16" />
+    </TestItem>
+  </Scheme>
+</MeterTestPlanConfig>

@@ -40,10 +40,7 @@
             btnAssetInfo = new Button();
             middleArea = new TableLayoutPanel();
             groupScheme = new GroupBox();
-            schemeGrid = new DataGridView();
-            colSchemeNo = new DataGridViewTextBoxColumn();
-            colSchemeName = new DataGridViewTextBoxColumn();
-            colSchemeStatus = new DataGridViewTextBoxColumn();
+            schemeTreeView = new TreeView();
             groupProcess = new GroupBox();
             processGrid = new DataGridView();
             colProcessNo = new DataGridViewTextBoxColumn();
@@ -52,14 +49,6 @@
             colProcessTime = new DataGridViewTextBoxColumn();
             groupHardware = new GroupBox();
             hardwareLayout = new TableLayoutPanel();
-            lblComTitle = new Label();
-            lblComValue = new Label();
-            lblBaudTitle = new Label();
-            lblBaudValue = new Label();
-            lblMeterTitle = new Label();
-            lblMeterValue = new Label();
-            lblDeviceTitle = new Label();
-            lblDeviceValue = new Label();
             mainLayout.SuspendLayout();
             headerPanel.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)picLogo).BeginInit();
@@ -67,7 +56,6 @@
             buttonGrid.SuspendLayout();
             middleArea.SuspendLayout();
             groupScheme.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)schemeGrid).BeginInit();
             groupProcess.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)processGrid).BeginInit();
             groupHardware.SuspendLayout();
@@ -89,8 +77,8 @@
             mainLayout.RowCount = 4;
             mainLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 81F));
             mainLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 104F));
-            mainLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 58F));
-            mainLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 42F));
+            mainLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 85F));
+            mainLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 15F));
             mainLayout.Size = new Size(1280, 760);
             mainLayout.TabIndex = 0;
             // 
@@ -237,7 +225,7 @@
             // 
             // groupScheme
             // 
-            groupScheme.Controls.Add(schemeGrid);
+            groupScheme.Controls.Add(schemeTreeView);
             groupScheme.Dock = DockStyle.Fill;
             groupScheme.Location = new Point(3, 3);
             groupScheme.Name = "groupScheme";
@@ -247,46 +235,16 @@
             groupScheme.TabStop = false;
             groupScheme.Text = "方案区域";
             // 
-            // schemeGrid
+            // schemeTreeView
             // 
-            schemeGrid.AllowUserToAddRows = false;
-            schemeGrid.AllowUserToDeleteRows = false;
-            schemeGrid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
-            schemeGrid.BackgroundColor = Color.White;
-            schemeGrid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
-            schemeGrid.Columns.AddRange(new DataGridViewColumn[] { colSchemeNo, colSchemeName, colSchemeStatus });
-            schemeGrid.Dock = DockStyle.Fill;
-            schemeGrid.Location = new Point(8, 35);
-            schemeGrid.Name = "schemeGrid";
-            schemeGrid.ReadOnly = true;
-            schemeGrid.RowHeadersVisible = false;
-            schemeGrid.RowHeadersWidth = 82;
-            schemeGrid.RowTemplate.Height = 40;
-            schemeGrid.Size = new Size(454, 270);
-            schemeGrid.TabIndex = 0;
-            // 
-            // colSchemeNo
-            // 
-            colSchemeNo.FillWeight = 35F;
-            colSchemeNo.HeaderText = "序号";
-            colSchemeNo.MinimumWidth = 10;
-            colSchemeNo.Name = "colSchemeNo";
-            colSchemeNo.ReadOnly = true;
-            // 
-            // colSchemeName
-            // 
-            colSchemeName.HeaderText = "方案名称";
-            colSchemeName.MinimumWidth = 10;
-            colSchemeName.Name = "colSchemeName";
-            colSchemeName.ReadOnly = true;
-            // 
-            // colSchemeStatus
-            // 
-            colSchemeStatus.FillWeight = 55F;
-            colSchemeStatus.HeaderText = "状态";
-            colSchemeStatus.MinimumWidth = 10;
-            colSchemeStatus.Name = "colSchemeStatus";
-            colSchemeStatus.ReadOnly = true;
+            schemeTreeView.BorderStyle = BorderStyle.FixedSingle;
+            schemeTreeView.Dock = DockStyle.Fill;
+            schemeTreeView.FullRowSelect = true;
+            schemeTreeView.HideSelection = false;
+            schemeTreeView.Location = new Point(8, 35);
+            schemeTreeView.Name = "schemeTreeView";
+            schemeTreeView.Size = new Size(454, 270);
+            schemeTreeView.TabIndex = 0;
             // 
             // groupProcess
             // 
@@ -359,116 +317,19 @@
             groupHardware.Size = new Size(1254, 224);
             groupHardware.TabIndex = 3;
             groupHardware.TabStop = false;
-            groupHardware.Text = "硬件信息区域";
+            groupHardware.Text = "台体信息采集区域";
             // 
             // hardwareLayout
             // 
-            hardwareLayout.ColumnCount = 4;
-            hardwareLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 140F));
-            hardwareLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
-            hardwareLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 140F));
-            hardwareLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
-            hardwareLayout.Controls.Add(lblComTitle, 0, 0);
-            hardwareLayout.Controls.Add(lblComValue, 1, 0);
-            hardwareLayout.Controls.Add(lblBaudTitle, 2, 0);
-            hardwareLayout.Controls.Add(lblBaudValue, 3, 0);
-            hardwareLayout.Controls.Add(lblMeterTitle, 0, 1);
-            hardwareLayout.Controls.Add(lblMeterValue, 1, 1);
-            hardwareLayout.Controls.Add(lblDeviceTitle, 2, 1);
-            hardwareLayout.Controls.Add(lblDeviceValue, 3, 1);
-            hardwareLayout.Dock = DockStyle.Top;
+            hardwareLayout.ColumnCount = 8;
+            hardwareLayout.Dock = DockStyle.Fill;
             hardwareLayout.Location = new Point(8, 35);
+            hardwareLayout.Margin = new Padding(0);
             hardwareLayout.Name = "hardwareLayout";
-            hardwareLayout.RowCount = 2;
-            hardwareLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 48F));
-            hardwareLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 48F));
-            hardwareLayout.Size = new Size(1238, 100);
+            hardwareLayout.Padding = new Padding(8);
+            hardwareLayout.RowCount = 3;
+            hardwareLayout.Size = new Size(1238, 181);
             hardwareLayout.TabIndex = 0;
-            // 
-            // lblComTitle
-            // 
-            lblComTitle.Dock = DockStyle.Fill;
-            lblComTitle.Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Bold, GraphicsUnit.Point);
-            lblComTitle.Location = new Point(3, 0);
-            lblComTitle.Name = "lblComTitle";
-            lblComTitle.Size = new Size(134, 48);
-            lblComTitle.TabIndex = 0;
-            lblComTitle.Text = "通讯端口";
-            lblComTitle.TextAlign = ContentAlignment.MiddleRight;
-            // 
-            // lblComValue
-            // 
-            lblComValue.Dock = DockStyle.Fill;
-            lblComValue.Location = new Point(143, 0);
-            lblComValue.Name = "lblComValue";
-            lblComValue.Size = new Size(473, 48);
-            lblComValue.TabIndex = 1;
-            lblComValue.Text = "COM1 / 未连接";
-            lblComValue.TextAlign = ContentAlignment.MiddleLeft;
-            // 
-            // lblBaudTitle
-            // 
-            lblBaudTitle.Dock = DockStyle.Fill;
-            lblBaudTitle.Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Bold, GraphicsUnit.Point);
-            lblBaudTitle.Location = new Point(622, 0);
-            lblBaudTitle.Name = "lblBaudTitle";
-            lblBaudTitle.Size = new Size(134, 48);
-            lblBaudTitle.TabIndex = 2;
-            lblBaudTitle.Text = "波特率";
-            lblBaudTitle.TextAlign = ContentAlignment.MiddleRight;
-            // 
-            // lblBaudValue
-            // 
-            lblBaudValue.Dock = DockStyle.Fill;
-            lblBaudValue.Location = new Point(762, 0);
-            lblBaudValue.Name = "lblBaudValue";
-            lblBaudValue.Size = new Size(473, 48);
-            lblBaudValue.TabIndex = 3;
-            lblBaudValue.Text = "2400 / 9600";
-            lblBaudValue.TextAlign = ContentAlignment.MiddleLeft;
-            // 
-            // lblMeterTitle
-            // 
-            lblMeterTitle.Dock = DockStyle.Fill;
-            lblMeterTitle.Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Bold, GraphicsUnit.Point);
-            lblMeterTitle.Location = new Point(3, 48);
-            lblMeterTitle.Name = "lblMeterTitle";
-            lblMeterTitle.Size = new Size(134, 52);
-            lblMeterTitle.TabIndex = 4;
-            lblMeterTitle.Text = "电表地址";
-            lblMeterTitle.TextAlign = ContentAlignment.MiddleRight;
-            // 
-            // lblMeterValue
-            // 
-            lblMeterValue.Dock = DockStyle.Fill;
-            lblMeterValue.Location = new Point(143, 48);
-            lblMeterValue.Name = "lblMeterValue";
-            lblMeterValue.Size = new Size(473, 52);
-            lblMeterValue.TabIndex = 5;
-            lblMeterValue.Text = "000000000000";
-            lblMeterValue.TextAlign = ContentAlignment.MiddleLeft;
-            // 
-            // lblDeviceTitle
-            // 
-            lblDeviceTitle.Dock = DockStyle.Fill;
-            lblDeviceTitle.Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Bold, GraphicsUnit.Point);
-            lblDeviceTitle.Location = new Point(622, 48);
-            lblDeviceTitle.Name = "lblDeviceTitle";
-            lblDeviceTitle.Size = new Size(134, 52);
-            lblDeviceTitle.TabIndex = 6;
-            lblDeviceTitle.Text = "硬件状态";
-            lblDeviceTitle.TextAlign = ContentAlignment.MiddleRight;
-            // 
-            // lblDeviceValue
-            // 
-            lblDeviceValue.Dock = DockStyle.Fill;
-            lblDeviceValue.ForeColor = Color.FromArgb(22, 101, 52);
-            lblDeviceValue.Location = new Point(762, 48);
-            lblDeviceValue.Name = "lblDeviceValue";
-            lblDeviceValue.Size = new Size(473, 52);
-            lblDeviceValue.TabIndex = 7;
-            lblDeviceValue.Text = "待检测";
-            lblDeviceValue.TextAlign = ContentAlignment.MiddleLeft;
             // 
             // MeterTest
             // 
@@ -490,7 +351,6 @@
             buttonGrid.ResumeLayout(false);
             middleArea.ResumeLayout(false);
             groupScheme.ResumeLayout(false);
-            ((System.ComponentModel.ISupportInitialize)schemeGrid).EndInit();
             groupProcess.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)processGrid).EndInit();
             groupHardware.ResumeLayout(false);
@@ -512,10 +372,7 @@
         private Button btnAssetInfo;
         private TableLayoutPanel middleArea;
         private GroupBox groupScheme;
-        private DataGridView schemeGrid;
-        private DataGridViewTextBoxColumn colSchemeNo;
-        private DataGridViewTextBoxColumn colSchemeName;
-        private DataGridViewTextBoxColumn colSchemeStatus;
+        private TreeView schemeTreeView;
         private GroupBox groupProcess;
         private DataGridView processGrid;
         private DataGridViewTextBoxColumn colProcessNo;
@@ -524,13 +381,5 @@
         private DataGridViewTextBoxColumn colProcessTime;
         private GroupBox groupHardware;
         private TableLayoutPanel hardwareLayout;
-        private Label lblComTitle;
-        private Label lblComValue;
-        private Label lblBaudTitle;
-        private Label lblBaudValue;
-        private Label lblMeterTitle;
-        private Label lblMeterValue;
-        private Label lblDeviceTitle;
-        private Label lblDeviceValue;
     }
 }

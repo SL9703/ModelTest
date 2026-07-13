@@ -2,8 +2,13 @@ using System.Collections.Generic;
 
 namespace ModelTest
 {
+    /// <summary>
+    /// 默认接口目录实现。
+    /// 这里维护加密机支持的完整接口名列表，供搜索框和下拉框直接使用。
+    /// </summary>
     public sealed class DefaultWinSocketServiceCatalog : IWinSocketServiceCatalog
     {
+        // 当前目录按原始接口名平铺维护，避免 UI 层再依赖反射或手工枚举。
         private static readonly string[] ServiceNames =
         {
             "BT_WESAM_Formal_GetTrmKeyData",
@@ -236,6 +241,9 @@ namespace ModelTest
             "testapi",
         };
 
+        /// <summary>
+        /// 返回全部接口名。
+        /// </summary>
         public IReadOnlyList<string> GetServiceNames()
         {
             return ServiceNames;

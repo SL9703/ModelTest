@@ -6,9 +6,11 @@ using System.Drawing;
 using System.Globalization;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using ModelTest.Socket_DLL.Socket_Client;
+using ModelTest.Tools;
 
 namespace ModelTest.CustomControl
 {
@@ -23,6 +25,8 @@ namespace ModelTest.CustomControl
         private const byte MeterTestCommand = 0x00;
         private const byte MeterAcVoltageCommand = 0x01;
         private const byte MeterAcCurrentCommand = 0x02;
+        private const byte MeterBasicErrorCommand = 0x21;
+        private const byte MeterBasicErrorCommand38 = 0x38;
         private const byte MeterDailyTimingCommand = 0x36;
         private const byte MeterMeterPresenceDetectionCommand = 0x84;
         private const byte MeterVoltageShortCircuitDetectionCommand = 0x86;
@@ -33,6 +37,11 @@ namespace ModelTest.CustomControl
         private const byte DailyTimingStartDataItem = 0x00;
         private const byte DailyTimingResultDataItem = 0xAA;
         private const byte DailyTimingStopDataItem = 0xFF;
+        private static readonly TimeSpan MultiMeterPacketInterval = TimeSpan.FromMilliseconds(100);
+        private const byte BasicErrorStartDataItem = 0x01;
+        private const byte BasicErrorResultDataItem = 0xAA;
+        private const byte BasicError38StartDataItem = 0x00;
+        private const byte BasicError38StopDataItem = 0xFF;
         private const byte MeterPresenceDetectionStartDataItem = 0x01;
         private const byte MeterPresenceDetectionResultDataItem = 0xAA;
         private const byte VoltageShortCircuitDetectionStartDataItem = 0x01;
@@ -51,6 +60,7 @@ namespace ModelTest.CustomControl
         private readonly List<MeterResponseWaiter> _meterResponseWaiters = new();
         private EnhancedTcpClient? _meterClient;
         private CancellationTokenSource? _dailyTimingWorkflowCts;
+        private CancellationTokenSource? _basicErrorWorkflowCts;
         private string _voltageShortCircuitSummary = "未检测";
         private string _meterPresenceSummary = "未检测";
 
@@ -64,26 +74,18 @@ namespace ModelTest.CustomControl
         private sealed class PhaseControlConfig
         {
             public PhaseControlConfig(
-                Button actionButton,
                 CheckBox phaseA,
                 CheckBox phaseB,
                 CheckBox phaseC,
                 byte commandCode,
-                string enableText,
-                string disableText,
                 string categoryLabel)
             {
-                ActionButton = actionButton;
                 PhaseA = phaseA;
                 PhaseB = phaseB;
                 PhaseC = phaseC;
                 CommandCode = commandCode;
-                EnableText = enableText;
-                DisableText = disableText;
                 CategoryLabel = categoryLabel;
             }
-
-            public Button ActionButton { get; }
 
             public CheckBox PhaseA { get; }
 
@@ -92,10 +94,6 @@ namespace ModelTest.CustomControl
             public CheckBox PhaseC { get; }
 
             public byte CommandCode { get; }
-
-            public string EnableText { get; }
-
-            public string DisableText { get; }
 
             public string CategoryLabel { get; }
         }
@@ -119,27 +117,26 @@ namespace ModelTest.CustomControl
             BackColor = Color.FromArgb(88, 149, 127);
 
             _acVoltageControl = new PhaseControlConfig(
-                btnAcVoltagePower,
                 cbxPhaseA,
                 cbxPhaseB,
                 cbxPhaseC,
                 MeterAcVoltageCommand,
-                "上电",
-                "断电",
                 "交流电压控制");
 
             _acCurrentControl = new PhaseControlConfig(
-                btnAcCurrentPower,
                 cbxCurrentPhaseA,
                 cbxCurrentPhaseB,
                 cbxCurrentPhaseC,
                 MeterAcCurrentCommand,
-                "通电流",
-                "断电流",
                 "交流电流控制");
 
             ConfigureNumericTextBox(tbxDailyTimingTime, 2);
             ConfigureNumericTextBox(tbxDailyTimingCount, 2);
+            ConfigureNumericTextBox(tbxBasicErrorPulseCount, 2);
+            ConfigureNumericTextBox(tbxBasicErrorTestCount, 2);
+            cbxBasicErrorType.SelectedIndex = 0;
+            RefreshBasicErrorConstants();
+            UpdateBasicErrorProtocolUi();
             UpdateDailyTimingCountdownLabel(null);
             UpdateStationDetectionResultLabel();
             SetConnectionUiState(ConnectionUiState.Disconnected);
@@ -405,6 +402,44 @@ namespace ModelTest.CustomControl
             textBox.SelectionStart = textBox.Text.Length;
         }
 
+        private void tbxBasicErrorVoltage_TextChanged(object sender, EventArgs e)
+        {
+            RefreshBasicErrorConstants();
+        }
+
+        private void tbxBasicErrorCurrent_TextChanged(object sender, EventArgs e)
+        {
+            RefreshBasicErrorConstants();
+        }
+
+        private void cbxBasicErrorProtocol21_CheckedChanged(object sender, EventArgs e)
+        {
+            if (cbxBasicErrorProtocol21.Checked)
+            {
+                cbxBasicErrorProtocol38.Checked = false;
+            }
+            else if (!cbxBasicErrorProtocol38.Checked)
+            {
+                cbxBasicErrorProtocol38.Checked = true;
+            }
+
+            UpdateBasicErrorProtocolUi();
+        }
+
+        private void cbxBasicErrorProtocol38_CheckedChanged(object sender, EventArgs e)
+        {
+            if (cbxBasicErrorProtocol38.Checked)
+            {
+                cbxBasicErrorProtocol21.Checked = false;
+            }
+            else if (!cbxBasicErrorProtocol21.Checked)
+            {
+                cbxBasicErrorProtocol21.Checked = true;
+            }
+
+            UpdateBasicErrorProtocolUi();
+        }
+
         private void UpdateUI(Action action)
         {
             if (InvokeRequired)
@@ -429,17 +464,43 @@ namespace ModelTest.CustomControl
 
         private async void btnAcVoltagePower_Click(object sender, EventArgs e)
         {
-            await HandlePhaseControlAsync(_acVoltageControl);
+            await HandlePhaseControlAsync(_acVoltageControl, isEnableAction: true);
+        }
+
+        private async void btnAcVoltagePowerOff_Click(object sender, EventArgs e)
+        {
+            await HandlePhaseControlAsync(_acVoltageControl, isEnableAction: false);
         }
 
         private async void btnAcCurrentPower_Click(object sender, EventArgs e)
         {
-            await HandlePhaseControlAsync(_acCurrentControl);
+            await HandlePhaseControlAsync(_acCurrentControl, isEnableAction: true);
+        }
+
+        private async void btnAcCurrentPowerOff_Click(object sender, EventArgs e)
+        {
+            await HandlePhaseControlAsync(_acCurrentControl, isEnableAction: false);
         }
 
         private async void btnStartDailyTiming_Click(object sender, EventArgs e)
         {
             await RunDailyTimingWorkflowAsync();
+        }
+
+        private async void btnStartBasicErrorTest_Click(object sender, EventArgs e)
+        {
+            await RunBasicErrorWorkflowAsync();
+        }
+
+        private async void btnGetBasicErrorTestResult_Click(object sender, EventArgs e)
+        {
+            if (_basicErrorWorkflowCts != null)
+            {
+                _basicErrorWorkflowCts.Cancel();
+                PublishMeterMessage("已取消基本误差自动等待流程，立即执行手动结果获取");
+            }
+
+            await RunBasicErrorCommandAsync(BasicErrorResultDataItem);
         }
 
         private async void btnGetDailyTimingResult_Click(object sender, EventArgs e)
@@ -538,7 +599,7 @@ namespace ModelTest.CustomControl
                 return;
             }
 
-            if (!TryGetReadyMeterAddress(out byte meterAddress) ||
+            if (!TryGetDailyTimingMeterAddresses(out byte[] meterAddresses) ||
                 !TryGetDailyTimingParameters(out byte testTime, out byte testCount))
             {
                 return;
@@ -550,50 +611,67 @@ namespace ModelTest.CustomControl
 
             try
             {
-                byte[] startPacket = BuildMeterPacket(
-                    MeterDirectionPcToMcu,
-                    meterAddress,
-                    MeterDailyTimingCommand,
-                    DailyTimingStartDataItem,
-                    testTime,
-                    testCount);
-
-                byte[]? startResponse = await SendPacketAndWaitForResponseAsync(
-                    startPacket,
-                    $"日计时试验[开始, 时间={testTime}s, 次数={testCount}]",
-                    rawData => IsExpectedDailyTimingResponse(rawData, meterAddress, DailyTimingStartDataItem, testTime, testCount),
+                Dictionary<byte, byte[]> startResponses = await SendPacketsAndCollectResponsesAsync(
+                    meterAddresses,
+                    meterAddress => BuildMeterPacket(
+                        MeterDirectionPcToMcu,
+                        meterAddress,
+                        MeterDailyTimingCommand,
+                        DailyTimingStartDataItem,
+                        testTime,
+                        testCount),
+                    meterAddress => $"日计时试验[表位={meterAddress:X2}, 开始, 时间={testTime}s, 次数={testCount}]",
+                    meterAddress => rawData => IsExpectedDailyTimingResponse(
+                        rawData,
+                        meterAddress,
+                        DailyTimingStartDataItem,
+                        testTime,
+                        testCount),
                     TimeSpan.FromSeconds(5),
                     cancellationToken);
 
-                if (startResponse == null)
+                byte[] activeMeterAddresses = meterAddresses
+                    .Where(startResponses.ContainsKey)
+                    .ToArray();
+
+                foreach (byte meterAddress in meterAddresses.Except(activeMeterAddresses))
                 {
-                    PublishMeterMessage("[错误] 开始日计时后未收到正确应答");
+                    PublishMeterMessage($"[错误] 表位 {meterAddress:X2} 开始日计时后未收到正确应答，已跳过后续流程");
+                }
+
+                if (activeMeterAddresses.Length == 0)
+                {
+                    PublishMeterMessage("[错误] 所有表位开始日计时都未收到正确应答，流程结束");
                     return;
                 }
 
                 int waitSeconds = (testTime * testCount) + testCount;
-                PublishMeterMessage($"日计时开始应答正常，等待 {testTime} * {testCount} + {testCount} = {waitSeconds} 秒后自动获取结果");
+                PublishMeterMessage($"日计时开始应答正常，表位={FormatMeterAddressList(activeMeterAddresses)}，等待 {testTime} * {testCount} + {testCount} = {waitSeconds} 秒后自动获取结果");
 
                 await RunDailyTimingCountdownAsync(waitSeconds, cancellationToken);
 
-                byte[] resultPacket = BuildMeterPacket(
-                    MeterDirectionPcToMcu,
-                    meterAddress,
-                    MeterDailyTimingCommand,
-                    DailyTimingResultDataItem,
-                    testTime,
-                    testCount);
-
-                byte[]? resultResponse = await SendPacketAndWaitForResponseAsync(
-                    resultPacket,
-                    $"日计时结果获取[时间={testTime}s, 次数={testCount}]",
-                    rawData => IsExpectedDailyTimingResponse(rawData, meterAddress, DailyTimingResultDataItem, testTime, testCount),
+                Dictionary<byte, byte[]> resultResponses = await SendPacketsAndCollectResponsesAsync(
+                    activeMeterAddresses,
+                    meterAddress => BuildMeterPacket(
+                        MeterDirectionPcToMcu,
+                        meterAddress,
+                        MeterDailyTimingCommand,
+                        DailyTimingResultDataItem,
+                        testTime,
+                        testCount),
+                    meterAddress => $"日计时结果获取[表位={meterAddress:X2}, 时间={testTime}s, 次数={testCount}]",
+                    meterAddress => rawData => IsExpectedDailyTimingResponse(
+                        rawData,
+                        meterAddress,
+                        DailyTimingResultDataItem,
+                        testTime,
+                        testCount),
                     TimeSpan.FromSeconds(10),
                     cancellationToken);
 
-                if (resultResponse == null)
+                foreach (byte meterAddress in activeMeterAddresses.Except(resultResponses.Keys))
                 {
-                    PublishMeterMessage("[错误] 自动获取日计时结果后未收到应答");
+                    PublishMeterMessage($"[错误] 表位 {meterAddress:X2} 自动获取日计时结果后未收到应答");
                 }
             }
             catch (OperationCanceledException)
@@ -607,6 +685,292 @@ namespace ModelTest.CustomControl
                 SetDailyTimingUiBusy(false);
                 UpdateDailyTimingCountdownLabel(null);
             }
+        }
+
+        private async Task<bool> RunBasicErrorCommandAsync(byte actionDataItem)
+        {
+            if (_meterClient?.IsConnected != true)
+            {
+                PublishMeterMessage("[错误] 电表TCP客户端未连接");
+                return false;
+            }
+
+            if (!TryGetBasicErrorMeterAddresses(out byte[] meterAddresses) ||
+                !TryGetBasicErrorParameters(out byte[] errorTypes, out ulong standardConstant, out uint meterConstant))
+            {
+                return false;
+            }
+
+            if (IsBasicErrorProtocol38Selected())
+            {
+                return await RunBasicError38CommandAsync(meterAddresses, errorTypes, standardConstant, meterConstant, actionDataItem);
+            }
+
+            if (actionDataItem == BasicErrorStartDataItem)
+            {
+                foreach (byte errorType in errorTypes)
+                {
+                    if (!await SendBasicErrorConstantAsync(meterAddresses, errorType, standardConstant, meterConstant))
+                    {
+                        PublishMeterMessage($"[错误] 误差测试常数下发失败，试验类型={DescribeBasicErrorType(errorType)}");
+                        return false;
+                    }
+                }
+            }
+
+            bool hasAnyResponse = false;
+            foreach (byte errorType in errorTypes)
+            {
+                Dictionary<byte, byte[]> responses = await SendPacketsAndCollectResponsesAsync(
+                    meterAddresses,
+                    meterAddress => BuildMeterPacket(
+                        MeterDirectionPcToMcu,
+                        meterAddress,
+                        MeterBasicErrorCommand,
+                        errorType,
+                        actionDataItem),
+                    meterAddress => $"误差测试[表位={meterAddress:X2}, 类型={DescribeBasicErrorType(errorType)}, 动作={DescribeBasicErrorAction(actionDataItem)}]",
+                    meterAddress => rawData => IsExpectedBasicErrorResponse(rawData, meterAddress, errorType, actionDataItem),
+                    TimeSpan.FromSeconds(5),
+                    CancellationToken.None);
+
+                foreach (byte meterAddress in meterAddresses.Except(responses.Keys))
+                {
+                    PublishMeterMessage($"[错误] 表位 {meterAddress:X2} {DescribeBasicErrorType(errorType)}{DescribeBasicErrorAction(actionDataItem)}未收到应答");
+                }
+
+                if (responses.Count > 0)
+                {
+                    hasAnyResponse = true;
+                }
+            }
+
+            return hasAnyResponse;
+        }
+
+        private async Task<bool> RunBasicError38CommandAsync(
+            byte[] meterAddresses,
+            byte[] errorTypes,
+            ulong standardConstant,
+            uint meterConstant,
+            byte actionDataItem)
+        {
+            if (!TryGetBasicError38Parameters(out byte pulseCount, out byte testCount))
+            {
+                return false;
+            }
+
+            if (actionDataItem == BasicErrorStartDataItem)
+            {
+                foreach (byte errorType in errorTypes)
+                {
+                    if (!await SendBasicErrorConstantAsync(meterAddresses, errorType, standardConstant, meterConstant))
+                    {
+                        PublishMeterMessage($"[错误] 误差测试常数下发失败，试验类型={DescribeBasicErrorType(errorType)}");
+                        return false;
+                    }
+                }
+            }
+
+            bool hasAnyResponse = false;
+            foreach (byte errorType in errorTypes)
+            {
+                byte pulseType = GetBasicError38PulseType(errorType);
+                byte operation = GetBasicError38Operation(actionDataItem);
+
+                Dictionary<byte, byte[]> responses = await SendPacketsAndCollectResponsesAsync(
+                    meterAddresses,
+                    meterAddress => BuildMeterPacket(
+                        MeterDirectionPcToMcu,
+                        meterAddress,
+                        MeterBasicErrorCommand38,
+                        BuildBasicError38Payload(operation, pulseCount, testCount, pulseType)),
+                    meterAddress => BuildBasicError38PacketName(meterAddress, errorType, operation, pulseCount, testCount),
+                    meterAddress => rawData => IsExpectedBasicError38Response(rawData, meterAddress, operation, pulseCount, testCount, pulseType),
+                    TimeSpan.FromSeconds(5),
+                    CancellationToken.None);
+
+                foreach (byte meterAddress in meterAddresses.Except(responses.Keys))
+                {
+                    PublishMeterMessage($"[错误] 表位 {meterAddress:X2} {DescribeBasicErrorType(errorType)}{DescribeBasicErrorAction(actionDataItem)}未收到0x38应答");
+                }
+
+                if (responses.Count > 0)
+                {
+                    hasAnyResponse = true;
+                }
+            }
+
+            return hasAnyResponse;
+        }
+
+        private async Task RunBasicErrorWorkflowAsync()
+        {
+            if (_basicErrorWorkflowCts != null)
+            {
+                PublishMeterMessage("[错误] 基本误差自动流程正在执行中，请勿重复启动");
+                return;
+            }
+
+            if (_meterClient?.IsConnected != true)
+            {
+                PublishMeterMessage("[错误] 电表TCP客户端未连接，不能启动基本误差自动流程");
+                return;
+            }
+
+            if (!TryGetBasicErrorWaitSeconds(out int waitSeconds, out string waitDescription))
+            {
+                return;
+            }
+
+            _basicErrorWorkflowCts = new CancellationTokenSource();
+            CancellationToken cancellationToken = _basicErrorWorkflowCts.Token;
+            SetBasicErrorUiBusy(true);
+
+            try
+            {
+                bool startSuccess = await RunBasicErrorCommandAsync(BasicErrorStartDataItem);
+                if (!startSuccess)
+                {
+                    PublishMeterMessage("[错误] 基本误差启动阶段未成功，不进入自动等待和结果获取");
+                    return;
+                }
+
+                PublishMeterMessage($"基本误差启动报文发送完成，等待 {waitSeconds} 秒后自动获取结果。{waitDescription}");
+                await Task.Delay(TimeSpan.FromSeconds(waitSeconds), cancellationToken);
+                await RunBasicErrorCommandAsync(BasicErrorResultDataItem);
+            }
+            catch (OperationCanceledException)
+            {
+                PublishMeterMessage("基本误差自动流程已取消");
+            }
+            finally
+            {
+                _basicErrorWorkflowCts.Dispose();
+                _basicErrorWorkflowCts = null;
+                SetBasicErrorUiBusy(false);
+            }
+        }
+
+        private async Task<Dictionary<byte, byte[]>> SendPacketsAndCollectResponsesAsync(
+            IEnumerable<byte> meterAddresses,
+            Func<byte, byte[]> packetFactory,
+            Func<byte, string> packetNameFactory,
+            Func<byte, Func<byte[], bool>> responsePredicateFactory,
+            TimeSpan timeout,
+            CancellationToken cancellationToken)
+        {
+            byte[] meterAddressArray = meterAddresses.ToArray();
+            Dictionary<byte, (CancellationTokenSource ResponseCts, Task<byte[]?> ResponseTask)> pending = new();
+
+            foreach (byte meterAddress in meterAddressArray)
+            {
+                CancellationTokenSource responseCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                Task<byte[]?> responseTask = WaitForMeterResponseAsync(
+                    responsePredicateFactory(meterAddress),
+                    timeout,
+                    responseCts.Token);
+                pending[meterAddress] = (responseCts, responseTask);
+            }
+
+            try
+            {
+                for (int index = 0; index < meterAddressArray.Length; index++)
+                {
+                    byte meterAddress = meterAddressArray[index];
+                    bool sendSuccess = await SendMeterPacketAsync(
+                        packetFactory(meterAddress),
+                        packetNameFactory(meterAddress));
+
+                    if (!sendSuccess && pending.TryGetValue(meterAddress, out var pendingItem))
+                    {
+                        pendingItem.ResponseCts.Cancel();
+                    }
+
+                    if (index < meterAddressArray.Length - 1)
+                    {
+                        await Task.Delay(MultiMeterPacketInterval, cancellationToken);
+                    }
+                }
+
+                Dictionary<byte, byte[]> responses = new();
+                foreach ((byte meterAddress, var pendingItem) in pending)
+                {
+                    try
+                    {
+                        byte[]? response = await pendingItem.ResponseTask;
+                        if (response != null)
+                        {
+                            responses[meterAddress] = response;
+                        }
+                    }
+                    catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+                    {
+                    }
+                }
+
+                return responses;
+            }
+            finally
+            {
+                foreach (var pendingItem in pending.Values)
+                {
+                    pendingItem.ResponseCts.Dispose();
+                }
+            }
+        }
+
+        private async Task<bool> SendBasicErrorConstantAsync(byte[] meterAddresses, byte errorType, ulong standardConstant, uint meterConstant)
+        {
+            byte standardCommand = errorType switch
+            {
+                0x02 => 0xA3,
+                _ => 0xA2
+            };
+
+            byte meterCommand = errorType switch
+            {
+                0x02 => 0xA1,
+                _ => 0xA0
+            };
+
+            foreach (byte meterAddress in meterAddresses)
+            {
+                byte[] standardPacket = BuildMeterPacket(
+                    MeterDirectionPcToMcu,
+                    meterAddress,
+                    standardCommand,
+                    BitConverter.GetBytes(standardConstant));
+                bool standardSent = await SendMeterPacketAsync(
+                    standardPacket,
+                    $"设置标准表常数[表位={meterAddress:X2}, {DescribeBasicErrorType(errorType)}={standardConstant}]");
+                if (!standardSent)
+                {
+                    return false;
+                }
+
+                await Task.Delay(MultiMeterPacketInterval);
+            }
+
+            foreach (byte meterAddress in meterAddresses)
+            {
+                byte[] meterPacket = BuildMeterPacket(
+                    MeterDirectionPcToMcu,
+                    meterAddress,
+                    meterCommand,
+                    BitConverter.GetBytes(meterConstant));
+                bool meterSent = await SendMeterPacketAsync(
+                    meterPacket,
+                    $"设置电能表常数[表位={meterAddress:X2}, {DescribeBasicErrorType(errorType)}={meterConstant}]");
+                if (!meterSent)
+                {
+                    return false;
+                }
+
+                await Task.Delay(MultiMeterPacketInterval);
+            }
+
+            return true;
         }
 
         private async Task SendCommandAsync(byte commandCode, string packetName, params byte[] dataItems)
@@ -640,24 +1004,31 @@ namespace ModelTest.CustomControl
             return await responseTask;
         }
 
-        private async Task HandlePhaseControlAsync(PhaseControlConfig config)
+        private async Task HandlePhaseControlAsync(PhaseControlConfig config, bool isEnableAction)
         {
             if (!TryGetReadyMeterAddress(out byte meterAddress))
             {
                 return;
             }
 
-            bool isEnableAction = config.ActionButton.Text == config.EnableText;
             if (!TryGetPhaseControlDataItem(config, isEnableAction, out byte dataItem, out string phaseDescription))
             {
                 return;
             }
 
-            string actionText = isEnableAction ? config.EnableText : config.DisableText;
+            string actionText = GetPhaseActionText(config.CommandCode, isEnableAction);
             byte[] packet = BuildMeterPacket(MeterDirectionPcToMcu, meterAddress, config.CommandCode, dataItem);
             await SendMeterPacketAsync(packet, $"{config.CategoryLabel}[{phaseDescription}{actionText}]");
+        }
 
-            config.ActionButton.Text = isEnableAction ? config.DisableText : config.EnableText;
+        private static string GetPhaseActionText(byte commandCode, bool isEnableAction)
+        {
+            return commandCode switch
+            {
+                MeterAcVoltageCommand => isEnableAction ? "上电" : "下电",
+                MeterAcCurrentCommand => isEnableAction ? "通电流" : "断电流",
+                _ => string.Empty
+            };
         }
 
         private async Task<bool> SendMeterPacketAsync(byte[] packet, string packetName)
@@ -716,6 +1087,204 @@ namespace ModelTest.CustomControl
             {
                 PublishMeterMessage("[错误] 日计时次数只能填写 1-10 次");
                 return false;
+            }
+
+            return true;
+        }
+
+        private bool TryGetDailyTimingMeterAddresses(out byte[] meterAddresses)
+        {
+            meterAddresses = Array.Empty<byte>();
+
+            if (_meterClient?.IsConnected != true)
+            {
+                PublishMeterMessage("[错误] 电表TCP客户端未连接");
+                return false;
+            }
+
+            string addressText = tbxMeterV1Addr.Text.Trim();
+            if (TryParseDailyTimingMeterAddressRange(addressText, out meterAddresses))
+            {
+                return true;
+            }
+
+            if (TryParseMeterAddress(addressText, out byte meterAddress))
+            {
+                meterAddresses = new[] { meterAddress };
+                return true;
+            }
+
+            PublishMeterMessage("[错误] 日计时表位地址格式不正确，请输入单个地址、范围(如 1-48 / 01-03) 或列表(如 1,2,3)");
+            return false;
+        }
+
+        private bool TryGetBasicErrorMeterAddresses(out byte[] meterAddresses)
+        {
+            meterAddresses = Array.Empty<byte>();
+
+            if (_meterClient?.IsConnected != true)
+            {
+                PublishMeterMessage("[错误] 电表TCP客户端未连接");
+                return false;
+            }
+
+            string addressText = tbxMeterV1Addr.Text.Trim();
+            if (TryParseDailyTimingMeterAddressRange(addressText, out meterAddresses))
+            {
+                return true;
+            }
+
+            if (TryParseMeterAddress(addressText, out byte meterAddress))
+            {
+                meterAddresses = new[] { meterAddress };
+                return true;
+            }
+
+            PublishMeterMessage("[错误] 误差测试表位地址格式不正确，请输入单个地址、范围(如 1-48 / 01-03) 或列表(如 1,2,3)");
+            return false;
+        }
+
+        private bool TryGetBasicErrorParameters(out byte[] errorTypes, out ulong standardConstant, out uint meterConstant)
+        {
+            errorTypes = Array.Empty<byte>();
+            standardConstant = 0;
+            meterConstant = 0;
+
+            RefreshBasicErrorConstants();
+
+            if (!ulong.TryParse(tbxBasicErrorStandardConstant.Text.Trim(), out standardConstant) || standardConstant == 0)
+            {
+                PublishMeterMessage("[错误] 标准表常数不合法");
+                return false;
+            }
+
+            if (!uint.TryParse(tbxBasicErrorMeterConstant.Text.Trim(), out meterConstant) || meterConstant == 0)
+            {
+                PublishMeterMessage("[错误] 电能表常数不合法");
+                return false;
+            }
+
+            byte selectedType = GetBasicErrorTypeCode();
+            errorTypes = selectedType == 0x03 ? new byte[] { 0x01, 0x02 } : new[] { selectedType };
+            return true;
+        }
+
+        private bool TryGetBasicError38Parameters(out byte pulseCount, out byte testCount)
+        {
+            pulseCount = 0;
+            testCount = 0;
+
+            if (!byte.TryParse(tbxBasicErrorPulseCount.Text.Trim(), out pulseCount) || pulseCount < 1 || pulseCount > 99)
+            {
+                PublishMeterMessage("[错误] 0x38脉冲数只能填写 1-99");
+                return false;
+            }
+
+            if (!byte.TryParse(tbxBasicErrorTestCount.Text.Trim(), out testCount) || testCount < 1 || testCount > 10)
+            {
+                PublishMeterMessage("[错误] 0x38试验次数只能填写 1-10");
+                return false;
+            }
+
+            return true;
+        }
+
+        private void RefreshBasicErrorConstants()
+        {
+            if (!ErrorTestConstantHelper.TryCalculateConstants(
+                    tbxBasicErrorVoltage.Text,
+                    tbxBasicErrorCurrent.Text,
+                    out ulong standardConstant,
+                    out uint meterConstant))
+            {
+                return;
+            }
+
+            tbxBasicErrorStandardConstant.Text = standardConstant.ToString(CultureInfo.InvariantCulture);
+            if (string.IsNullOrWhiteSpace(tbxBasicErrorMeterConstant.Text))
+            {
+                tbxBasicErrorMeterConstant.Text = meterConstant.ToString(CultureInfo.InvariantCulture);
+            }
+        }
+
+        private void UpdateBasicErrorProtocolUi()
+        {
+            bool use38 = IsBasicErrorProtocol38Selected();
+            tbxBasicErrorPulseCount.Enabled = use38;
+            tbxBasicErrorTestCount.Enabled = use38;
+            labelBasicErrorPulseCount.Enabled = use38;
+            labelBasicErrorTestCount.Enabled = use38;
+        }
+
+        private void SetBasicErrorUiBusy(bool isBusy)
+        {
+            btnStartBasicErrorTest.Enabled = !isBusy;
+            cbxBasicErrorProtocol21.Enabled = !isBusy;
+            cbxBasicErrorProtocol38.Enabled = !isBusy;
+            cbxBasicErrorType.Enabled = !isBusy;
+            tbxBasicErrorVoltage.Enabled = !isBusy;
+            tbxBasicErrorCurrent.Enabled = !isBusy;
+            tbxBasicErrorStandardConstant.Enabled = !isBusy;
+            tbxBasicErrorMeterConstant.Enabled = !isBusy;
+            tbxBasicErrorPulseCount.Enabled = !isBusy && IsBasicErrorProtocol38Selected();
+            tbxBasicErrorTestCount.Enabled = !isBusy && IsBasicErrorProtocol38Selected();
+        }
+
+        private bool TryGetBasicErrorWaitSeconds(out int waitSeconds, out string waitDescription)
+        {
+            waitSeconds = 0;
+            waitDescription = string.Empty;
+
+            if (!TryGetBasicErrorParameters(out byte[] errorTypes, out _, out uint meterConstant))
+            {
+                return false;
+            }
+
+            if (!ErrorTestConstantHelper.TryParseInputNumber(tbxBasicErrorVoltage.Text.Trim(), out double voltage) ||
+                !ErrorTestConstantHelper.TryParseInputNumber(tbxBasicErrorCurrent.Text.Trim(), out double current))
+            {
+                PublishMeterMessage("[错误] 误差测试电压或电流格式不正确，无法计算自动等待时间");
+                return false;
+            }
+
+            decimal voltageValue = Convert.ToDecimal(voltage);
+            decimal currentValue = Convert.ToDecimal(current);
+            decimal power = voltageValue * currentValue;
+            if (power <= 0)
+            {
+                PublishMeterMessage("[错误] 误差测试功率计算结果无效，无法计算自动等待时间");
+                return false;
+            }
+
+            decimal pulseCount = 1m;
+            decimal testCount = 1m;
+            if (IsBasicErrorProtocol38Selected())
+            {
+                if (!TryGetBasicError38Parameters(out byte pulseCountValue, out byte testCountValue))
+                {
+                    return false;
+                }
+
+                pulseCount = pulseCountValue;
+                testCount = testCountValue;
+            }
+
+            decimal singleTestSeconds = (3600000m * pulseCount) / (meterConstant * power);
+            decimal totalWaitSeconds = (singleTestSeconds * testCount) + 10m;
+            if (errorTypes.Length > 1)
+            {
+                totalWaitSeconds *= errorTypes.Length;
+            }
+
+            waitSeconds = Math.Max(1, (int)decimal.Ceiling(totalWaitSeconds));
+            waitDescription =
+                $"等待时间按 T+10s 计算：T={(singleTestSeconds * testCount).ToString("0.###", CultureInfo.InvariantCulture)}s" +
+                (errorTypes.Length > 1 ? $"，试验类型数={errorTypes.Length}" : string.Empty) +
+                $"，总等待={waitSeconds}s。";
+
+            if (!IsBasicErrorProtocol38Selected())
+            {
+                waitDescription += " 0x21 协议当前按 N=1 估算等待时间。";
             }
 
             return true;
@@ -921,6 +1490,79 @@ namespace ModelTest.CustomControl
             return false;
         }
 
+        private static bool TryParseDailyTimingMeterAddressRange(string addressText, out byte[] meterAddresses)
+        {
+            meterAddresses = Array.Empty<byte>();
+            if (string.IsNullOrWhiteSpace(addressText))
+            {
+                return false;
+            }
+
+            string normalized = addressText.Trim().Replace(" ", string.Empty);
+            if (normalized.Contains(','))
+            {
+                string[] parts = normalized.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                if (parts.Length == 0)
+                {
+                    return false;
+                }
+
+                List<byte> parsedAddresses = new();
+                foreach (string part in parts)
+                {
+                    if (!TryParseDailyTimingDecimalAddress(part, out byte address))
+                    {
+                        return false;
+                    }
+
+                    parsedAddresses.Add(address);
+                }
+
+                meterAddresses = parsedAddresses.Distinct().OrderBy(address => address).ToArray();
+                return meterAddresses.Length > 0;
+            }
+
+            string[] rangeParts = normalized.Split('-', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (rangeParts.Length == 2)
+            {
+                if (!TryParseDailyTimingDecimalAddress(rangeParts[0], out byte startAddress) ||
+                    !TryParseDailyTimingDecimalAddress(rangeParts[1], out byte endAddress) ||
+                    startAddress > endAddress)
+                {
+                    return false;
+                }
+
+                meterAddresses = Enumerable.Range(startAddress, endAddress - startAddress + 1)
+                    .Select(value => (byte)value)
+                    .ToArray();
+                return meterAddresses.Length > 0;
+            }
+
+            return false;
+        }
+
+        private static bool TryParseDailyTimingDecimalAddress(string addressText, out byte address)
+        {
+            address = 0x00;
+            if (!int.TryParse(addressText, NumberStyles.Integer, CultureInfo.InvariantCulture, out int parsed))
+            {
+                return false;
+            }
+
+            if (parsed < 1 || parsed > 48)
+            {
+                return false;
+            }
+
+            address = (byte)parsed;
+            return true;
+        }
+
+        private static string FormatMeterAddressList(IEnumerable<byte> meterAddresses)
+        {
+            return string.Join(",", meterAddresses.Select(address => address.ToString("X2")));
+        }
+
         private static bool IsExpectedDailyTimingResponse(
             byte[] rawData,
             byte meterAddress,
@@ -942,6 +1584,61 @@ namespace ModelTest.CustomControl
             }
 
             return operation != DailyTimingResultDataItem || dataItems.Length >= 3;
+        }
+
+        private static bool IsExpectedBasicErrorResponse(
+            byte[] rawData,
+            byte meterAddress,
+            byte errorType,
+            byte actionDataItem)
+        {
+            if (!TryGetMeterPacketDataItems(rawData, meterAddress, MeterBasicErrorCommand, out byte[] dataItems))
+            {
+                return false;
+            }
+
+            if (dataItems.Length < 2 ||
+                dataItems[0] != errorType ||
+                dataItems[1] != actionDataItem)
+            {
+                return false;
+            }
+
+            return actionDataItem != BasicErrorResultDataItem || dataItems.Length >= 6;
+        }
+
+        private static bool IsExpectedBasicError38Response(
+            byte[] rawData,
+            byte meterAddress,
+            byte operation,
+            byte pulseCount,
+            byte testCount,
+            byte pulseType)
+        {
+            if (!TryGetMeterPacketDataItems(rawData, meterAddress, MeterBasicErrorCommand38, out byte[] dataItems))
+            {
+                return false;
+            }
+
+            if (dataItems.Length < 3 ||
+                dataItems[0] != operation ||
+                dataItems[1] != pulseCount ||
+                dataItems[2] != testCount)
+            {
+                return false;
+            }
+
+            if (operation == BasicError38StartDataItem)
+            {
+                return dataItems.Length >= 4 && dataItems[3] == pulseType;
+            }
+
+            if (operation == BasicErrorResultDataItem)
+            {
+                return true;
+            }
+
+            return operation == BasicError38StopDataItem;
         }
 
         private static bool TryGetMeterPacketDataItems(byte[] rawData, byte meterAddress, byte command, out byte[] dataItems)
@@ -1104,6 +1801,18 @@ namespace ModelTest.CustomControl
                 return true;
             }
 
+            if (command == MeterBasicErrorCommand &&
+                TryDescribeBasicErrorResponse(meterAddress, dataItems, out responseDescription))
+            {
+                return true;
+            }
+
+            if (command == MeterBasicErrorCommand38 &&
+                TryDescribeBasicError38Response(meterAddress, dataItems, out responseDescription))
+            {
+                return true;
+            }
+
             if (command == MeterMeterPresenceDetectionCommand &&
                 TryDescribeMeterPresenceDetectionResponse(meterAddress, dataItems, out responseDescription))
             {
@@ -1239,6 +1948,99 @@ namespace ModelTest.CustomControl
             return true;
         }
 
+        private static bool TryDescribeBasicErrorResponse(byte meterAddress, byte[] dataItems, out string responseDescription)
+        {
+            responseDescription = string.Empty;
+            if (dataItems.Length < 2)
+            {
+                return false;
+            }
+
+            byte errorType = dataItems[0];
+            byte action = dataItems[1];
+
+            if (action == BasicErrorStartDataItem && dataItems.Length == 2)
+            {
+                responseDescription = $"误差测试启动应答，表位地址={meterAddress:X2}，类型={DescribeBasicErrorType(errorType)}";
+                return true;
+            }
+
+            if (action != BasicErrorResultDataItem)
+            {
+                return false;
+            }
+
+            if (dataItems.Length < 6)
+            {
+                responseDescription = $"误差测试结果获取应答，表位地址={meterAddress:X2}，类型={DescribeBasicErrorType(errorType)}，结果数据长度异常";
+                return true;
+            }
+
+            float result = ReadSingleLittleEndian(dataItems, 2);
+            responseDescription = $"误差测试结果，表位地址={meterAddress:X2}，类型={DescribeBasicErrorType(errorType)}，误差={result.ToString("F6", CultureInfo.InvariantCulture)}";
+            return true;
+        }
+
+        private static bool TryDescribeBasicError38Response(byte meterAddress, byte[] dataItems, out string responseDescription)
+        {
+            responseDescription = string.Empty;
+            if (dataItems.Length < 3)
+            {
+                return false;
+            }
+
+            byte operation = dataItems[0];
+            byte pulseCount = dataItems[1];
+            byte testCount = dataItems[2];
+
+            if (operation == BasicError38StartDataItem)
+            {
+                if (dataItems.Length < 4)
+                {
+                    return false;
+                }
+
+                string pulseType = DescribeBasicError38PulseType(dataItems[3]);
+                responseDescription = $"0x38基本误差启动应答，表位地址={meterAddress:X2}，脉冲数={pulseCount}，次数={testCount}，类型={pulseType}";
+                return true;
+            }
+
+            if (operation == BasicError38StopDataItem)
+            {
+                responseDescription = $"0x38基本误差停止应答，表位地址={meterAddress:X2}，脉冲数={pulseCount}，次数={testCount}";
+                return true;
+            }
+
+            if (operation != BasicErrorResultDataItem)
+            {
+                return false;
+            }
+
+            if (dataItems.Length == 3)
+            {
+                responseDescription = $"0x38基本误差结果获取应答，表位地址={meterAddress:X2}，脉冲数={pulseCount}，次数={testCount}，暂无结果";
+                return true;
+            }
+
+            int resultDataLength = dataItems.Length - 3;
+            if (resultDataLength % 4 != 0)
+            {
+                responseDescription = $"0x38基本误差结果获取应答，表位地址={meterAddress:X2}，结果数据长度异常";
+                return true;
+            }
+
+            int resultCount = resultDataLength / 4;
+            List<string> results = new(resultCount);
+            for (int i = 0; i < resultCount; i++)
+            {
+                float result = ReadSingleLittleEndian(dataItems, 3 + (i * 4));
+                results.Add($"第{i + 1}次={result.ToString("F6", CultureInfo.InvariantCulture)}");
+            }
+
+            responseDescription = $"0x38基本误差结果，表位地址={meterAddress:X2}，脉冲数={pulseCount}，次数={testCount}，{string.Join("；", results)}";
+            return true;
+        }
+
         private static float ReadSingleLittleEndian(byte[] dataItems, int startIndex)
         {
             byte[] floatBytes = new byte[4];
@@ -1362,6 +2164,86 @@ namespace ModelTest.CustomControl
                    messageDescription.Contains("异常", StringComparison.Ordinal) ||
                    messageDescription.Contains("校验失败", StringComparison.Ordinal) ||
                    messageDescription.Contains("缺少错误码", StringComparison.Ordinal);
+        }
+
+        private byte GetBasicErrorTypeCode()
+        {
+            return cbxBasicErrorType.SelectedIndex switch
+            {
+                1 => 0x02,
+                2 => 0x03,
+                3 => 0x04,
+                _ => 0x01
+            };
+        }
+
+        private bool IsBasicErrorProtocol38Selected()
+        {
+            return cbxBasicErrorProtocol38.Checked;
+        }
+
+        private static byte GetBasicError38Operation(byte actionDataItem)
+        {
+            return actionDataItem switch
+            {
+                BasicErrorStartDataItem => BasicError38StartDataItem,
+                BasicErrorResultDataItem => BasicErrorResultDataItem,
+                _ => BasicError38StopDataItem
+            };
+        }
+
+        private static byte[] BuildBasicError38Payload(byte operation, byte pulseCount, byte testCount, byte pulseType)
+        {
+            return operation == BasicErrorResultDataItem
+                ? new[] { operation, pulseCount, testCount }
+                : new[] { operation, pulseCount, testCount, pulseType };
+        }
+
+        private static string BuildBasicError38PacketName(byte meterAddress, byte errorType, byte operation, byte pulseCount, byte testCount)
+        {
+            return operation switch
+            {
+                BasicError38StartDataItem => $"0x38基本误差[表位={meterAddress:X2}, 类型={DescribeBasicErrorType(errorType)}, 脉冲数={pulseCount}, 次数={testCount}, 开始]",
+                BasicErrorResultDataItem => $"0x38基本误差[表位={meterAddress:X2}, 类型={DescribeBasicErrorType(errorType)}, 脉冲数={pulseCount}, 次数={testCount}, 结果获取]",
+                _ => $"0x38基本误差[表位={meterAddress:X2}, 类型={DescribeBasicErrorType(errorType)}, 脉冲数={pulseCount}, 次数={testCount}, 停止]"
+            };
+        }
+
+        private static byte GetBasicError38PulseType(byte errorType)
+        {
+            return errorType == 0x02 ? (byte)0x01 : (byte)0x00;
+        }
+
+        private static string DescribeBasicError38PulseType(byte pulseType)
+        {
+            return pulseType switch
+            {
+                0x00 => "有功",
+                0x01 => "无功",
+                _ => $"未知脉冲类型 {pulseType:X2}"
+            };
+        }
+
+        private static string DescribeBasicErrorType(byte errorType)
+        {
+            return errorType switch
+            {
+                0x01 => "有功",
+                0x02 => "无功",
+                0x03 => "有功+无功",
+                0x04 => "谐波",
+                _ => $"未知类型 {errorType:X2}"
+            };
+        }
+
+        private static string DescribeBasicErrorAction(byte actionDataItem)
+        {
+            return actionDataItem switch
+            {
+                BasicErrorStartDataItem => "实验启动",
+                BasicErrorResultDataItem => "实验结果获取",
+                _ => $"动作{actionDataItem:X2}"
+            };
         }
     }
 }
