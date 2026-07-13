@@ -48,26 +48,26 @@ namespace ModelTest.CustomControl
             components = new System.ComponentModel.Container();
             mainLayoutPanel = new TableLayoutPanel();
             topLayoutPanel = new TableLayoutPanel();
+            tbxParameters = new TextBox();
+            rtbxOutput = new RichTextBox();
             headerPanel = new Panel();
             headerLayoutPanel = new TableLayoutPanel();
-            keyModeLayoutPanel = new TableLayoutPanel();
-            keyModeDividerPanel = new Panel();
             lblIp = new Label();
-            lblPort = new Label();
-            lblStatusValue = new Label();
-            lblInterface = new Label();
-            cbxPublicKey = new CheckBox();
-            cbxPrivateKey = new CheckBox();
             tbxServerIp = new TextBox();
+            lblPort = new Label();
             tbxServerPort = new TextBox();
             btnLogin = new Button();
+            lblStatusValue = new Label();
+            keyModeLayoutPanel = new TableLayoutPanel();
+            cbxPublicKey = new CheckBox();
+            keyModeDividerPanel = new Panel();
+            cbxPrivateKey = new CheckBox();
+            lblInterface = new Label();
             cbxServerImp = new ComboBox();
-            tbxParameters = new TextBox();
             btnEncrypt = new Button();
             btnTerminalEncryptionMenu = new Button();
-            btnMeterEncryptionMenu = new Button();
-            rtbxOutput = new RichTextBox();
             cmsTerminalEncryptionFunctions = new ContextMenuStrip(components);
+            btnMeterEncryptionMenu = new Button();
             cmsMeterEncryptionFunctions = new ContextMenuStrip(components);
             mainLayoutPanel.SuspendLayout();
             topLayoutPanel.SuspendLayout();
@@ -99,24 +99,43 @@ namespace ModelTest.CustomControl
             topLayoutPanel.Controls.Add(rtbxOutput, 0, 1);
             topLayoutPanel.Dock = DockStyle.Fill;
             topLayoutPanel.Location = new Point(3, 3);
-            topLayoutPanel.Margin = new Padding(3);
             topLayoutPanel.Name = "topLayoutPanel";
             topLayoutPanel.RowCount = 2;
             topLayoutPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
             topLayoutPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 200F));
-            topLayoutPanel.Size = new Size(1770, 794);
+            topLayoutPanel.Size = new Size(1881, 794);
             topLayoutPanel.TabIndex = 0;
+            // 
+            // tbxParameters
+            // 
+            tbxParameters.Dock = DockStyle.Fill;
+            tbxParameters.Location = new Point(3, 3);
+            tbxParameters.Multiline = true;
+            tbxParameters.Name = "tbxParameters";
+            tbxParameters.ScrollBars = ScrollBars.Both;
+            tbxParameters.Size = new Size(1875, 588);
+            tbxParameters.TabIndex = 0;
+            tbxParameters.WordWrap = false;
+            // 
+            // rtbxOutput
+            // 
+            rtbxOutput.Dock = DockStyle.Fill;
+            rtbxOutput.Location = new Point(3, 597);
+            rtbxOutput.Name = "rtbxOutput";
+            rtbxOutput.ReadOnly = true;
+            rtbxOutput.Size = new Size(1875, 194);
+            rtbxOutput.TabIndex = 4;
+            rtbxOutput.Text = "使用接口函数参数使用,隔开，例如：01,02,03        请在上边输入框输入加密机参数";
             // 
             // headerPanel
             // 
             headerPanel.BorderStyle = BorderStyle.FixedSingle;
             headerPanel.Controls.Add(headerLayoutPanel);
             headerPanel.Dock = DockStyle.Fill;
-            headerPanel.Location = new Point(1779, 3);
-            headerPanel.Margin = new Padding(3);
+            headerPanel.Location = new Point(1890, 3);
             headerPanel.Name = "headerPanel";
             headerPanel.Padding = new Padding(8, 16, 8, 8);
-            headerPanel.Size = new Size(438, 794);
+            headerPanel.Size = new Size(327, 794);
             headerPanel.TabIndex = 1;
             // 
             // headerLayoutPanel
@@ -135,7 +154,6 @@ namespace ModelTest.CustomControl
             headerLayoutPanel.Controls.Add(btnEncrypt, 0, 9);
             headerLayoutPanel.Controls.Add(btnTerminalEncryptionMenu, 0, 10);
             headerLayoutPanel.Controls.Add(btnMeterEncryptionMenu, 0, 11);
-            headerLayoutPanel.Controls.Add(new Panel(), 0, 12);
             headerLayoutPanel.Dock = DockStyle.Fill;
             headerLayoutPanel.Location = new Point(8, 16);
             headerLayoutPanel.Name = "headerLayoutPanel";
@@ -153,8 +171,76 @@ namespace ModelTest.CustomControl
             headerLayoutPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 58F));
             headerLayoutPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 58F));
             headerLayoutPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-            headerLayoutPanel.Size = new Size(420, 768);
+            headerLayoutPanel.Size = new Size(309, 768);
             headerLayoutPanel.TabIndex = 0;
+            // 
+            // lblIp
+            // 
+            lblIp.AutoSize = true;
+            lblIp.Dock = DockStyle.Fill;
+            lblIp.Location = new Point(3, 0);
+            lblIp.Name = "lblIp";
+            lblIp.Size = new Size(303, 32);
+            lblIp.TabIndex = 0;
+            lblIp.Text = "IP:";
+            // 
+            // tbxServerIp
+            // 
+            tbxServerIp.Dock = DockStyle.Fill;
+            tbxServerIp.Location = new Point(3, 35);
+            tbxServerIp.Margin = new Padding(3, 3, 3, 0);
+            tbxServerIp.Name = "tbxServerIp";
+            tbxServerIp.Size = new Size(303, 34);
+            tbxServerIp.TabIndex = 6;
+            // 
+            // lblPort
+            // 
+            lblPort.AutoSize = true;
+            lblPort.Dock = DockStyle.Fill;
+            lblPort.Location = new Point(3, 100);
+            lblPort.Margin = new Padding(3, 10, 3, 0);
+            lblPort.Name = "lblPort";
+            lblPort.Size = new Size(303, 22);
+            lblPort.TabIndex = 1;
+            lblPort.Text = "Port:";
+            // 
+            // tbxServerPort
+            // 
+            tbxServerPort.Dock = DockStyle.Fill;
+            tbxServerPort.Location = new Point(3, 125);
+            tbxServerPort.Margin = new Padding(3, 3, 3, 0);
+            tbxServerPort.Name = "tbxServerPort";
+            tbxServerPort.Size = new Size(303, 34);
+            tbxServerPort.TabIndex = 7;
+            tbxServerPort.KeyPress += TbxServerPort_KeyPress;
+            // 
+            // btnLogin
+            // 
+            btnLogin.BackColor = Color.FromArgb(36, 92, 79);
+            btnLogin.Dock = DockStyle.Fill;
+            btnLogin.FlatStyle = FlatStyle.Flat;
+            btnLogin.ForeColor = Color.White;
+            btnLogin.Location = new Point(3, 190);
+            btnLogin.Margin = new Padding(3, 10, 3, 0);
+            btnLogin.Name = "btnLogin";
+            btnLogin.Size = new Size(303, 48);
+            btnLogin.TabIndex = 8;
+            btnLogin.Text = "登录加密机";
+            btnLogin.UseVisualStyleBackColor = false;
+            btnLogin.Click += BtnLogin_Click;
+            // 
+            // lblStatusValue
+            // 
+            lblStatusValue.AutoEllipsis = true;
+            lblStatusValue.Dock = DockStyle.Fill;
+            lblStatusValue.ForeColor = Color.FromArgb(58, 74, 67);
+            lblStatusValue.Location = new Point(3, 248);
+            lblStatusValue.Margin = new Padding(3, 10, 3, 0);
+            lblStatusValue.Name = "lblStatusValue";
+            lblStatusValue.Size = new Size(303, 46);
+            lblStatusValue.TabIndex = 2;
+            lblStatusValue.Text = "加密服务器连接状态：未连接";
+            lblStatusValue.TextAlign = ContentAlignment.MiddleLeft;
             // 
             // keyModeLayoutPanel
             // 
@@ -167,59 +253,14 @@ namespace ModelTest.CustomControl
             keyModeLayoutPanel.Controls.Add(keyModeDividerPanel, 1, 0);
             keyModeLayoutPanel.Controls.Add(cbxPrivateKey, 2, 0);
             keyModeLayoutPanel.Dock = DockStyle.Fill;
-            keyModeLayoutPanel.Location = new Point(3, 294);
+            keyModeLayoutPanel.Location = new Point(3, 304);
             keyModeLayoutPanel.Margin = new Padding(3, 10, 3, 0);
             keyModeLayoutPanel.Name = "keyModeLayoutPanel";
             keyModeLayoutPanel.Padding = new Padding(1);
             keyModeLayoutPanel.RowCount = 1;
             keyModeLayoutPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-            keyModeLayoutPanel.Size = new Size(414, 58);
+            keyModeLayoutPanel.Size = new Size(303, 48);
             keyModeLayoutPanel.TabIndex = 3;
-            // 
-            // keyModeDividerPanel
-            // 
-            keyModeDividerPanel.BackColor = Color.FromArgb(28, 64, 54);
-            keyModeDividerPanel.Dock = DockStyle.Fill;
-            keyModeDividerPanel.Location = new Point(210, 1);
-            keyModeDividerPanel.Margin = new Padding(0);
-            keyModeDividerPanel.Name = "keyModeDividerPanel";
-            keyModeDividerPanel.Size = new Size(1, 56);
-            keyModeDividerPanel.TabIndex = 2;
-            // 
-            // lblIp
-            // 
-            lblIp.AutoSize = true;
-            lblIp.Dock = DockStyle.Fill;
-            lblIp.Location = new Point(3, 0);
-            lblIp.Margin = new Padding(3, 0, 3, 0);
-            lblIp.Name = "lblIp";
-            lblIp.Size = new Size(414, 32);
-            lblIp.TabIndex = 0;
-            lblIp.Text = "IP:";
-            // 
-            // lblPort
-            // 
-            lblPort.AutoSize = true;
-            lblPort.Dock = DockStyle.Fill;
-            lblPort.Location = new Point(3, 90);
-            lblPort.Margin = new Padding(3, 10, 3, 0);
-            lblPort.Name = "lblPort";
-            lblPort.Size = new Size(414, 32);
-            lblPort.TabIndex = 1;
-            lblPort.Text = "Port:";
-            // 
-            // lblStatusValue
-            // 
-            lblStatusValue.AutoEllipsis = true;
-            lblStatusValue.Dock = DockStyle.Fill;
-            lblStatusValue.ForeColor = Color.FromArgb(58, 74, 67);
-            lblStatusValue.Location = new Point(3, 248);
-            lblStatusValue.Margin = new Padding(3, 10, 3, 0);
-            lblStatusValue.Name = "lblStatusValue";
-            lblStatusValue.Size = new Size(414, 46);
-            lblStatusValue.TabIndex = 2;
-            lblStatusValue.Text = "加密服务器连接状态：未连接";
-            lblStatusValue.TextAlign = ContentAlignment.MiddleLeft;
             // 
             // cbxPublicKey
             // 
@@ -231,13 +272,23 @@ namespace ModelTest.CustomControl
             cbxPublicKey.Location = new Point(1, 1);
             cbxPublicKey.Margin = new Padding(0);
             cbxPublicKey.Name = "cbxPublicKey";
-            cbxPublicKey.Size = new Size(206, 56);
+            cbxPublicKey.Size = new Size(150, 46);
             cbxPublicKey.TabIndex = 3;
             cbxPublicKey.Text = "公钥";
             cbxPublicKey.TextAlign = ContentAlignment.MiddleCenter;
             cbxPublicKey.UseCompatibleTextRendering = true;
             cbxPublicKey.UseVisualStyleBackColor = true;
             cbxPublicKey.CheckedChanged += CbxPublicKey_CheckedChanged;
+            // 
+            // keyModeDividerPanel
+            // 
+            keyModeDividerPanel.BackColor = Color.FromArgb(28, 64, 54);
+            keyModeDividerPanel.Dock = DockStyle.Fill;
+            keyModeDividerPanel.Location = new Point(151, 1);
+            keyModeDividerPanel.Margin = new Padding(0);
+            keyModeDividerPanel.Name = "keyModeDividerPanel";
+            keyModeDividerPanel.Size = new Size(1, 46);
+            keyModeDividerPanel.TabIndex = 2;
             // 
             // cbxPrivateKey
             // 
@@ -248,10 +299,10 @@ namespace ModelTest.CustomControl
             cbxPrivateKey.Dock = DockStyle.Fill;
             cbxPrivateKey.FlatAppearance.BorderSize = 0;
             cbxPrivateKey.FlatStyle = FlatStyle.Flat;
-            cbxPrivateKey.Location = new Point(211, 1);
+            cbxPrivateKey.Location = new Point(152, 1);
             cbxPrivateKey.Margin = new Padding(0);
             cbxPrivateKey.Name = "cbxPrivateKey";
-            cbxPrivateKey.Size = new Size(206, 56);
+            cbxPrivateKey.Size = new Size(150, 46);
             cbxPrivateKey.TabIndex = 4;
             cbxPrivateKey.Text = "私钥";
             cbxPrivateKey.TextAlign = ContentAlignment.MiddleCenter;
@@ -268,78 +319,32 @@ namespace ModelTest.CustomControl
             lblInterface.Location = new Point(3, 362);
             lblInterface.Margin = new Padding(3, 10, 3, 0);
             lblInterface.Name = "lblInterface";
-            lblInterface.Size = new Size(414, 26);
+            lblInterface.Size = new Size(303, 26);
             lblInterface.TabIndex = 5;
             lblInterface.Text = "国家电网加密机接口函数";
             lblInterface.TextAlign = ContentAlignment.MiddleLeft;
-            // 
-            // tbxServerIp
-            // 
-            tbxServerIp.Dock = DockStyle.Fill;
-            tbxServerIp.Location = new Point(3, 27);
-            tbxServerIp.Margin = new Padding(3, 3, 3, 0);
-            tbxServerIp.Name = "tbxServerIp";
-            tbxServerIp.Size = new Size(414, 58);
-            tbxServerIp.TabIndex = 6;
-            // 
-            // tbxServerPort
-            // 
-            tbxServerPort.Dock = DockStyle.Fill;
-            tbxServerPort.Location = new Point(3, 125);
-            tbxServerPort.Margin = new Padding(3, 3, 3, 0);
-            tbxServerPort.Name = "tbxServerPort";
-            tbxServerPort.Size = new Size(414, 58);
-            tbxServerPort.TabIndex = 7;
-            tbxServerPort.KeyPress += TbxServerPort_KeyPress;
-            // 
-            // btnLogin
-            // 
-            btnLogin.Dock = DockStyle.Fill;
-            btnLogin.BackColor = Color.FromArgb(36, 92, 79);
-            btnLogin.FlatStyle = FlatStyle.Flat;
-            btnLogin.ForeColor = Color.White;
-            btnLogin.Location = new Point(3, 183);
-            btnLogin.Margin = new Padding(3, 10, 3, 0);
-            btnLogin.Name = "btnLogin";
-            btnLogin.Size = new Size(414, 58);
-            btnLogin.TabIndex = 8;
-            btnLogin.Text = "登录加密机";
-            btnLogin.UseVisualStyleBackColor = false;
-            btnLogin.Click += BtnLogin_Click;
             // 
             // cbxServerImp
             // 
             cbxServerImp.Dock = DockStyle.Fill;
             cbxServerImp.FormattingEnabled = true;
-            cbxServerImp.Location = new Point(3, 404);
+            cbxServerImp.Location = new Point(3, 398);
             cbxServerImp.Margin = new Padding(3, 10, 3, 0);
             cbxServerImp.Name = "cbxServerImp";
-            cbxServerImp.Size = new Size(414, 58);
+            cbxServerImp.Size = new Size(303, 36);
             cbxServerImp.TabIndex = 9;
             cbxServerImp.SelectedIndexChanged += CbxServerImp_SelectedIndexChanged;
             // 
-            // tbxParameters
-            // 
-            tbxParameters.Dock = DockStyle.Fill;
-            tbxParameters.Location = new Point(3, 3);
-            tbxParameters.Margin = new Padding(3, 3, 3, 3);
-            tbxParameters.Multiline = true;
-            tbxParameters.Name = "tbxParameters";
-            tbxParameters.ScrollBars = ScrollBars.Both;
-            tbxParameters.Size = new Size(1764, 588);
-            tbxParameters.TabIndex = 0;
-            tbxParameters.WordWrap = false;
-            // 
             // btnEncrypt
             // 
-            btnEncrypt.Dock = DockStyle.Top;
             btnEncrypt.BackColor = Color.FromArgb(214, 226, 221);
+            btnEncrypt.Dock = DockStyle.Top;
             btnEncrypt.FlatStyle = FlatStyle.Flat;
             btnEncrypt.ForeColor = Color.FromArgb(37, 47, 41);
-            btnEncrypt.Location = new Point(3, 462);
+            btnEncrypt.Location = new Point(3, 456);
             btnEncrypt.Margin = new Padding(3, 10, 3, 0);
             btnEncrypt.Name = "btnEncrypt";
-            btnEncrypt.Size = new Size(414, 58);
+            btnEncrypt.Size = new Size(303, 48);
             btnEncrypt.TabIndex = 10;
             btnEncrypt.Text = "加密数据";
             btnEncrypt.UseVisualStyleBackColor = false;
@@ -347,46 +352,47 @@ namespace ModelTest.CustomControl
             // 
             // btnTerminalEncryptionMenu
             // 
-            btnTerminalEncryptionMenu.Dock = DockStyle.Top;
             btnTerminalEncryptionMenu.BackColor = Color.FromArgb(232, 238, 235);
             btnTerminalEncryptionMenu.ContextMenuStrip = cmsTerminalEncryptionFunctions;
+            btnTerminalEncryptionMenu.Dock = DockStyle.Top;
             btnTerminalEncryptionMenu.FlatStyle = FlatStyle.Flat;
             btnTerminalEncryptionMenu.ForeColor = Color.FromArgb(37, 47, 41);
-            btnTerminalEncryptionMenu.Location = new Point(3, 530);
+            btnTerminalEncryptionMenu.Location = new Point(3, 514);
             btnTerminalEncryptionMenu.Margin = new Padding(3, 10, 3, 0);
             btnTerminalEncryptionMenu.Name = "btnTerminalEncryptionMenu";
-            btnTerminalEncryptionMenu.Size = new Size(414, 58);
+            btnTerminalEncryptionMenu.Size = new Size(303, 48);
             btnTerminalEncryptionMenu.TabIndex = 11;
             btnTerminalEncryptionMenu.Text = "终端加密函数调用";
             btnTerminalEncryptionMenu.UseVisualStyleBackColor = false;
             btnTerminalEncryptionMenu.Click += BtnTerminalEncryptionMenu_Click;
             // 
+            // cmsTerminalEncryptionFunctions
+            // 
+            cmsTerminalEncryptionFunctions.ImageScalingSize = new Size(28, 28);
+            cmsTerminalEncryptionFunctions.Name = "cmsTerminalEncryptionFunctions";
+            cmsTerminalEncryptionFunctions.Size = new Size(61, 4);
+            // 
             // btnMeterEncryptionMenu
             // 
-            btnMeterEncryptionMenu.Dock = DockStyle.Top;
             btnMeterEncryptionMenu.BackColor = Color.FromArgb(232, 238, 235);
             btnMeterEncryptionMenu.ContextMenuStrip = cmsMeterEncryptionFunctions;
+            btnMeterEncryptionMenu.Dock = DockStyle.Top;
             btnMeterEncryptionMenu.FlatStyle = FlatStyle.Flat;
             btnMeterEncryptionMenu.ForeColor = Color.FromArgb(37, 47, 41);
-            btnMeterEncryptionMenu.Location = new Point(3, 598);
+            btnMeterEncryptionMenu.Location = new Point(3, 572);
             btnMeterEncryptionMenu.Margin = new Padding(3, 10, 3, 0);
             btnMeterEncryptionMenu.Name = "btnMeterEncryptionMenu";
-            btnMeterEncryptionMenu.Size = new Size(414, 58);
+            btnMeterEncryptionMenu.Size = new Size(303, 48);
             btnMeterEncryptionMenu.TabIndex = 12;
             btnMeterEncryptionMenu.Text = "电表加密函数调用";
             btnMeterEncryptionMenu.UseVisualStyleBackColor = false;
             btnMeterEncryptionMenu.Click += BtnMeterEncryptionMenu_Click;
             // 
-            // rtbxOutput
+            // cmsMeterEncryptionFunctions
             // 
-            rtbxOutput.Dock = DockStyle.Fill;
-            rtbxOutput.Location = new Point(3, 597);
-            rtbxOutput.Margin = new Padding(3, 3, 3, 3);
-            rtbxOutput.Name = "rtbxOutput";
-            rtbxOutput.ReadOnly = true;
-            rtbxOutput.Size = new Size(1764, 194);
-            rtbxOutput.TabIndex = 4;
-            rtbxOutput.Text = "使用接口函数参数使用,隔开，例如：01,02,03        请在上边输入框输入加密机参数";
+            cmsMeterEncryptionFunctions.ImageScalingSize = new Size(28, 28);
+            cmsMeterEncryptionFunctions.Name = "cmsMeterEncryptionFunctions";
+            cmsMeterEncryptionFunctions.Size = new Size(61, 4);
             // 
             // SGCCEncryptionServiceUserControl
             // 
@@ -397,6 +403,7 @@ namespace ModelTest.CustomControl
             Size = new Size(2220, 800);
             mainLayoutPanel.ResumeLayout(false);
             topLayoutPanel.ResumeLayout(false);
+            topLayoutPanel.PerformLayout();
             headerPanel.ResumeLayout(false);
             headerLayoutPanel.ResumeLayout(false);
             headerLayoutPanel.PerformLayout();

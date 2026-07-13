@@ -43,7 +43,25 @@
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 			<CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
 		</None>
+		<Content Include="GUOJIADIANWANG\**\*.dll">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+			<CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+		</Content>
 	</ItemGroup>
+	<Target Name="EnsureGuoJiaDianWangDllFolder" AfterTargets="Build;Publish">
+		<MakeDir Directories="$(TargetDir)GUOJIADIANWANG" />
+		<MakeDir Directories="$(PublishDir)GUOJIADIANWANG" Condition="'$(PublishDir)' != ''" />
+		<ItemGroup>
+			<GuoJiaDianWangDllFiles Include="$(MSBuildProjectDirectory)\GUOJIADIANWANG\**\*.dll" />
+		</ItemGroup>
+		<Copy SourceFiles="@(GuoJiaDianWangDllFiles)"
+			  DestinationFolder="$(TargetDir)GUOJIADIANWANG\%(RecursiveDir)"
+			  SkipUnchangedFiles="true" />
+		<Copy SourceFiles="@(GuoJiaDianWangDllFiles)"
+			  DestinationFolder="$(PublishDir)GUOJIADIANWANG\%(RecursiveDir)"
+			  SkipUnchangedFiles="true"
+			  Condition="'$(PublishDir)' != ''" />
+	</Target>
 
 	<ItemGroup>
 		<Compile Update="Properties\Resources.Designer.cs">

@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Drawing.Drawing2D;
 using System.Linq;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
@@ -16,6 +17,11 @@ namespace ModelTest
         private readonly object _lockObject = new();
         private readonly IWinSocketServiceCatalog _serviceCatalog;
         private bool _disposed;
+        private const string NativeDllDirectoryName = "GUOJIADIANWANG";
+        private const string WinSocketNativeLibraryName = "WinSocketServer.dll";
+        private static readonly object NativeDllLoadLock = new();
+        private static bool _nativeDllDirectoryConfigured;
+        private const uint LoadWithAlteredSearchPath = 0x00000008;
 
         // 缓冲区默认大小常量
         private static class BufferSizes
@@ -36,6 +42,17 @@ namespace ModelTest
 
         #endregion
 
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern bool SetDllDirectory(string? lpPathName);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern IntPtr LoadLibraryEx(string lpFileName, IntPtr hFile, uint dwFlags);
+
+        static WinSocketServer()
+        {
+            NativeLibrary.SetDllImportResolver(typeof(WinSocketServer).Assembly, ResolveNativeLibrary);
+        }
+
         public WinSocketServer()
             : this(new DefaultWinSocketServiceCatalog())
         {
@@ -44,6 +61,96 @@ namespace ModelTest
         public WinSocketServer(IWinSocketServiceCatalog serviceCatalog)
         {
             _serviceCatalog = serviceCatalog ?? throw new ArgumentNullException(nameof(serviceCatalog));
+        }
+
+        /// <summary>
+        /// 将加密机 DLL 固定加载到程序目录下的 GUOJIADIANWANG 文件夹。
+        /// 这样打包后不会依赖当前工作目录或系统 PATH。
+        /// </summary>
+        private static IntPtr ResolveNativeLibrary(string libraryName, Assembly assembly, DllImportSearchPath? searchPath)
+        {
+            if (!string.Equals(libraryName, WinSocketNativeLibraryName, StringComparison.OrdinalIgnoreCase))
+            {
+                return IntPtr.Zero;
+            }
+
+            string dllDirectory = ResolveNativeDllDirectory();
+            string dllPath = Path.Combine(dllDirectory, WinSocketNativeLibraryName);
+            if (!File.Exists(dllPath))
+            {
+                throw new DllNotFoundException($"未找到加密机DLL：{dllPath}");
+            }
+
+            EnsureNativeDllDirectory(dllDirectory);
+
+            // 使用 Win32 原生加载，让 WinSocketServer.dll 所在目录参与其依赖 DLL 的解析。
+            // NativeLibrary.Load 在部分现场环境下会找到主 DLL，但依赖仍按默认搜索顺序失败。
+            IntPtr libraryHandle = LoadLibraryEx(dllPath, IntPtr.Zero, LoadWithAlteredSearchPath);
+            if (libraryHandle != IntPtr.Zero)
+            {
+                return libraryHandle;
+            }
+
+            int errorCode = Marshal.GetLastWin32Error();
+            string dllFiles = string.Join(", ", Directory.EnumerateFiles(dllDirectory, "*.dll").Select(Path.GetFileName));
+            throw new DllNotFoundException(
+                $"加密机DLL或其依赖加载失败。主DLL：{dllPath}；依赖搜索目录：{dllDirectory}；Win32Error={errorCode}；目录内DLL：{dllFiles}");
+        }
+
+        /// <summary>
+        /// 优先使用输出目录下的 GUOJIADIANWANG。
+        /// 调试时如果文件尚未复制到 bin，则只向上查找源码目录中的 GUOJIADIANWANG。
+        /// </summary>
+        private static string ResolveNativeDllDirectory()
+        {
+            string baseDirectory = AppContext.BaseDirectory;
+            string outputDllDirectory = Path.Combine(baseDirectory, NativeDllDirectoryName);
+            if (File.Exists(Path.Combine(outputDllDirectory, WinSocketNativeLibraryName)))
+            {
+                return outputDllDirectory;
+            }
+
+            DirectoryInfo? currentDirectory = new(baseDirectory);
+            while (currentDirectory != null)
+            {
+                string sourceDllDirectory = Path.Combine(currentDirectory.FullName, NativeDllDirectoryName);
+                if (File.Exists(Path.Combine(sourceDllDirectory, WinSocketNativeLibraryName)))
+                {
+                    return sourceDllDirectory;
+                }
+
+                currentDirectory = currentDirectory.Parent;
+            }
+
+            return outputDllDirectory;
+        }
+
+        /// <summary>
+        /// 将 GUOJIADIANWANG 加入当前进程 DLL 搜索路径。
+        /// WinSocketServer.dll 的依赖 DLL 和主 DLL 放在同一目录时，需要这一步兜底。
+        /// </summary>
+        private static void EnsureNativeDllDirectory(string dllDirectory)
+        {
+            lock (NativeDllLoadLock)
+            {
+                if (_nativeDllDirectoryConfigured)
+                {
+                    return;
+                }
+
+                if (!Directory.Exists(dllDirectory))
+                {
+                    throw new DirectoryNotFoundException($"未找到加密机DLL目录：{dllDirectory}");
+                }
+
+                if (!SetDllDirectory(dllDirectory))
+                {
+                    int errorCode = Marshal.GetLastWin32Error();
+                    throw new DllNotFoundException($"设置加密机DLL搜索目录失败：{dllDirectory}，Win32Error={errorCode}");
+                }
+
+                _nativeDllDirectoryConfigured = true;
+            }
         }
 
         #region 结果封装类
