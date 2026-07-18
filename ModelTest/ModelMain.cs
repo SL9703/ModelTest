@@ -28,6 +28,7 @@ namespace ModelTest
         private UDPMessageUserControl _udpMessageUserControl;
         private SHUserControl _shUserControl;
         private SGCCEncryptionServiceUserControl? _sgccEncryptionService;
+        private MultifunctionalcommunicationUserControl? _multifunctionalcommunicationUserControl;
         string MCUStartByte = "55";
         string MCUStopByte = "AA";
         string STAPINSET = string.Empty;
@@ -41,8 +42,10 @@ namespace ModelTest
         {
             InitializeComponent();
             LoadApplicationIcon();
+            InitializeMeterTestDatabase();
             UpdateStatusTime();
             InitializeSGCCTestTab();
+            InitializeMultifunctionalCommunicationTab();
             ultrSimpleDisplay1.TerminalAddressProvider = () => tbxTerminalAdds.Text;
             ultrSimpleDisplay1.LogRequested += AddLog;
             ultrSimpleDisplay1.SendCommandRequested += SeedMethod;
@@ -103,6 +106,18 @@ namespace ModelTest
         {
             toolStripStatusTime.Text = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
         }
+        private void InitializeMeterTestDatabase()
+        {
+            try
+            {
+                MeterTest.MeterTestAccessDatabaseService accessDatabaseService = new();
+                accessDatabaseService.EnsureInitialized();
+            }
+            catch (Exception ex)
+            {
+                LogMessage.Debug($"MeterTest 本地数据库主界面初始化失败：{ex.Message}");
+            }
+        }
 
         private void StatusTimeTimer_Tick(object? sender, EventArgs e)
         {
@@ -158,11 +173,23 @@ namespace ModelTest
             ModelTool.BindMutexCheckBoxes(checkBox1, checkBox2);//初始化模组0x01 0x31命令选择状态
             ModelTool.BindMutexCheckBoxes(checkBoxC, checkBoxN);//初始化模组IC和IN命令选择状态
             ModelTool.BindMutexCheckBoxes(cbx_TerminalV1_IC, cbx_TerminalV1_IN);//初始化终端IC和IN命令选择状态
-            ModelTool.BindMutexCheckBoxes(cbxRevcHEX, cbxRevcASCII);//初始化接收HEX状态。tcpserver用到
-            ModelTool.BindMutexCheckBoxes(cbxSendHEX, cbxSendASCII);//初始化发送HEX状态。tcpserver用到
 
             AddLog("应用程序已启动成功");
             LogMessage.Info("应用程序已启动成功");
+        }
+        /// <summary>
+        /// 多功能通信页已迁移到独立用户控件，ModelMain 只负责挂载控件和承接发送日志。
+        /// </summary>
+        private void InitializeMultifunctionalCommunicationTab()
+        {
+            _multifunctionalcommunicationUserControl = new MultifunctionalcommunicationUserControl
+            {
+                Dock = DockStyle.Fill
+            };
+            _multifunctionalcommunicationUserControl.OnUpdateRequestedMultifunctionalLog += AddLog;
+
+            tabPage24.Controls.Clear();
+            tabPage24.Controls.Add(_multifunctionalcommunicationUserControl);
         }
         /// <summary>
         /// initialization port
@@ -182,7 +209,6 @@ namespace ModelTest
             cbbxSTAModel.SelectedIndex = 0;//选择sta模组
             cbxSTAModePinStatus.SelectedIndex = 0;//sta模块引脚状态
             comboBoxSTAStutas.SelectedIndex = 0;//读取sta模块状态用到
-            cbxSocketClass.SelectedIndex = 1;//socket类型选择 tcpclient
             BindTerminalV1ClassOptions();
         }
         private void BindTerminalClassOptions()
@@ -319,6 +345,30 @@ namespace ModelTest
                     this.Text = "习承科技测试    TCP客户端 - 未连接";
                 }
             });
+        }
+        private void OnMessageSent(object sender, TcpClientMessageEventArgs e)
+        {
+            UpdateUI(() =>
+            {
+                // 发送消息已经在BtnSend_Click中记录，这里只记录文件传输等特殊消息
+                if (e.Message.Contains("文件传输进度") || e.Message.Contains("FILE_"))
+                {
+                    AddLog($"发送: {e.Message}");
+                }
+            });
+        }
+
+        private void OnErrorOccurred(object sender, string errorMessage)
+        {
+            UpdateUI(() =>
+            {
+                AddLog($"[错误] {errorMessage}");
+            });
+        }
+
+        private void OnBytesTransferred(object sender, long bytes)
+        {
+            // 可以在这里更新传输统计
         }
         /// <summary>
         /// 判断空方法
@@ -457,8 +507,13 @@ namespace ModelTest
         }
         public void AddLog(string Message)
         {
+            if (IsDisposed || !IsHandleCreated || textBoxlog.IsDisposed)
+            {
+                LogMessage.Debug(Message);
+                return;
+            }
             textBoxlog.SelectionLength = 0;
-            textBoxlog.AppendText($"[{DateTime.Now:HH:mm:ss:fff}] {Message}+{Environment.NewLine}");
+            textBoxlog.AppendText($"[{DateTime.Now:HH:mm:ss}] {Message}+{Environment.NewLine}");
             textBoxlog.ScrollToCaret();
             LogMessage.Debug(Message);
         }
@@ -469,9 +524,14 @@ namespace ModelTest
         /// <param name="color"></param>
         public void AddLog(string Message, Color? color = null)
         {
+            if (IsDisposed || !IsHandleCreated || textBoxlog.IsDisposed)
+            {
+                LogMessage.Debug(Message);
+                return;
+            }
             textBoxlog.SelectionLength = 0;
             textBoxlog.SelectionColor = color.Value;
-            textBoxlog.AppendText($"[{DateTime.Now:HH:mm:ss:fff}] {Message}+{Environment.NewLine}");
+            textBoxlog.AppendText($"[{DateTime.Now:HH:mm:ss}] {Message}+{Environment.NewLine}");
             textBoxlog.SelectionColor = textBoxlog.ForeColor;
             textBoxlog.ScrollToCaret();
             LogMessage.Debug(Message);
@@ -1437,301 +1497,7 @@ namespace ModelTest
                 e.Handled = true;//不能输入
             }
         }
-        /// <summary>
-        /// 启动tcp侦听服务器
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private Socket_DLL.Socket_DLL server;
-        private EnhancedTcpClient _tcpClient;
-        //获取客户端名称字典
-        private readonly Dictionary<string, string> _clientNames = new Dictionary<string, string>();
-        private async void TCPServerConnent_Click(object sender, EventArgs e)
-        {
-            try
-            {
-                string ServerIp = cbxIp.Text;
-                int ServerPort = int.Parse(cbxPort.Text);
-                server = new Socket_DLL.Socket_DLL(ServerIp, ServerPort);
-                if (ServerPort < 1 || ServerPort > 65535)
-                {
-                    AddLog(ServerIp + "端口号输入不正确，请输入1-65535之间的数字！");
-                    return;
-                }
-                switch (TCPServerConnent.Text)
-                {
-                    case "TCP服务器侦听":
-                        //启动服务
-                        var serverTask = Task.Run(() => server.StartAsync());
-                        // 订阅服务器事件
-                        server.MessageReceived += OnMessageReceived;
-                        server.ClientConnected += OnClientConnected;
-                        server.ClientDisconnected += OnClientDisconnected;
-                        server.ServerError += OnServerError;
-                        server.ServerStatusChanged += OnServerStatusChanged;
-                        AddLog("启动TCP侦听服务器成功，监听IP：" + ServerIp + "，端口：" + ServerPort);
-                        lblconnectStatus.Text = "TCP服务器状态：已启动";
-                        lblconnectStatus.ForeColor = Color.Green;
-                        TCPServerConnent.Text = "关闭TCP服务器";
-                        break;
-                    case "关闭TCP服务器":
-                        //关闭服务
-                        server.Stop();
-                        server.Dispose();
-                        AddLog("关闭TCP侦听服务器成功");
-                        lblconnectStatus.Text = "TCP服务器状态：已关闭";
-                        lblconnectStatus.ForeColor = Color.Red;
-                        TCPServerConnent.Text = "TCP服务器侦听";
-                        break;
-                    case "TCP客户端连接":
-                        _tcpClient = new EnhancedTcpClient();
-                        // 订阅事件
-                        _tcpClient.MessageReceived += OnMessageReceived;//监听服务器传来的消息事件
-                        _tcpClient.MessageSent += OnMessageSent;//传输文件事件
-                        _tcpClient.ConnectionStatusChanged += OnConnectionStatusChanged;//连接状态改变事件
-                        _tcpClient.ErrorOccurred += OnErrorOccurred;
-                        _tcpClient.BytesTransferred += OnBytesTransferred;
-                        bool connected = await _tcpClient.ConnectAsync(ServerIp, ServerPort);
-                        if (connected)
-                        {
-                            TCPServerConnent.Text = "关闭TCP客户端";
-                            lblconnectStatus.Text = "TCP客户端状态：已连接";
-                            lblconnectStatus.ForeColor = Color.Green;
-                        }
-                        else
-                        {
-                            AddLog($"TCP客户端 - 连接 {ServerIp}:{ServerPort} 失败");
-                            TCPServerConnent.Text = "TCP客户端连接";
-                            lblconnectStatus.Text = "TCP客户端状态：未连接";
-                            lblconnectStatus.ForeColor = Color.Red;
-                        }
-                        break;
-                    case "关闭TCP客户端":
-                        _tcpClient.Disconnect();
-                        TCPServerConnent.Text = "TCP客户端连接";
-                        lblconnectStatus.Text = "TCP客户端状态：断开连接";
-                        lblconnectStatus.ForeColor = Color.Red;
-                        break;
-                    case "UDP服务器侦听":
-                        break;
-                    case "关闭UDP服务器":
-                        break;
-                    default:
-                        break;
-                }
-            }
-            catch (Exception ex)
-            {
-                LogMessage.Error(ex);
-            }
-        }
-        /// <summary>
-        /// 客户端发送消息
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        /// <exception cref="NotImplementedException"></exception>
-        private async Task SendClienttMessage(string message, bool IsASCIIorHex)
-        {
-            bool sent = false;
-            if (IsASCIIorHex)
-            {
-                sent = await _tcpClient.SendAsync(message);//发送acsii消息
-            }
-            else
-            {
-                sent = await _tcpClient.SendBytesAsync(ModelTool.HexStringToByteArray(message));//发送hex消息
-            }
-            UpdateUI(() =>
-            {
-                if (sent)
-                {
-                    AddLog($"发送: {message}");
-                    LogMessage.SocketLog($"发送消息--> {message} 至服务器成功");
-                }
-                else
-                {
-                    AddLog($"发送失败: {message}");
-                    LogMessage.SocketLog($"发送消息--> {message} 至服务器失败");
-                }
-            });
-        }
-        /// <summary>
-        /// 客户端 、服务器发送消息
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private void btnSendData_Click(object sender, EventArgs e)
-        {
-            switch (TCPServerConnent.Text)
-            {
-                case "关闭TCP客户端":
-                    if (_tcpClient == null)
-                    {
-                        AddLog("错误，客户端未连接");
-                        return;
-                    }
-                    _ = SendClienttMessage(rtbxSendData.Text, cbxSendASCII.Checked);
-                    break;
-                case "关闭TCP服务器":
-                    if (server == null || !server.IsRunning)
-                    {
-                        AddLog("错误，服务器未启动");
-                        return;
-                    }
-                    if (!cbxIsBroadcastMessage.Checked)//非广播
-                    {
-                        _ = SendMessage(cbxClientConnc.Text, rtbxSendData.Text);
-                    }
-                    else
-                    {
-                        _ = BroadcastMessage(rtbxSendData.Text);//广播
-                    }
-                    break;
-
-                default:
-                    break;
-            }
-
-
-        }
-        /// <summary>
-        /// 发送消息到指定客户端
-        /// </summary>
-        /// <param name="clientId"></param>
-        /// <param name="message"></param>
-        /// <returns></returns>
-        private async Task SendMessage(string clientId, string message)
-        {
-            bool success;
-            if (string.IsNullOrEmpty(clientId))
-            {
-                AddLog("错误,请选择或输入客户端ID");
-                return;
-            }
-
-            if (string.IsNullOrEmpty(message))
-            {
-                AddLog("错误消息不能为空");
-                return;
-            }
-            if (cbxSendHEX.Checked)
-            {
-                success = await server.SendAsync(clientId, message, true);
-            }
-            else
-            {
-                success = await server.SendAsync(clientId, message, false);
-            }
-            if (success)
-            {
-                LogMessage.SocketLog($"发送消息--> {message} 至客户端 {clientId}");
-                rtbxRevcData.AppendText($"[{DateTime.Now:HH:mm:ss.fff}]发送消息--> {message} 至客户端 {clientId}\r\n");
-            }
-            else
-            {
-                //AddLog($"发送失败,无法发送消息到客户端 {clientId}");
-                rtbxRevcData.AppendText($"[{DateTime.Now:HH:mm:ss.fff}]发送失败,无法发送消息到客户端{clientId}\r\n");
-            }
-        }
-        /// <summary>
-        /// 广播消息
-        /// </summary>
-        /// <param name="message"></param>
-        /// <returns></returns>
-        private async Task BroadcastMessage(string message)
-        {
-            bool success;
-            if (string.IsNullOrEmpty(message))
-            {
-                rtbxRevcData.AppendText("错误，消息不能为空");
-                return;
-            }
-            if (cbxSendHEX.Checked)
-            {
-                success = await server.BroadcastAsync(message, true);
-            }
-            else
-            {
-                success = await server.BroadcastAsync(message, false);
-            }
-            rtbxRevcData.AppendText(success ? "广播消息成功" : "广播消息失败");
-        }
-
-        #region TCP客户端事件处理
-        private void OnMessageReceived(object sender, TcpClientMessageEventArgs e)
-        {
-
-            UpdateUI(() =>
-            {
-                //显示原始数据
-                string hexData = BitConverter.ToString(e.RawData).Replace("-", " ");
-                string asciiData = Encoding.ASCII.GetString(e.RawData);
-                // 更新状态显示
-                if (cbxRevcASCII.Checked)
-                {
-                    rtbxRevcData.AppendText($"接收 [{e.Timestamp:HH:mm:ss.fff}]: {asciiData}\r\n");
-                    LogMessage.SocketLog($"接受消息<-- 服务器 的数据: {asciiData}");
-                }
-                else
-                {
-                    rtbxRevcData.AppendText($"接收 [{e.Timestamp:HH:mm:ss.fff}]: {hexData}\r\n");
-                    LogMessage.SocketLog($"接受消息<-- 服务器 的数据: {hexData}");
-                }
-                UpdateStatusDisplay();
-            });
-        }
-        private void UpdateStatusDisplay()
-        {
-            rtbxRevcData.AppendText(_tcpClient.GetStatistics());
-        }
-        private void OnMessageSent(object sender, TcpClientMessageEventArgs e)
-        {
-            UpdateUI(() =>
-            {
-                // 发送消息已经在BtnSend_Click中记录，这里只记录文件传输等特殊消息
-                if (e.Message.Contains("文件传输进度") || e.Message.Contains("FILE_"))
-                {
-                    AddLog($"发送: {e.Message}");
-                }
-            });
-        }
-        private void OnConnectionStatusChanged(object sender, TcpClientStatusEventArgs e)
-        {
-            UpdateUI(() =>
-            {
-                string statusText = e.IsConnected ? "✅ 已连接" : "❌ 已断开";
-                string color = e.IsConnected ? "Green" : "Red";
-
-                AddLog($"[{e.Timestamp:HH:mm:ss}] {statusText}: {e.Status}");
-                // 更新窗体标题
-                if (e.IsConnected)
-                {
-                    this.Text = $"习承科技测试    TCP客户端 - 已连接到 {_tcpClient.ServerEndpoint}";
-                }
-                else if (_tcpClient.Status == "Disconnected")
-                {
-                    this.Text = "习承科技测试    TCP客户端 - 未连接";
-                }
-
-                // 更新状态显示
-                UpdateStatusDisplay();
-            });
-        }
-
-        private void OnErrorOccurred(object sender, string errorMessage)
-        {
-            UpdateUI(() =>
-            {
-                AddLog($"[错误] {errorMessage}");
-            });
-        }
-
-        private void OnBytesTransferred(object sender, long bytes)
-        {
-            // 可以在这里更新传输统计
-        }
-        #endregion
+     
         private void UpdateUI(Action action)
         {
             if (InvokeRequired)
@@ -1743,172 +1509,6 @@ namespace ModelTest
                 action();
             }
         }
-        /// <summary>
-        /// tcp服务器打印日志更新连接状态
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="statusMessage"></param>
-        private void OnServerStatusChanged(object? sender, string statusMessage)
-        {
-            UpdateUI(() =>
-            {
-                AddLog($"[状态] {statusMessage}");
-            });
-        }
-        /// <summary>
-        /// tcp服务器报错日志打印
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="error"></param>
-
-        private void OnServerError(object? sender, string error)
-        {
-            UpdateUI(() =>
-            {
-                AddLog($"[错误] {error}");
-            });
-        }
-        /// <summary>
-        /// tcp服务端事件处理
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private void OnClientDisconnected(object sender, ClientStatusChangedEventArgs e)
-        {
-            UpdateUI(() =>
-            {
-                _clientNames.Remove(e.ClientId);
-                UpdateClientList();
-                AddLog($"[{e.ChangeTime:HH:mm:ss}] 客户端断开: {e.ClientEndpoint}");
-            });
-        }
-
-        /// <summary>
-        /// tcp服务端事件处理
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private void OnClientConnected(object sender, ClientStatusChangedEventArgs e)
-        {
-            UpdateUI(() =>
-            {
-                _clientNames[e.ClientId] = $"客户端 {e.ClientId.Substring(0, 8)}";
-                UpdateClientList();
-                AddLog($"[{e.ChangeTime:HH:mm:ss}] 客户端连接: {e.ClientEndpoint}");
-            });
-        }
-        /// <summary>
-        /// tcp服务器收到消息处理
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private void OnMessageReceived(object sender, MessageReceivedEventArgs e)
-        {
-            StringBuilder sb = new StringBuilder();
-            UpdateUI(() =>
-            {
-                // 更新客户端列表活动状态
-                UpdateClientList();
-
-                // 添加到日志
-                LogMessage.SocketLog($"接受消息<-- {e.ClientEndpoint} 的数据: {e.Message}");
-                //转换成byte数组数据
-                byte[] dataBytes = System.Text.Encoding.Default.GetBytes(e.Message);
-                if (cbxRevcHEX.Checked)
-                {
-                    foreach (byte b in dataBytes)
-                    {
-                        sb.Append(b.ToString("X2") + ' ');//将byte型数据转化为2位16进制文本显示,用空格隔开
-                    }
-                }
-                else
-                {
-                    sb.Append(Encoding.ASCII.GetString(dataBytes));  //将整个数组解码为ASCII数组
-                    //var log = $"[{e.ReceivedTime:HH:mm:ss}] 来自 {e.ClientEndpoint} 的数据: {e.Message}";
-                    //rtbxRevcData.AppendText(log + "\r\n");
-                }
-                var log = $"[{e.ReceivedTime:HH:mm:ss}] 来自 {e.ClientEndpoint} 的数据: {sb.ToString()}";
-                rtbxRevcData.AppendText(log + "\r\n");
-                // 可以在这里处理特定消息并返回给特定控件
-            });
-        }
-        private void UpdateClientList()
-        {
-            cbxClientConnc.Items.Clear();
-            foreach (var clientInfo in server.GetAllClientInfos())
-            {
-                var displayName = _clientNames.ContainsKey(clientInfo.Id)
-                    ? _clientNames[clientInfo.Id]
-                    : clientInfo.Endpoint;
-
-                var item = $"{clientInfo.Id.ToString()}";
-                cbxClientConnc.Items.Add(item);
-            }
-        }
-        /// <summary>
-        /// 网络类型选择改变
-        /// </summary>
-        /// <param name="sender"></param>
-        /// <param name="e"></param>
-        private void cbxSocketClass_SelectedIndexChanged(object sender, EventArgs e)
-        {
-            //UDP
-            //TCPClient
-            //TCPServer
-            string SocketType = cbxSocketClass.Text;
-
-            switch (SocketType)
-            {
-                case "UDP":
-                    SelectNet();
-                    TCPServerConnent.Text = "UDP服务器侦听";
-                    break;
-                case "TCPClient":
-                    SelectNet();
-                    TCPServerConnent.Text = "TCP客户端连接";
-                    break;
-                case "TCPServer":
-                    SelectNet();
-                    TCPServerConnent.Text = "TCP服务器侦听";
-                    break;
-                default:
-                    break;
-            }
-        }
-
-        private void SelectNet()
-        {
-            var localIPs = GetLocalIPv4Addresses();
-            cbxIp.Items.Clear();
-            label23.Text = "（2）远程主机地址";
-            label120.Text = "（3）远程主机端口";
-            foreach (var ip in localIPs)
-            {
-                cbxIp.Items.Add(ip.ToString());
-            }
-            cbxIp.SelectedIndex = 0;
-        }
-
-        static string[] GetLocalIPv4Addresses()
-        {
-            var host = Dns.GetHostEntry(Dns.GetHostName());
-            return host.AddressList
-                .Where(ip => ip.AddressFamily == AddressFamily.InterNetwork)
-                .Select(ip => ip.ToString())
-                .ToArray();
-        }
-
-        private void button2_Click(object sender, EventArgs e)
-        {
-            rtbxRevcData.Text = "";
-        }
-
-        private void button8_Click(object sender, EventArgs e)
-        {
-            rtbxSendData.Text = "";
-        }
-
-
         /// <summary>
         /// 终端检测
         /// </summary>

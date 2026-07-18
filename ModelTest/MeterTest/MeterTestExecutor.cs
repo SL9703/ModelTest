@@ -6,10 +6,20 @@ using System.Threading.Tasks;
 
 namespace ModelTest.MeterTest;
 
+/// <summary>
+/// 通用的一发一收测试执行器。
+/// 当前主窗体主要使用更细的多工位并发流程；该类保留给单项串行执行和后续复用。
+/// </summary>
 public sealed class MeterTestExecutor
 {
+    /// <summary>
+    /// 实际的一发一收委托由 UI 或通信层注入，执行器只负责超时、匹配和结果封装。
+    /// </summary>
     public Func<MeterTestSubItem, CancellationToken, Task<string?>>? SendAndReceiveAsync { get; set; }
 
+    /// <summary>
+    /// 执行一个完整方案下的全部测试项。
+    /// </summary>
     public async Task<List<MeterTestExecutionResult>> ExecuteSchemeAsync(
         MeterTestScheme scheme,
         CancellationToken cancellationToken)
@@ -24,6 +34,9 @@ public sealed class MeterTestExecutor
         return results;
     }
 
+    /// <summary>
+    /// 执行一个测试项下的全部测试小项。
+    /// </summary>
     public async Task<List<MeterTestExecutionResult>> ExecuteItemAsync(
         string schemeName,
         MeterTestItem testItem,
@@ -39,6 +52,9 @@ public sealed class MeterTestExecutor
         return results;
     }
 
+    /// <summary>
+    /// 执行单个测试小项，并根据配置的匹配规则给出合格/不合格结论。
+    /// </summary>
     public async Task<MeterTestExecutionResult> ExecuteSubItemAsync(
         string schemeName,
         string testItemName,
@@ -114,6 +130,10 @@ public sealed class MeterTestExecutor
         }
     }
 
+    /// <summary>
+    /// 普通 HEX 响应匹配。
+    /// 如果没有配置期望值，则只要有响应就认为通过。
+    /// </summary>
     private static bool IsResponseMatched(MeterTestSubItem subItem, string? response)
     {
         string normalizedResponse = Normalize(response);
@@ -134,6 +154,9 @@ public sealed class MeterTestExecutor
         };
     }
 
+    /// <summary>
+    /// 将 XML 中的匹配模式字符串转换为枚举；非法配置默认按 Contains 处理。
+    /// </summary>
     private static ResponseMatchMode ParseMatchMode(string? value)
     {
         return Enum.TryParse(value, true, out ResponseMatchMode mode)
@@ -141,12 +164,18 @@ public sealed class MeterTestExecutor
             : ResponseMatchMode.Contains;
     }
 
+    /// <summary>
+    /// 去除空格，方便 HEX 字符串做大小写无关比较。
+    /// </summary>
     private static string Normalize(string? value)
     {
         return (value ?? string.Empty).Replace(" ", string.Empty).Trim();
     }
 }
 
+/// <summary>
+/// 单个测试小项的执行结果。
+/// </summary>
 public sealed record MeterTestExecutionResult(
     string SchemeName,
     string TestItemName,
@@ -157,6 +186,9 @@ public sealed record MeterTestExecutionResult(
     DateTime StartedAt,
     long ElapsedMilliseconds)
 {
+    /// <summary>
+    /// 快速创建失败结果，统一失败返回结构。
+    /// </summary>
     public static MeterTestExecutionResult Fail(
         string schemeName,
         string testItemName,

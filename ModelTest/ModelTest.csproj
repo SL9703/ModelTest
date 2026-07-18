@@ -14,9 +14,12 @@
 	</PropertyGroup>
 
 	<ItemGroup>
+		<PackageReference Include="Microsoft.Data.Sqlite.Core" Version="10.0.10" />
 		<PackageReference Include="MySqlConnector" Version="2.6.0" />
 		<PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
 		<PackageReference Include="Oracle.ManagedDataAccess.Core" Version="23.8.0" />
+		<PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.3" />
+		<PackageReference Include="SQLitePCLRaw.core" Version="3.0.3" />
 		<PackageReference Include="System.IO.Ports" Version="9.0.6" />
 	</ItemGroup>
 
@@ -43,6 +46,10 @@
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 			<CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
 		</None>
+		<None Update="MeterTest\data\*.*">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+			<CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+		</None>
 		<Content Include="GUOJIADIANWANG\**\*.dll">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 			<CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
@@ -54,13 +61,8 @@
 		<ItemGroup>
 			<GuoJiaDianWangDllFiles Include="$(MSBuildProjectDirectory)\GUOJIADIANWANG\**\*.dll" />
 		</ItemGroup>
-		<Copy SourceFiles="@(GuoJiaDianWangDllFiles)"
-			  DestinationFolder="$(TargetDir)GUOJIADIANWANG\%(RecursiveDir)"
-			  SkipUnchangedFiles="true" />
-		<Copy SourceFiles="@(GuoJiaDianWangDllFiles)"
-			  DestinationFolder="$(PublishDir)GUOJIADIANWANG\%(RecursiveDir)"
-			  SkipUnchangedFiles="true"
-			  Condition="'$(PublishDir)' != ''" />
+		<Copy SourceFiles="@(GuoJiaDianWangDllFiles)" DestinationFolder="$(TargetDir)GUOJIADIANWANG\%(RecursiveDir)" SkipUnchangedFiles="true" />
+		<Copy SourceFiles="@(GuoJiaDianWangDllFiles)" DestinationFolder="$(PublishDir)GUOJIADIANWANG\%(RecursiveDir)" SkipUnchangedFiles="true" Condition="'$(PublishDir)' != ''" />
 	</Target>
 
 	<ItemGroup>

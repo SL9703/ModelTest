@@ -77,7 +77,7 @@ namespace ModelTest.Socket_DLL
 
         public void Stop()
         {
-            if (!_isRunning) 
+            if (!_isRunning)
                 return;
 
             try
@@ -267,10 +267,11 @@ namespace ModelTest.Socket_DLL
             }
         }
 
-        private async Task ProcessReceivedData(ClientInfo clientInfo, byte[] buffer, int bytesRead, CancellationToken cancellationToken)
+        private Task ProcessReceivedData(ClientInfo clientInfo, byte[] buffer, int bytesRead, CancellationToken cancellationToken)
         {
             // 这里可以添加消息分隔符处理，例如换行符分隔的消息
             var message = _encoding.GetString(buffer, 0, bytesRead);
+            var rawData = buffer.Take(bytesRead).ToArray();
 
             // 触发消息接收事件
             OnMessageReceived(new MessageReceivedEventArgs
@@ -278,11 +279,13 @@ namespace ModelTest.Socket_DLL
                 ClientId = clientInfo.Id,
                 ClientEndpoint = clientInfo.Endpoint,
                 Message = message,
+                RawData = rawData,
                 ReceivedTime = DateTime.Now
             });
 
             // 自动回复确认（可选）
-            await SendAsync(clientInfo.Id, "ACK: Message received",false, cancellationToken);
+            // await SendAsync(clientInfo.Id, "ACK: Message received", true, cancellationToken);
+            return Task.CompletedTask;
         }
         #endregion
 
@@ -312,7 +315,7 @@ namespace ModelTest.Socket_DLL
 
             try
             {
-               
+
                 var stream = clientInfo.Client.GetStream();
                 if (!ASCIIOrHEX)
                 {
@@ -344,10 +347,10 @@ namespace ModelTest.Socket_DLL
             if (clientInfo == null)
                 return false;
 
-            return await SendAsync(clientInfo.Id, message, false,cancellationToken);
+            return await SendAsync(clientInfo.Id, message, false, cancellationToken);
         }
 
-        public async Task<bool> BroadcastAsync(string message,bool ASCIIOrHEX,CancellationToken cancellationToken = default)
+        public async Task<bool> BroadcastAsync(string message, bool ASCIIOrHEX, CancellationToken cancellationToken = default)
         {
             var success = true;
             var tasks = new List<Task<bool>>();
@@ -443,7 +446,10 @@ namespace ModelTest.Socket_DLL
         #region 事件触发方法
         protected virtual void OnMessageReceived(MessageReceivedEventArgs e)
         {
-            LogMessage.SocketLog($"收到消息 from {e.ClientEndpoint}: {e.Message}");
+            string display = e.RawData.Length > 0
+                ? BitConverter.ToString(e.RawData).Replace("-", " ")
+                : e.Message;
+            LogMessage.SocketLog($"收到消息 from {e.ClientEndpoint}: {display}");
             MessageReceived?.Invoke(this, e);
         }
 

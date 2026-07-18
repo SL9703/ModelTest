@@ -107,7 +107,7 @@
             labelErrorClass.Location = new Point(8, 0);
             labelErrorClass.Margin = new Padding(8, 0, 4, 0);
             labelErrorClass.Name = "labelErrorClass";
-            labelErrorClass.Size = new Size(60, 20);
+            labelErrorClass.Size = new Size(96, 28);
             labelErrorClass.TabIndex = 0;
             labelErrorClass.Text = "实验类型";
             // 
@@ -121,7 +121,7 @@
             cbxErrorTextClass.Location = new Point(8, 31);
             cbxErrorTextClass.Margin = new Padding(8, 3, 10, 2);
             cbxErrorTextClass.Name = "cbxErrorTextClass";
-            cbxErrorTextClass.Size = new Size(152, 31);
+            cbxErrorTextClass.Size = new Size(152, 38);
             cbxErrorTextClass.TabIndex = 1;
             // 
             // labelErrorMode
@@ -133,7 +133,7 @@
             labelErrorMode.Location = new Point(178, 0);
             labelErrorMode.Margin = new Padding(8, 0, 4, 0);
             labelErrorMode.Name = "labelErrorMode";
-            labelErrorMode.Size = new Size(60, 20);
+            labelErrorMode.Size = new Size(96, 28);
             labelErrorMode.TabIndex = 2;
             labelErrorMode.Text = "实验方式";
             // 
@@ -147,7 +147,7 @@
             cbxErrorTest.Location = new Point(178, 31);
             cbxErrorTest.Margin = new Padding(8, 3, 10, 2);
             cbxErrorTest.Name = "cbxErrorTest";
-            cbxErrorTest.Size = new Size(152, 31);
+            cbxErrorTest.Size = new Size(152, 38);
             cbxErrorTest.TabIndex = 3;
             // 
             // labelVoltage
@@ -159,7 +159,7 @@
             labelVoltage.Location = new Point(348, 0);
             labelVoltage.Margin = new Padding(8, 0, 4, 0);
             labelVoltage.Name = "labelVoltage";
-            labelVoltage.Size = new Size(64, 20);
+            labelVoltage.Size = new Size(82, 28);
             labelVoltage.TabIndex = 4;
             labelVoltage.Text = "电压(V)";
             // 
@@ -170,7 +170,7 @@
             tbxVoltage.Location = new Point(348, 31);
             tbxVoltage.Margin = new Padding(8, 3, 10, 2);
             tbxVoltage.Name = "tbxVoltage";
-            tbxVoltage.Size = new Size(152, 30);
+            tbxVoltage.Size = new Size(152, 36);
             tbxVoltage.TabIndex = 5;
             tbxVoltage.TextChanged += VoltageOrCurrent_TextChanged;
             // 
@@ -183,7 +183,7 @@
             labelCurrent.Location = new Point(518, 0);
             labelCurrent.Margin = new Padding(8, 0, 4, 0);
             labelCurrent.Name = "labelCurrent";
-            labelCurrent.Size = new Size(65, 20);
+            labelCurrent.Size = new Size(83, 28);
             labelCurrent.TabIndex = 6;
             labelCurrent.Text = "电流(A)";
             // 
@@ -194,7 +194,7 @@
             tbxCurrent.Location = new Point(518, 31);
             tbxCurrent.Margin = new Padding(8, 3, 10, 2);
             tbxCurrent.Name = "tbxCurrent";
-            tbxCurrent.Size = new Size(112, 30);
+            tbxCurrent.Size = new Size(432, 36);
             tbxCurrent.TabIndex = 7;
             tbxCurrent.TextChanged += VoltageOrCurrent_TextChanged;
             // 
@@ -207,7 +207,7 @@
             labelStandardConstant.Location = new Point(8, 64);
             labelStandardConstant.Margin = new Padding(8, 0, 4, 0);
             labelStandardConstant.Name = "labelStandardConstant";
-            labelStandardConstant.Size = new Size(80, 20);
+            labelStandardConstant.Size = new Size(117, 28);
             labelStandardConstant.TabIndex = 8;
             labelStandardConstant.Text = "标准表常数";
             // 
@@ -218,7 +218,7 @@
             tbxBZBC.Location = new Point(8, 95);
             tbxBZBC.Margin = new Padding(8, 3, 10, 2);
             tbxBZBC.Name = "tbxBZBC";
-            tbxBZBC.Size = new Size(152, 30);
+            tbxBZBC.Size = new Size(152, 36);
             tbxBZBC.TabIndex = 9;
             // 
             // labelMeterConstant
@@ -230,7 +230,7 @@
             labelMeterConstant.Location = new Point(178, 64);
             labelMeterConstant.Margin = new Padding(8, 0, 4, 0);
             labelMeterConstant.Name = "labelMeterConstant";
-            labelMeterConstant.Size = new Size(80, 20);
+            labelMeterConstant.Size = new Size(117, 28);
             labelMeterConstant.TabIndex = 10;
             labelMeterConstant.Text = "电能表常数";
             // 
@@ -241,7 +241,7 @@
             tbxDNBC.Location = new Point(178, 95);
             tbxDNBC.Margin = new Padding(8, 3, 10, 2);
             tbxDNBC.Name = "tbxDNBC";
-            tbxDNBC.Size = new Size(152, 30);
+            tbxDNBC.Size = new Size(152, 36);
             tbxDNBC.TabIndex = 11;
             // 
             // labelClockCircle
@@ -253,7 +253,7 @@
             labelClockCircle.Location = new Point(348, 64);
             labelClockCircle.Margin = new Padding(8, 0, 4, 0);
             labelClockCircle.Name = "labelClockCircle";
-            labelClockCircle.Size = new Size(47, 23);
+            labelClockCircle.Size = new Size(54, 28);
             labelClockCircle.TabIndex = 12;
             labelClockCircle.Text = "圈数";
             // 
@@ -264,7 +264,7 @@
             tbxRJSC.Location = new Point(348, 95);
             tbxRJSC.Margin = new Padding(8, 3, 10, 2);
             tbxRJSC.Name = "tbxRJSC";
-            tbxRJSC.Size = new Size(152, 30);
+            tbxRJSC.Size = new Size(152, 36);
             tbxRJSC.TabIndex = 13;
             // 
             // labelOperation
@@ -276,7 +276,7 @@
             labelOperation.Location = new Point(518, 64);
             labelOperation.Margin = new Padding(8, 0, 4, 0);
             labelOperation.Name = "labelOperation";
-            labelOperation.Size = new Size(40, 23);
+            labelOperation.Size = new Size(54, 28);
             labelOperation.TabIndex = 14;
             labelOperation.Text = "操作";
             // 
@@ -288,7 +288,7 @@
             operationPanel.Location = new Point(518, 95);
             operationPanel.Margin = new Padding(8, 3, 10, 2);
             operationPanel.Name = "operationPanel";
-            operationPanel.Size = new Size(282, 34);
+            operationPanel.Size = new Size(282, 31);
             operationPanel.TabIndex = 15;
             operationPanel.WrapContents = false;
             // 
@@ -320,23 +320,23 @@
             // 
             // UltrSimpleDisplay
             // 
-            AutoScaleDimensions = new SizeF(10F, 20F);
+            AutoScaleDimensions = new SizeF(14F, 30F);
             AutoScaleMode = AutoScaleMode.Font;
             BackColor = Color.Black;
             Controls.Add(errorPanel);
             DoubleBuffered = true;
-            ForeColor = Color.White;
             Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Regular, GraphicsUnit.Point, 134);
+            ForeColor = Color.White;
             MinimumSize = new Size(1000, 400);
             Name = "UltrSimpleDisplay";
             Padding = new Padding(12, 8, 12, 10);
             Size = new Size(1000, 400);
             Paint += simpleDisplay;
             Resize += UltrSimpleDisplay_Resize;
-            operationPanel.ResumeLayout(false);
             errorPanel.ResumeLayout(false);
             errorLayout.ResumeLayout(false);
             errorLayout.PerformLayout();
+            operationPanel.ResumeLayout(false);
             ResumeLayout(false);
 
 

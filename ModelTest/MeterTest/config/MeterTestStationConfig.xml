@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<MeterTestStationConfig xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <Station stationNo="1" ip="127.0.0.1" port="4001" />
+  <Station stationNo="2" ip="127.0.0.1" port="4002" />
+  <Station stationNo="3" ip="127.0.0.1" port="4003" />
+  <Station stationNo="4" ip="127.0.0.1" port="4004" />
+  <Station stationNo="5" ip="127.0.0.1" port="4005" />
+  <Station stationNo="6" ip="127.0.0.1" port="4006" />
+  <Station stationNo="7" ip="127.0.0.1" port="4007" />
+  <Station stationNo="8" ip="127.0.0.1" port="4008" />
+  <Station stationNo="9" ip="127.0.0.1" port="4009" />
+  <Station stationNo="10" ip="127.0.0.1" port="4010" />
+  <Station stationNo="11" ip="127.0.0.1" port="4011" />
+  <Station stationNo="12" ip="127.0.0.1" port="4012" />
+  <Station stationNo="13" ip="127.0.0.1" port="4013" />
+  <Station stationNo="14" ip="127.0.0.1" port="4014" />
+  <Station stationNo="15" ip="127.0.0.1" port="4015" />
+  <Station stationNo="16" ip="127.0.0.1" port="4016" />
+  <Station stationNo="17" ip="127.0.0.1" port="4017" />
+  <Station stationNo="18" ip="127.0.0.1" port="4018" />
+  <Station stationNo="19" ip="127.0.0.1" port="4019" />
+  <Station stationNo="20" ip="127.0.0.1" port="4020" />
+</MeterTestStationConfig>
