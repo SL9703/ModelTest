@@ -76,6 +76,7 @@ namespace ModelTest.MeterTest;
 /// - ReactiveClass：无功等级，默认 2.0。
 /// - ReactiveConstant：无功常数，默认 1000。
 /// - MeterAddress：电表地址，默认空。
+/// - BaudRate：电表通信波特率，默认 9600-8-E-1。
 /// - UpdatedAt：配置更新时间。
 /// </summary>
 public static class MeterTestAccessSchema
@@ -154,6 +155,7 @@ public static class MeterTestAccessSchema
             ReactiveClass TEXT NOT NULL,
             ReactiveConstant TEXT NOT NULL,
             MeterAddress TEXT NOT NULL,
+            BaudRate TEXT NOT NULL DEFAULT '9600-8-E-1',
             UpdatedAt TEXT NOT NULL
         )
         """

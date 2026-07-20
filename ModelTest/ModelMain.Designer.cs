@@ -1770,7 +1770,7 @@ namespace ModelTest
             // 
             toolStripStatusVersion.Name = "toolStripStatusVersion";
             toolStripStatusVersion.Size = new Size(163, 28);
-            toolStripStatusVersion.Text = "测试版本：2.0.5";
+            toolStripStatusVersion.Text = "测试版本：2.0.6";
             // 
             // statusTimeTimer
             // 
@@ -2181,6 +2181,7 @@ namespace ModelTest
             Name = "ModelMain";
             StartPosition = FormStartPosition.CenterScreen;
             Text = "习承科技测试";
+            MaximizeBox = true;
             WindowState = FormWindowState.Maximized;
             Load += ModelMain_Load;
             tabControl1.ResumeLayout(false);

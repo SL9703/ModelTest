@@ -108,7 +108,8 @@ public class MeterTestItem
 
 /// <summary>
 /// 测试小项节点，是实际执行的最小测试单元。
-/// StationTcp 模式走工位 IP/Port，一发一收；ControlPcbDailyTiming 模式走控制 PCB。
+/// StationTcp 模式走工位 IP/Port，一发一收；ControlPcbDailyTiming 模式走控制 PCB；
+/// SerialPortServerBaudRateSync 模式执行通信测试中的串口服务器波特率流程。
 /// </summary>
 public class MeterTestSubItem
 {
@@ -136,6 +137,13 @@ public class MeterTestSubItem
     [XmlAttribute("sourceControlConfig")]
     public string SourceControlConfig { get; set; } = string.Empty;
 
+    /// <summary>
+    /// 串口服务器波特率流程的步骤名称：Connect、ReadParameters、Compare、Apply。
+    /// 仅在 SerialPortServerBaudRateSync 模式下生效。
+    /// </summary>
+    [XmlAttribute("serialPortServerStep")]
+    public string SerialPortServerStep { get; set; } = string.Empty;
+
     /// <summary>日计时测试时间，单位秒。</summary>
     [XmlAttribute("dailyTimingTime")]
     public int DailyTimingTime { get; set; } = 10;
@@ -147,6 +155,17 @@ public class MeterTestSubItem
     /// <summary>同一连接内连续发送报文的间隔，单位毫秒。</summary>
     [XmlAttribute("packetIntervalMs")]
     public int PacketIntervalMs { get; set; } = 100;
+
+    /// <summary>
+    /// 日计时流程步骤：Start、Wait、Read。
+    /// 仅在 ControlPcbDailyTiming 模式下生效。
+    /// </summary>
+    [XmlAttribute("dailyTimingStep")]
+    public string DailyTimingStep { get; set; } = string.Empty;
+
+    /// <summary>日计时流程轮次，当前默认执行 1-3 轮。</summary>
+    [XmlAttribute("dailyTimingRound")]
+    public int DailyTimingRound { get; set; }
 
     /// <summary>StationTcp 模式下发送的请求 HEX 报文。</summary>
     [XmlAttribute("requestHex")]
@@ -223,7 +242,12 @@ public enum ResponseParserType
 public enum MeterTestExecutionMode
 {
     StationTcp,
-    ControlPcbDailyTiming
+    ControlPcbDailyTiming,
+    SerialPortServerBaudRateSync,
+    /// <summary>
+    /// 仅用于在方案树中预置尚未接入报文的测试流程，启用前需要补充对应执行器。
+    /// </summary>
+    Planned
 }
 
 /// <summary>

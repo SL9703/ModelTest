@@ -41,6 +41,7 @@ namespace ModelTest
         public ModelMain()
         {
             InitializeComponent();
+            ConfigureMainWindowBounds();
             LoadApplicationIcon();
             InitializeMeterTestDatabase();
             UpdateStatusTime();
@@ -102,6 +103,34 @@ namespace ModelTest
                 LogMessage.Error(e.Exception);
             };
         }
+        /// <summary>
+        /// 配置主窗体的启动边界。
+        ///
+        /// 主窗体保持最大化，但将最大化边界限制为当前屏幕工作区，避免覆盖 Windows 底部任务栏。
+        /// </summary>
+        private void ConfigureMainWindowBounds()
+        {
+            FormBorderStyle = FormBorderStyle.Sizable;
+            MaximizeBox = true;
+            StartPosition = FormStartPosition.CenterScreen;
+
+            Screen screen = IsHandleCreated
+                ? Screen.FromHandle(Handle)
+                : Screen.PrimaryScreen ?? Screen.AllScreens[0];
+            Rectangle workingArea = screen.WorkingArea;
+            MaximizedBounds = workingArea;
+            WindowState = FormWindowState.Maximized;
+        }
+
+        private void UpdateMainWindowMaximizedBounds()
+        {
+            Screen screen = IsHandleCreated
+                ? Screen.FromHandle(Handle)
+                : Screen.PrimaryScreen ?? Screen.AllScreens[0];
+            MaximizedBounds = screen.WorkingArea;
+            WindowState = FormWindowState.Maximized;
+        }
+
         private void UpdateStatusTime()
         {
             toolStripStatusTime.Text = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
@@ -151,14 +180,8 @@ namespace ModelTest
         private SerialPort MainSerialPort = new SerialPort();//初始化串口
         private void ModelMain_Load(object sender, EventArgs e)
         {
-            // 窗体加载时需要执行的初始化代码
-            this.FormBorderStyle = FormBorderStyle.FixedDialog;
-
-            // 禁用最大化按钮
-            this.MaximizeBox = false;
-
-            // 可选：禁用最小化按钮
-            // this.MinimizeBox = false;
+            // 窗体加载时重新读取当前屏幕工作区，确保最大化边界不覆盖 Windows 底部任务栏。
+            UpdateMainWindowMaximizedBounds();
             //设置背景颜色58957f
             this.BackColor = Color.FromArgb(88, 149, 127);
             BindTerminalClassOptions();

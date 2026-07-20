@@ -15,17 +15,22 @@
      - SinglePhase 默认只升 A 相；ThreePhase 默认 ABC 三相都使用 voltage/current。
      - TestSubItem 通过 sourceControlConfig 引用配置名称；为空表示执行该测试小项前不自动升源。
   3. Scheme/TestItem/TestSubItem 对应界面左侧方案树：方案 -> 测试项 -> 测试小项。
+     通信测试下的串口服务器步骤按 XML 顺序展示和执行：连接、读取、校验、修改、地址读取。
   4. executionMode 决定测试小项的执行目标：
      - StationTcp：使用界面工位表格中的 IP/Port，一工位一连接，适合 698 地址读取。
      - ControlPcbDailyTiming：不使用界面工位 IP/Port，改用 ControlPcbGroups 中的控制 PCB 关系，适合台体日计时。
+     - SerialPortServerBaudRateSync：执行通信测试中的串口服务器波特率步骤；完整流程只发送一次。
+     - Planned：仅在方案树中预置尚未接入执行器的流程节点，默认不执行。
   5. ControlPcbDailyTiming 日计时流程：
-     - 对选中的工位，根据 ControlPcbGroups 找到对应 PCB 和表位地址。
-     - 发送命令 0x36 + 0x00 + dailyTimingTime + dailyTimingCount 开始日计时。
+     - 日计时方案树固定展示三轮：开始日计时实验 -> 延迟等待倒计时 -> 读取日计时结果。
+     - 每轮发送 0x36 + 0x00 + dailyTimingTime + dailyTimingCount 开始日计时。
      - 每条报文按 packetIntervalMs 间隔发送，默认 100ms。
-     - 没有开始应答的表位标记失败，不影响其他已应答表位继续等待和结果获取。
      - 等待 dailyTimingTime * dailyTimingCount + dailyTimingCount 秒后，发送 0x36 + 0xAA + dailyTimingTime + dailyTimingCount 获取结果。
+     - 结果数据从 AA 0A 0A 后按 4 字节小端 float 解析；每轮先计算该轮结果平均值，三轮再计算最终平均误差。
+     - 最终平均误差绝对值小于 0.5 判定合格，否则判定不合格。
   6. StationTcp 地址读取：
-     - requestHex 是下发 698 报文，timeoutMs 是等待响应超时时间。
+     - requestHex 是 698 地址读取报文模板；实际执行时会把其中 6 字节地址替换为当前工位“电表地址”列的地址。
+     - 地址替换后会重新计算 HCS 和 FCS，timeoutMs 是等待响应超时时间。
      - responseParser=Sgcc698BroadcastAddress 时，会校验起止符、长度、HCS、APDU、OAD、数据类型、数据长度和 FCS，并提取表位地址。
 -->
 <MeterTestPlanConfig xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
@@ -84,14 +89,66 @@
   </ControlPcbGroups>
 
   <Scheme name="默认方案" description="MeterTest 默认测试方案，所有测试内容从本配置文件加载">
-    <TestItem name="通信测试" description="读取表位地址">
+    <TestItem name="通信测试" description="升源后检查串口服务器波特率，最后读取表位地址">
+      <TestSubItem
+        name="串口服务器连接"
+        enabled="true"
+        protocol="MeterControlPcbV2"
+        executionMode="SerialPortServerBaudRateSync"
+        serialPortServerStep="Connect"
+        description="连接各 IP 的串口服务器管理端 64444；失败后继续后续步骤。"
+        requestHex=""
+        responseParser="HexMatch"
+        expectedResponse=""
+        responseMatchMode="Contains"
+        timeoutMs="5000"
+        mockResponse="" />
+      <TestSubItem
+        name="读取串口参数"
+        enabled="true"
+        protocol="MeterControlPcbV2"
+        executionMode="SerialPortServerBaudRateSync"
+        serialPortServerStep="ReadParameters"
+        description="读取串口服务器全部 COM 参数，并映射到 951 起始的端口。"
+        requestHex=""
+        responseParser="HexMatch"
+        expectedResponse=""
+        responseMatchMode="Contains"
+        timeoutMs="5000"
+        mockResponse="" />
+      <TestSubItem
+        name="校验工位波特率"
+        enabled="true"
+        protocol="MeterControlPcbV2"
+        executionMode="SerialPortServerBaudRateSync"
+        serialPortServerStep="Compare"
+        description="逐工位比对串口服务器读取结果与资产信息中的 IP、Port、波特率。"
+        requestHex=""
+        responseParser="HexMatch"
+        expectedResponse=""
+        responseMatchMode="Contains"
+        timeoutMs="5000"
+        mockResponse="" />
+      <TestSubItem
+        name="修改不一致波特率"
+        enabled="true"
+        protocol="MeterControlPcbV2"
+        executionMode="SerialPortServerBaudRateSync"
+        serialPortServerStep="Apply"
+        description="仅修改不一致端口，设置为立即生效，不发送保存重启报文。"
+        requestHex=""
+        responseParser="HexMatch"
+        expectedResponse=""
+        responseMatchMode="Contains"
+        timeoutMs="5000"
+        mockResponse="" />
       <TestSubItem
         name="地址读取"
         enabled="true"
         protocol="DLT698.45"
         executionMode="StationTcp"
-        sourceControlConfig="三相默认源"
-        description="广播读取表位地址；响应必须是698读取响应，OAD=40010200，数据为6字节地址"
+        sourceControlConfig="单相默认源"
+        description="按工位电表地址定址读取表位地址；响应必须是698读取响应，OAD=40010200，数据为6字节地址"
         requestHex="68 17 00 43 05 AA AA AA AA AA AA 10 2B 3A 05 01 71 40 01 02 00 00 C7 C2 16"
         responseParser="Sgcc698BroadcastAddress"
         expectedApdu="85 01"
@@ -105,15 +162,16 @@
         mockResponse="68 21 00 C3 05 96 81 32 02 00 90 A0 F5 F6 85 01 00 40 01 02 00 01 09 06 90 00 02 32 81 96 00 00 BA 13 16" />
     </TestItem>
 
-    <TestItem name="日计时" description="通过控制PCB执行多表位日计时">
+    <TestItem name="日计时" description="通过控制PCB执行三轮多表位日计时并计算平均误差">
       <TestSubItem
-        name="日计时"
+        name="开始日计时实验-第1次"
         enabled="true"
         protocol="MeterControlPcb"
         executionMode="ControlPcbDailyTiming"
         controlPcbGroup=""
-        sourceControlConfig="三相默认源"
-        description="控制PCB日计时：开始、等待、结果获取；为空表示使用所有启用的 ControlPcbGroup"
+        dailyTimingStep="Start"
+        dailyTimingRound="1"
+        description="开始第1轮日计时试验；为空表示使用所有启用的 ControlPcbGroup"
         requestHex=""
         responseParser="MeterControlDailyTiming"
         expectedApdu=""
@@ -123,11 +181,165 @@
         resultField=""
         expectedResponse=""
         responseMatchMode="Contains"
+        dailyTimingTime="60"
+        dailyTimingCount="1"
+        packetIntervalMs="100"
+        timeoutMs="5000"
+        mockResponse="" />
+      <TestSubItem
+        name="延迟等待110秒倒计时-第1次"
+        enabled="true"
+        protocol="MeterControlPcb"
+        executionMode="ControlPcbDailyTiming"
+        controlPcbGroup=""
+        dailyTimingStep="Wait"
+        dailyTimingRound="1"
+        description="等待第1轮日计时完成，显示110秒倒计时。"
+        requestHex=""
+        responseParser="MeterControlDailyTiming"
+        dailyTimingTime="60"
+        dailyTimingCount="1"
+        packetIntervalMs="100"
+        timeoutMs="5000"
+        mockResponse="" />
+      <TestSubItem
+        name="读取日计时结果-第1次"
+        enabled="true"
+        protocol="MeterControlPcb"
+        executionMode="ControlPcbDailyTiming"
+        controlPcbGroup=""
+        dailyTimingStep="Read"
+        dailyTimingRound="1"
+        description="读取并解析第1轮日计时 float 误差结果。"
+        requestHex=""
+        responseParser="MeterControlDailyTiming"
+        dailyTimingTime="60"
+        dailyTimingCount="1"
+        packetIntervalMs="100"
+        timeoutMs="5000"
+        mockResponse="" />
+      <TestSubItem
+        name="开始日计时实验-第2次"
+        enabled="true"
+        protocol="MeterControlPcb"
+        executionMode="ControlPcbDailyTiming"
+        controlPcbGroup=""
+        dailyTimingStep="Start"
+        dailyTimingRound="2"
+        description="开始第2轮日计时试验。"
+        requestHex=""
+        responseParser="MeterControlDailyTiming"
+        dailyTimingTime="60"
+        dailyTimingCount="1"
+        packetIntervalMs="100"
+        timeoutMs="5000"
+        mockResponse="" />
+      <TestSubItem
+        name="延迟等待110秒倒计时-第2次"
+        enabled="true"
+        protocol="MeterControlPcb"
+        executionMode="ControlPcbDailyTiming"
+        controlPcbGroup=""
+        dailyTimingStep="Wait"
+        dailyTimingRound="2"
+        description="等待第2轮日计时完成，显示110秒倒计时。"
+        requestHex=""
+        responseParser="MeterControlDailyTiming"
+        dailyTimingTime="60"
+        dailyTimingCount="1"
+        packetIntervalMs="100"
+        timeoutMs="5000"
+        mockResponse="" />
+      <TestSubItem
+        name="读取日计时结果-第2次"
+        enabled="true"
+        protocol="MeterControlPcb"
+        executionMode="ControlPcbDailyTiming"
+        controlPcbGroup=""
+        dailyTimingStep="Read"
+        dailyTimingRound="2"
+        description="读取并解析第2轮日计时 float 误差结果。"
+        requestHex=""
+        responseParser="MeterControlDailyTiming"
+        dailyTimingTime="60"
+        dailyTimingCount="1"
+        packetIntervalMs="100"
+        timeoutMs="5000"
+        mockResponse="" />
+      <TestSubItem
+        name="开始日计时实验-第3次"
+        enabled="true"
+        protocol="MeterControlPcb"
+        executionMode="ControlPcbDailyTiming"
+        controlPcbGroup=""
+        dailyTimingStep="Start"
+        dailyTimingRound="3"
+        description="开始第3轮日计时试验。"
+        requestHex=""
+        responseParser="MeterControlDailyTiming"
         dailyTimingTime="10"
         dailyTimingCount="10"
         packetIntervalMs="100"
         timeoutMs="5000"
         mockResponse="" />
+      <TestSubItem
+        name="延迟等待110秒倒计时-第3次"
+        enabled="true"
+        protocol="MeterControlPcb"
+        executionMode="ControlPcbDailyTiming"
+        controlPcbGroup=""
+        dailyTimingStep="Wait"
+        dailyTimingRound="3"
+        description="等待第3轮日计时完成，显示110秒倒计时。"
+        requestHex=""
+        responseParser="MeterControlDailyTiming"
+        dailyTimingTime="60"
+        dailyTimingCount="1"
+        packetIntervalMs="100"
+        timeoutMs="5000"
+        mockResponse="" />
+      <TestSubItem
+        name="读取日计时结果-第3次"
+        enabled="true"
+        protocol="MeterControlPcb"
+        executionMode="ControlPcbDailyTiming"
+        controlPcbGroup=""
+        dailyTimingStep="Read"
+        dailyTimingRound="3"
+        description="读取并解析第3轮日计时 float 误差结果，并计算三轮平均误差。"
+        requestHex=""
+        responseParser="MeterControlDailyTiming"
+        dailyTimingTime="60"
+        dailyTimingCount="1"
+        packetIntervalMs="100"
+        timeoutMs="5000"
+        mockResponse="" />
     </TestItem>
+
+    <!--
+      起动试验流程已按规程预置，当前节点默认 disabled，待接入启动电流升源、
+      起动误差协议、等待时间和结果判定逻辑后，再将 enabled 改为 true。
+    -->
+    <TestItem name="起动试验" description="升源后执行起动误差试验，当前先预置流程节点，具体报文待接入。">
+      <TestSubItem name="升源（启动电流）" enabled="false" protocol="Pending" executionMode="Planned" description="按资产信息和起动电流参数升源。" timeoutMs="5000" />
+      <TestSubItem name="开启起动试验（启动误差）" enabled="false" protocol="Pending" executionMode="Planned" description="发送起动误差试验启动报文。" timeoutMs="5000" />
+      <TestSubItem name="等待起动时间" enabled="false" protocol="Pending" executionMode="Planned" description="按启动时间计算结果等待测试完成。" timeoutMs="5000" />
+      <TestSubItem name="读取误差结果" enabled="false" protocol="Pending" executionMode="Planned" description="读取并解析起动试验误差结果。" timeoutMs="5000" />
+      <TestSubItem name="判断误差结果" enabled="false" protocol="Pending" executionMode="Planned" description="根据起动试验最大允许误差判定结果。" timeoutMs="5000" />
+    </TestItem>
+
+    <!--
+      潜动试验流程已按规程预置，当前节点默认 disabled，待接入潜动电压升源、
+      潜动脉冲读取和结果判定逻辑后，再将 enabled 改为 true。
+    -->
+    <TestItem name="潜动试验" description="升潜动电压后执行潜动脉冲试验，当前先预置流程节点，具体报文待接入。">
+      <TestSubItem name="升源（潜动电压）" enabled="false" protocol="Pending" executionMode="Planned" description="按规程升至潜动试验电压。" timeoutMs="5000" />
+      <TestSubItem name="开启潜动试验" enabled="false" protocol="Pending" executionMode="Planned" description="发送潜动试验启动报文。" timeoutMs="5000" />
+      <TestSubItem name="等待潜动时间" enabled="false" protocol="Pending" executionMode="Planned" description="按潜动时间计算结果等待测试完成。" timeoutMs="5000" />
+      <TestSubItem name="读取脉冲数量" enabled="false" protocol="Pending" executionMode="Planned" description="读取潜动期间被测表输出的脉冲数量。" timeoutMs="5000" />
+      <TestSubItem name="判断脉冲结果" enabled="false" protocol="Pending" executionMode="Planned" description="根据潜动允许脉冲数量判定结果。" timeoutMs="5000" />
+    </TestItem>
+
+    <TestItem name="常数试验" description="常数试验流程暂定，等待协议和判定规则确认。" />
   </Scheme>
 </MeterTestPlanConfig>

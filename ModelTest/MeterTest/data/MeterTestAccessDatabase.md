@@ -99,6 +99,7 @@ SQLite 本地文件数据库
 | ReactiveClass | TEXT | 无功等级，默认 2.0 |
 | ReactiveConstant | TEXT | 无功常数，默认 1000 |
 | MeterAddress | TEXT | 电表地址，默认空 |
+| BaudRate | TEXT | 电表通信波特率，默认 9600-8-E-1 |
 | UpdatedAt | TEXT | 配置更新时间 |
 
 唯一索引：`StationNo`

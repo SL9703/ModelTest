@@ -47,6 +47,8 @@
             schemeTreeView = new TreeView();
             groupProcess = new GroupBox();
             processLayout = new TableLayoutPanel();
+            groupTestLog = new GroupBox();
+            rtbTestProcessLog = new RichTextBox();
             stationSelectionPanel = new FlowLayoutPanel();
             rbMultiStation = new RadioButton();
             rbSingleStation = new RadioButton();
@@ -54,11 +56,16 @@
             btnClearStationSelection = new Button();
             btnSaveAssetInfo = new Button();
             btnBatchApplyAssetInfo = new Button();
+            lblBarcodeStartIndex = new Label();
+            tbxBarcodeStartIndex = new TextBox();
+            lblBarcodeEndIndex = new Label();
+            tbxBarcodeEndIndex = new TextBox();
             stationGrid = new DataGridView();
             colStationSelected = new DataGridViewCheckBoxColumn();
             colStationNo = new DataGridViewTextBoxColumn();
             colStationIp = new DataGridViewTextBoxColumn();
             colStationPort = new DataGridViewTextBoxColumn();
+            colStationBarcode = new DataGridViewTextBoxColumn();
             colStationTestContent = new DataGridViewTextBoxColumn();
             colMeterType = new DataGridViewComboBoxColumn();
             colMeterAccessMode = new DataGridViewComboBoxColumn();
@@ -69,6 +76,7 @@
             colMeterReactiveClass = new DataGridViewComboBoxColumn();
             colMeterReactiveConstant = new DataGridViewTextBoxColumn();
             colStationMeterAddress = new DataGridViewTextBoxColumn();
+            colMeterBaudRate = new DataGridViewComboBoxColumn();
             colStationResult = new DataGridViewTextBoxColumn();
             colStationTime = new DataGridViewTextBoxColumn();
             processGrid = new DataGridView();
@@ -87,6 +95,7 @@
             groupScheme.SuspendLayout();
             groupProcess.SuspendLayout();
             processLayout.SuspendLayout();
+            groupTestLog.SuspendLayout();
             stationSelectionPanel.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)stationGrid).BeginInit();
             ((System.ComponentModel.ISupportInitialize)processGrid).BeginInit();
@@ -288,11 +297,15 @@
             // 
             // processLayout
             // 
-            processLayout.ColumnCount = 1;
-            processLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+            processLayout.ColumnCount = 2;
+            processLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 72F));
+            processLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 28F));
             processLayout.Controls.Add(stationSelectionPanel, 0, 0);
+            processLayout.SetColumnSpan(stationSelectionPanel, 2);
             processLayout.Controls.Add(stationGrid, 0, 1);
+            processLayout.Controls.Add(groupTestLog, 1, 1);
             processLayout.Controls.Add(processGrid, 0, 2);
+            processLayout.SetColumnSpan(processGrid, 2);
             processLayout.Dock = DockStyle.Fill;
             processLayout.Location = new Point(8, 35);
             processLayout.Margin = new Padding(0);
@@ -304,6 +317,34 @@
             processLayout.Size = new Size(982, 253);
             processLayout.TabIndex = 1;
             // 
+            // groupTestLog
+            // 
+            groupTestLog.Controls.Add(rtbTestProcessLog);
+            groupTestLog.Dock = DockStyle.Fill;
+            groupTestLog.Location = new Point(710, 69);
+            groupTestLog.Margin = new Padding(6, 0, 0, 4);
+            groupTestLog.Name = "groupTestLog";
+            groupTestLog.Padding = new Padding(6, 8, 6, 6);
+            groupTestLog.Size = new Size(266, 128);
+            groupTestLog.TabIndex = 3;
+            groupTestLog.TabStop = false;
+            groupTestLog.Text = "测试日志";
+            // 
+            // rtbTestProcessLog
+            // 
+            rtbTestProcessLog.BackColor = Color.White;
+            rtbTestProcessLog.BorderStyle = BorderStyle.FixedSingle;
+            rtbTestProcessLog.Dock = DockStyle.Fill;
+            rtbTestProcessLog.Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
+            rtbTestProcessLog.HideSelection = false;
+            rtbTestProcessLog.Location = new Point(6, 31);
+            rtbTestProcessLog.Name = "rtbTestProcessLog";
+            rtbTestProcessLog.ReadOnly = true;
+            rtbTestProcessLog.ScrollBars = RichTextBoxScrollBars.Both;
+            rtbTestProcessLog.Size = new Size(254, 91);
+            rtbTestProcessLog.TabIndex = 0;
+            rtbTestProcessLog.Text = "";
+            // 
             // stationSelectionPanel
             // 
             stationSelectionPanel.Controls.Add(rbMultiStation);
@@ -312,6 +353,10 @@
             stationSelectionPanel.Controls.Add(btnClearStationSelection);
             stationSelectionPanel.Controls.Add(btnSaveAssetInfo);
             stationSelectionPanel.Controls.Add(btnBatchApplyAssetInfo);
+            stationSelectionPanel.Controls.Add(lblBarcodeStartIndex);
+            stationSelectionPanel.Controls.Add(tbxBarcodeStartIndex);
+            stationSelectionPanel.Controls.Add(lblBarcodeEndIndex);
+            stationSelectionPanel.Controls.Add(tbxBarcodeEndIndex);
             stationSelectionPanel.Dock = DockStyle.Fill;
             stationSelectionPanel.Location = new Point(0, 0);
             stationSelectionPanel.Margin = new Padding(0, 0, 0, 4);
@@ -387,6 +432,48 @@
             btnBatchApplyAssetInfo.UseVisualStyleBackColor = true;
             btnBatchApplyAssetInfo.Visible = false;
             // 
+            // lblBarcodeStartIndex
+            // 
+            lblBarcodeStartIndex.Location = new Point(893, 12);
+            lblBarcodeStartIndex.Margin = new Padding(5, 8, 3, 0);
+            lblBarcodeStartIndex.Name = "lblBarcodeStartIndex";
+            lblBarcodeStartIndex.Size = new Size(120, 32);
+            lblBarcodeStartIndex.TabIndex = 6;
+            lblBarcodeStartIndex.Text = "条码起始位";
+            lblBarcodeStartIndex.TextAlign = ContentAlignment.MiddleLeft;
+            lblBarcodeStartIndex.Visible = false;
+            // 
+            // tbxBarcodeStartIndex
+            // 
+            tbxBarcodeStartIndex.Location = new Point(1019, 10);
+            tbxBarcodeStartIndex.Margin = new Padding(3, 6, 8, 0);
+            tbxBarcodeStartIndex.Name = "tbxBarcodeStartIndex";
+            tbxBarcodeStartIndex.Size = new Size(60, 34);
+            tbxBarcodeStartIndex.TabIndex = 7;
+            tbxBarcodeStartIndex.Text = "8";
+            tbxBarcodeStartIndex.Visible = false;
+            // 
+            // lblBarcodeEndIndex
+            // 
+            lblBarcodeEndIndex.Location = new Point(1090, 12);
+            lblBarcodeEndIndex.Margin = new Padding(3, 8, 3, 0);
+            lblBarcodeEndIndex.Name = "lblBarcodeEndIndex";
+            lblBarcodeEndIndex.Size = new Size(120, 32);
+            lblBarcodeEndIndex.TabIndex = 8;
+            lblBarcodeEndIndex.Text = "条码结束位";
+            lblBarcodeEndIndex.TextAlign = ContentAlignment.MiddleLeft;
+            lblBarcodeEndIndex.Visible = false;
+            // 
+            // tbxBarcodeEndIndex
+            // 
+            tbxBarcodeEndIndex.Location = new Point(1216, 10);
+            tbxBarcodeEndIndex.Margin = new Padding(3, 6, 3, 0);
+            tbxBarcodeEndIndex.Name = "tbxBarcodeEndIndex";
+            tbxBarcodeEndIndex.Size = new Size(60, 34);
+            tbxBarcodeEndIndex.TabIndex = 9;
+            tbxBarcodeEndIndex.Text = "20";
+            tbxBarcodeEndIndex.Visible = false;
+            // 
             // stationGrid
             // 
             stationGrid.AllowUserToAddRows = false;
@@ -396,15 +483,17 @@
             stationGrid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
             stationGrid.BackgroundColor = Color.White;
             stationGrid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
-            stationGrid.Columns.AddRange(new DataGridViewColumn[] { colStationSelected, colStationNo, colStationIp, colStationPort, colStationTestContent, colMeterType, colMeterAccessMode, colMeterVoltage, colMeterCurrent, colMeterActiveClass, colMeterActiveConstant, colMeterReactiveClass, colMeterReactiveConstant, colStationMeterAddress, colStationResult, colStationTime });
+            stationGrid.Columns.AddRange(new DataGridViewColumn[] { colStationSelected, colStationNo, colStationIp, colStationPort, colStationBarcode, colStationTestContent, colMeterType, colMeterAccessMode, colMeterVoltage, colMeterCurrent, colMeterActiveClass, colMeterActiveConstant, colMeterReactiveClass, colMeterReactiveConstant, colStationMeterAddress, colMeterBaudRate, colStationResult, colStationTime });
             stationGrid.Dock = DockStyle.Fill;
             stationGrid.Location = new Point(0, 66);
             stationGrid.Margin = new Padding(0, 0, 0, 4);
+            stationGrid.MultiSelect = false;
             stationGrid.Name = "stationGrid";
             stationGrid.ReadOnly = false;
             stationGrid.RowHeadersVisible = false;
             stationGrid.RowHeadersWidth = 82;
             stationGrid.RowTemplate.Height = 34;
+            stationGrid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
             stationGrid.Size = new Size(982, 132);
             stationGrid.TabIndex = 1;
             // 
@@ -431,10 +520,10 @@
             // 
             colStationIp.FillWeight = 82F;
             colStationIp.HeaderText = "IP";
-            colStationIp.MinimumWidth = 350;
+            colStationIp.MinimumWidth = 250;
             colStationIp.Name = "colStationIp";
             colStationIp.Resizable = DataGridViewTriState.False;
-            colStationIp.Width = 350;
+            colStationIp.Width = 250;
             // 
             // colStationPort
             // 
@@ -444,6 +533,15 @@
             colStationPort.Name = "colStationPort";
             colStationPort.Resizable = DataGridViewTriState.False;
             colStationPort.Width = 100;
+            // 
+            // colStationBarcode
+            // 
+            colStationBarcode.FillWeight = 88F;
+            colStationBarcode.HeaderText = "条形码";
+            colStationBarcode.MinimumWidth = 300;
+            colStationBarcode.Name = "colStationBarcode";
+            colStationBarcode.Resizable = DataGridViewTriState.False;
+            colStationBarcode.Width = 300;
             // 
             // colStationTestContent
             // 
@@ -459,78 +557,87 @@
             // 
             colMeterType.HeaderText = "电表类型";
             colMeterType.Items.AddRange(new object[] { "单相", "三相" });
-            colMeterType.MinimumWidth = 200;
+            colMeterType.MinimumWidth = 150;
             colMeterType.Name = "colMeterType";
             colMeterType.Resizable = DataGridViewTriState.False;
-            colMeterType.Width = 200;
+            colMeterType.Width = 150;
             // 
             // colMeterAccessMode
             // 
             colMeterAccessMode.HeaderText = "接入方式";
             colMeterAccessMode.Items.AddRange(new object[] { "直接式", "互感式" });
-            colMeterAccessMode.MinimumWidth = 200;
+            colMeterAccessMode.MinimumWidth = 150;
             colMeterAccessMode.Name = "colMeterAccessMode";
             colMeterAccessMode.Resizable = DataGridViewTriState.False;
-            colMeterAccessMode.Width = 200;
+            colMeterAccessMode.Width = 150;
             // 
             // colMeterVoltage
             // 
-            colMeterVoltage.HeaderText = "电压";
-            colMeterVoltage.MinimumWidth = 200;
+            colMeterVoltage.HeaderText = "额定电压";
+            colMeterVoltage.MinimumWidth = 150;
             colMeterVoltage.Name = "colMeterVoltage";
             colMeterVoltage.Resizable = DataGridViewTriState.False;
-            colMeterVoltage.Width = 200;
+            colMeterVoltage.Width = 150;
             // 
             // colMeterCurrent
             // 
             colMeterCurrent.HeaderText = "基本电流";
-            colMeterCurrent.MinimumWidth = 200;
+            colMeterCurrent.MinimumWidth = 150;
             colMeterCurrent.Name = "colMeterCurrent";
             colMeterCurrent.Resizable = DataGridViewTriState.False;
-            colMeterCurrent.Width = 200;
+            colMeterCurrent.Width = 150;
             // 
             // colMeterActiveClass
             // 
             colMeterActiveClass.HeaderText = "有功等级";
             colMeterActiveClass.Items.AddRange(new object[] { "A", "B", "C", "D" });
-            colMeterActiveClass.MinimumWidth = 200;
+            colMeterActiveClass.MinimumWidth = 150;
             colMeterActiveClass.Name = "colMeterActiveClass";
             colMeterActiveClass.Resizable = DataGridViewTriState.False;
-            colMeterActiveClass.Width = 200;
+            colMeterActiveClass.Width = 150;
             // 
             // colMeterActiveConstant
             // 
             colMeterActiveConstant.HeaderText = "有功常数";
-            colMeterActiveConstant.MinimumWidth = 200;
+            colMeterActiveConstant.MinimumWidth = 150;
             colMeterActiveConstant.Name = "colMeterActiveConstant";
             colMeterActiveConstant.Resizable = DataGridViewTriState.False;
-            colMeterActiveConstant.Width = 200;
+            colMeterActiveConstant.Width = 150;
             // 
             // colMeterReactiveClass
             // 
             colMeterReactiveClass.HeaderText = "无功等级";
             colMeterReactiveClass.Items.AddRange(new object[] { "2.0", "3.0", "1S", "0.5S" });
-            colMeterReactiveClass.MinimumWidth = 200;
+            colMeterReactiveClass.MinimumWidth = 150;
             colMeterReactiveClass.Name = "colMeterReactiveClass";
             colMeterReactiveClass.Resizable = DataGridViewTriState.False;
-            colMeterReactiveClass.Width = 200;
+            colMeterReactiveClass.Width = 150;
             // 
             // colMeterReactiveConstant
             // 
             colMeterReactiveConstant.HeaderText = "无功常数";
-            colMeterReactiveConstant.MinimumWidth = 200;
+            colMeterReactiveConstant.MinimumWidth = 150;
             colMeterReactiveConstant.Name = "colMeterReactiveConstant";
             colMeterReactiveConstant.Resizable = DataGridViewTriState.False;
-            colMeterReactiveConstant.Width = 200;
+            colMeterReactiveConstant.Width = 150;
             // 
             // colStationMeterAddress
             // 
             colStationMeterAddress.FillWeight = 88F;
-            colStationMeterAddress.HeaderText = "表位地址";
-            colStationMeterAddress.MinimumWidth = 300;
+            colStationMeterAddress.HeaderText = "电表地址";
+            colStationMeterAddress.MinimumWidth = 200;
             colStationMeterAddress.Name = "colStationMeterAddress";
             colStationMeterAddress.Resizable = DataGridViewTriState.False;
-            colStationMeterAddress.Width = 300;
+            colStationMeterAddress.Width = 200;
+            // 
+            // colMeterBaudRate
+            // 
+            colMeterBaudRate.HeaderText = "波特率";
+            colMeterBaudRate.Items.AddRange(new object[] { "9600-8-E-1", "2400-8-E-1", "4800-8-E-1", "115200-8-N-1" });
+            colMeterBaudRate.MinimumWidth = 150;
+            colMeterBaudRate.Name = "colMeterBaudRate";
+            colMeterBaudRate.Resizable = DataGridViewTriState.False;
+            colMeterBaudRate.Width = 150;
             // 
             // colStationResult
             // 
@@ -634,7 +741,7 @@
             BackColor = Color.FromArgb(232, 239, 236);
             ClientSize = new Size(1280, 760);
             Controls.Add(mainLayout);
-            MaximizeBox = false;
+            MaximizeBox = true;
             MinimizeBox = true;
             Name = "MeterTest";
             StartPosition = FormStartPosition.CenterParent;
@@ -649,6 +756,7 @@
             groupScheme.ResumeLayout(false);
             groupProcess.ResumeLayout(false);
             processLayout.ResumeLayout(false);
+            groupTestLog.ResumeLayout(false);
             stationSelectionPanel.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)stationGrid).EndInit();
             ((System.ComponentModel.ISupportInitialize)processGrid).EndInit();
@@ -674,6 +782,8 @@
         private TreeView schemeTreeView;
         private GroupBox groupProcess;
         private TableLayoutPanel processLayout;
+        private GroupBox groupTestLog;
+        private RichTextBox rtbTestProcessLog;
         private FlowLayoutPanel stationSelectionPanel;
         private RadioButton rbMultiStation;
         private RadioButton rbSingleStation;
@@ -681,11 +791,16 @@
         private Button btnClearStationSelection;
         private Button btnSaveAssetInfo;
         private Button btnBatchApplyAssetInfo;
+        private Label lblBarcodeStartIndex;
+        private TextBox tbxBarcodeStartIndex;
+        private Label lblBarcodeEndIndex;
+        private TextBox tbxBarcodeEndIndex;
         private DataGridView stationGrid;
         private DataGridViewCheckBoxColumn colStationSelected;
         private DataGridViewTextBoxColumn colStationNo;
         private DataGridViewTextBoxColumn colStationIp;
         private DataGridViewTextBoxColumn colStationPort;
+        private DataGridViewTextBoxColumn colStationBarcode;
         private DataGridViewTextBoxColumn colStationTestContent;
         private DataGridViewComboBoxColumn colMeterType;
         private DataGridViewComboBoxColumn colMeterAccessMode;
@@ -696,6 +811,7 @@
         private DataGridViewComboBoxColumn colMeterReactiveClass;
         private DataGridViewTextBoxColumn colMeterReactiveConstant;
         private DataGridViewTextBoxColumn colStationMeterAddress;
+        private DataGridViewComboBoxColumn colMeterBaudRate;
         private DataGridViewTextBoxColumn colStationResult;
         private DataGridViewTextBoxColumn colStationTime;
         private DataGridView processGrid;

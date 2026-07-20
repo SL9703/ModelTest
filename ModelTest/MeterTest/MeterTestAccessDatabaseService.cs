@@ -308,6 +308,73 @@ public sealed class MeterTestAccessDatabaseService
     }
 
     /// <summary>
+    /// 读取或创建条形码截取配置。
+    /// 默认从 0-based 第 8 位开始，到第 20 位结束。
+    /// </summary>
+    public MeterTestAssetBarcodeSettingData LoadOrCreateAssetBarcodeSetting()
+    {
+        EnsureInitialized();
+
+        using SqliteConnection connection = CreateOpenConnection();
+        using SqliteCommand command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT BarcodeStartIndex, BarcodeEndIndex
+            FROM MeterTestAssetBarcodeSetting
+            WHERE Id = 1;
+            """;
+
+        using SqliteDataReader reader = command.ExecuteReader();
+        if (reader.Read())
+        {
+            return new MeterTestAssetBarcodeSettingData(
+                reader.IsDBNull(0) ? 8 : reader.GetInt32(0),
+                reader.IsDBNull(1) ? 20 : reader.GetInt32(1));
+        }
+
+        SaveAssetBarcodeSetting(8, 20);
+        return new MeterTestAssetBarcodeSettingData(8, 20);
+    }
+
+    /// <summary>
+    /// 保存条形码截取配置。
+    /// </summary>
+    public void SaveAssetBarcodeSetting(int barcodeStartIndex, int barcodeEndIndex)
+    {
+        EnsureInitialized();
+
+        using SqliteConnection connection = CreateOpenConnection();
+        using SqliteCommand command = connection.CreateCommand();
+        command.CommandText =
+            """
+            INSERT INTO MeterTestAssetBarcodeSetting
+            (
+                Id,
+                BarcodeStartIndex,
+                BarcodeEndIndex,
+                UpdatedAt
+            )
+            VALUES
+            (
+                1,
+                $BarcodeStartIndex,
+                $BarcodeEndIndex,
+                $UpdatedAt
+            )
+            ON CONFLICT(Id)
+            DO UPDATE SET
+                BarcodeStartIndex = excluded.BarcodeStartIndex,
+                BarcodeEndIndex = excluded.BarcodeEndIndex,
+                UpdatedAt = excluded.UpdatedAt;
+            """;
+
+        AddParameter(command, "$BarcodeStartIndex", barcodeStartIndex);
+        AddParameter(command, "$BarcodeEndIndex", barcodeEndIndex);
+        AddParameter(command, "$UpdatedAt", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff"));
+        command.ExecuteNonQuery();
+    }
+
+    /// <summary>
     /// 读取或创建 1-N 工位的电表档案默认数据。
     /// </summary>
     public Dictionary<int, MeterArchiveData> LoadOrCreateMeterArchives(int stationCount)
@@ -338,7 +405,9 @@ public sealed class MeterTestAccessDatabaseService
                 ActiveConstant,
                 ReactiveClass,
                 ReactiveConstant,
-                MeterAddress
+                Barcode,
+                MeterAddress,
+                BaudRate
             FROM MeterTestMeterArchive
             ORDER BY StationNo;
             """;
@@ -375,7 +444,9 @@ public sealed class MeterTestAccessDatabaseService
                 ActiveConstant,
                 ReactiveClass,
                 ReactiveConstant,
+                Barcode,
                 MeterAddress,
+                BaudRate,
                 UpdatedAt
             )
             VALUES
@@ -389,7 +460,9 @@ public sealed class MeterTestAccessDatabaseService
                 $ActiveConstant,
                 $ReactiveClass,
                 $ReactiveConstant,
+                $Barcode,
                 $MeterAddress,
+                $BaudRate,
                 $UpdatedAt
             )
             ON CONFLICT(StationNo)
@@ -402,7 +475,9 @@ public sealed class MeterTestAccessDatabaseService
                 ActiveConstant = excluded.ActiveConstant,
                 ReactiveClass = excluded.ReactiveClass,
                 ReactiveConstant = excluded.ReactiveConstant,
+                Barcode = excluded.Barcode,
                 MeterAddress = excluded.MeterAddress,
+                BaudRate = excluded.BaudRate,
                 UpdatedAt = excluded.UpdatedAt;
             """;
 
@@ -487,6 +562,15 @@ public sealed class MeterTestAccessDatabaseService
             );
             """,
             """
+            CREATE TABLE IF NOT EXISTS MeterTestAssetBarcodeSetting
+            (
+                Id INTEGER PRIMARY KEY CHECK (Id = 1),
+                BarcodeStartIndex INTEGER NOT NULL,
+                BarcodeEndIndex INTEGER NOT NULL,
+                UpdatedAt TEXT NOT NULL
+            );
+            """,
+            """
             CREATE TABLE IF NOT EXISTS MeterTestMeterArchive
             (
                 Id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -499,7 +583,9 @@ public sealed class MeterTestAccessDatabaseService
                 ActiveConstant TEXT NOT NULL,
                 ReactiveClass TEXT NOT NULL,
                 ReactiveConstant TEXT NOT NULL,
+                Barcode TEXT NOT NULL DEFAULT '',
                 MeterAddress TEXT NOT NULL,
+                BaudRate TEXT NOT NULL DEFAULT '9600-8-E-1',
                 UpdatedAt TEXT NOT NULL
             );
             """
@@ -511,6 +597,11 @@ public sealed class MeterTestAccessDatabaseService
             command.CommandText = statement;
             command.ExecuteNonQuery();
         }
+
+        EnsureColumnExists(connection, "MeterTestAssetBarcodeSetting", "BarcodeStartIndex", "INTEGER NOT NULL DEFAULT 8");
+        EnsureColumnExists(connection, "MeterTestAssetBarcodeSetting", "BarcodeEndIndex", "INTEGER NOT NULL DEFAULT 20");
+        EnsureColumnExists(connection, "MeterTestMeterArchive", "Barcode", "TEXT NOT NULL DEFAULT ''");
+        EnsureColumnExists(connection, "MeterTestMeterArchive", "BaudRate", "TEXT NOT NULL DEFAULT '9600-8-E-1'");
     }
 
     private static void AddParameter(SqliteCommand command, string name, object? value)
@@ -541,7 +632,9 @@ public sealed class MeterTestAccessDatabaseService
                 ActiveConstant,
                 ReactiveClass,
                 ReactiveConstant,
+                Barcode,
                 MeterAddress,
+                BaudRate,
                 UpdatedAt
             )
             VALUES
@@ -556,6 +649,8 @@ public sealed class MeterTestAccessDatabaseService
                 '2.0',
                 '1000',
                 '',
+                '',
+                '9600-8-E-1',
                 $UpdatedAt
             );
             """;
@@ -577,7 +672,9 @@ public sealed class MeterTestAccessDatabaseService
             reader.IsDBNull(6) ? "1000" : reader.GetString(6),
             reader.IsDBNull(7) ? "2.0" : reader.GetString(7),
             reader.IsDBNull(8) ? "1000" : reader.GetString(8),
-            reader.IsDBNull(9) ? string.Empty : reader.GetString(9));
+            reader.IsDBNull(9) ? string.Empty : reader.GetString(9),
+            reader.IsDBNull(10) ? string.Empty : reader.GetString(10),
+            reader.IsDBNull(11) ? "9600-8-E-1" : reader.GetString(11));
     }
 
     private static void AddMeterArchiveParameters(SqliteCommand command, MeterArchiveData archive)
@@ -591,8 +688,40 @@ public sealed class MeterTestAccessDatabaseService
         AddParameter(command, "$ActiveConstant", archive.ActiveConstant);
         AddParameter(command, "$ReactiveClass", archive.ReactiveClass);
         AddParameter(command, "$ReactiveConstant", archive.ReactiveConstant);
+        AddParameter(command, "$Barcode", archive.Barcode);
         AddParameter(command, "$MeterAddress", archive.MeterAddress);
+        AddParameter(command, "$BaudRate", archive.BaudRate);
         AddParameter(command, "$UpdatedAt", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff"));
+    }
+
+    /// <summary>
+    /// 为旧数据库补齐缺失字段。
+    /// </summary>
+    private static void EnsureColumnExists(SqliteConnection connection, string tableName, string columnName, string columnDefinition)
+    {
+        using SqliteCommand command = connection.CreateCommand();
+        command.CommandText = $"PRAGMA table_info({tableName});";
+
+        bool columnExists = false;
+        using (SqliteDataReader reader = command.ExecuteReader())
+        {
+            while (reader.Read())
+            {
+                string existingName = reader.IsDBNull(1) ? string.Empty : reader.GetString(1);
+                if (existingName.Equals(columnName, StringComparison.OrdinalIgnoreCase))
+                {
+                    columnExists = true;
+                    break;
+                }
+            }
+        }
+
+        if (columnExists)
+            return;
+
+        using SqliteCommand alterCommand = connection.CreateCommand();
+        alterCommand.CommandText = $"ALTER TABLE {tableName} ADD COLUMN {columnName} {columnDefinition};";
+        alterCommand.ExecuteNonQuery();
     }
 }
 
@@ -621,4 +750,13 @@ public sealed record MeterArchiveData(
     string ActiveConstant,
     string ReactiveClass,
     string ReactiveConstant,
-    string MeterAddress);
+    string Barcode,
+    string MeterAddress,
+    string BaudRate);
+
+/// <summary>
+/// 资产信息中条形码截取规则的持久化数据。
+/// </summary>
+public sealed record MeterTestAssetBarcodeSettingData(
+    int BarcodeStartIndex,
+    int BarcodeEndIndex);

@@ -21,6 +21,8 @@ namespace ModelTest
         private static readonly Thread _asyncDllWorkerThread = CreateAsyncDllWorkerThread();
         private static int _openCommAsyncState;
         private static int _readStandValueAsyncState;
+        private static int _sendCommandAsyncState;
+        private static int _anyUiOutputAsyncState;
         public static bool IsSourcePortOpen { get; private set; }
         public const int TimeoutResult = -2;
         public const int BusyResult = -3;
@@ -410,6 +412,22 @@ namespace ModelTest
                 }
             }
         }
+
+        /// <summary>
+        /// 在 XYCtr 专用 STA 工作线程上调用控源输出接口，避免旧版 DLL 跨线程运行不稳定。
+        /// </summary>
+        public Task<(bool Success, int Result)> CallAnyUIOutputAsync(
+            string command,
+            int pulse,
+            TimeSpan? timeout = null)
+        {
+            return ExecuteExclusiveWithTimeoutAsync(
+                () => Interlocked.CompareExchange(ref _anyUiOutputAsyncState, 1, 0) == 0,
+                () => Volatile.Write(ref _anyUiOutputAsyncState, 0),
+                () => CallAnyUIOutput(command, pulse),
+                nameof(AnyUIOutput),
+                timeout);
+        }
         /// <summary>
         /// 读取常数
         /// </summary>
@@ -504,6 +522,22 @@ namespace ModelTest
                     return (false, -1);
                 }
             }
+        }
+
+        /// <summary>
+        /// 在 XYCtr 专用 STA 工作线程上调用电表初始化/调节命令接口。
+        /// </summary>
+        public Task<(bool Success, int Result)> CallSendCommandAsync(
+            string command,
+            bool adjTags,
+            TimeSpan? timeout = null)
+        {
+            return ExecuteExclusiveWithTimeoutAsync(
+                () => Interlocked.CompareExchange(ref _sendCommandAsyncState, 1, 0) == 0,
+                () => Volatile.Write(ref _sendCommandAsyncState, 0),
+                () => CallSendCommand(command, adjTags),
+                nameof(SendCommand),
+                timeout);
         }
         /// <summary>
         /// 设置蓝牙模式和通道

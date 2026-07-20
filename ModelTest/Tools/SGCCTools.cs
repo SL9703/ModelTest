@@ -109,6 +109,37 @@ namespace ModelTest.Tools
             return SGCC_698;
         }
 
+        /// <summary>
+        /// 构造指定电表地址的 698 读地址请求。
+        ///
+        /// 地址读取报文不能继续使用广播地址。调用方传入 6 字节电表地址后，
+        /// 由统一的 698 帧构造逻辑重新计算 HCS 和 FCS，避免直接替换地址后校验失效。
+        /// </summary>
+        /// <param name="meterAddress">正常显示顺序的 6 字节电表地址，例如 999000032515。</param>
+        /// <returns>已重新计算 HCS/FCS 的完整 698 请求报文。</returns>
+        public static string BuildMeterAddressReadRequest(string meterAddress)
+        {
+            string normalizedAddress = NormalizeHex(meterAddress, nameof(meterAddress));
+            if (normalizedAddress.Length != 12)
+            {
+                throw new ArgumentException("电表地址必须是 6 字节（12 个十六进制字符）。", nameof(meterAddress));
+            }
+
+            // 698 服务器地址域按低字节在前发送，因此组帧前按字节逆序。
+            byte[] addressBytes = HexToBytes(normalizedAddress);
+            Array.Reverse(addressBytes);
+            string wireAddress = ToHex(addressBytes);
+
+            return BytesToSGCCMessage(
+                "68",
+                "43",
+                "05",
+                wireAddress,
+                "10",
+                "05 01 71 40 01 02 00 00",
+                "16");
+        }
+
         public static List<string> SGCCSericeImp()
         {
             return SGCCOadConfig.OadDefinitions.Keys.ToList();
@@ -267,8 +298,24 @@ namespace ModelTest.Tools
                     : NormalizeHex(expectedDataType, nameof(expectedDataType));
                 int normalizedExpectedDataLength = expectedDataLength <= 0 ? 6 : expectedDataLength;
 
-                byte[] frame = HexToBytes(message);
                 List<string> details = new();
+                byte[] frame = HexToBytes(message);
+
+                // 部分电表响应会在正式 698 帧前发送若干个 FE 前导符。
+                // FE 不是 698 帧内容，必须在长度、HCS、APDU 和 FCS 校验前剥离。
+                int preambleLength = 0;
+                while (preambleLength < frame.Length && frame[preambleLength] == 0xFE)
+                {
+                    preambleLength++;
+                }
+
+                if (preambleLength > 0 &&
+                    preambleLength < frame.Length &&
+                    frame[preambleLength] == 0x68)
+                {
+                    details.Add($"已去除 698 前导符：FE × {preambleLength}。");
+                    frame = frame.Skip(preambleLength).ToArray();
+                }
 
                 if (frame.Length < 18)
                 {

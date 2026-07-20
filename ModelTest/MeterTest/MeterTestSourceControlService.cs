@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO.Ports;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -121,7 +122,20 @@ public sealed class MeterTestSourceControlService
         if (!XYCtr.IsSourcePortOpen)
         {
             LogMessage.Debug($"[源控制] 准备打开源串口：Port={sourceConfig.SourcePort}，配置={sourceConfig.Name}");
-            (bool openSuccess, int openResult) = xyCtr.CallOpenComm(sourceConfig.SourcePort);
+
+            // 老版本 xyctr.dll 在传入不存在的 COM 口时可能直接退出进程，
+            // 不能只依赖托管层 try/catch，因此先在调用 DLL 前检查端口是否真实存在。
+            if (!TryFindSourcePort(sourceConfig.SourcePort, out string sourcePortName, out string? portError))
+            {
+                LogMessage.Error($"[源控制] {portError}", null);
+                return SourceControlExecutionState.Fail(portError ?? "源串口不存在。");
+            }
+
+            LogMessage.Debug($"[源控制] 已确认源串口存在：{sourcePortName}，通过专用 STA 队列调用 OpenComm");
+            (bool openSuccess, int openResult) = xyCtr
+                .CallOpenCommAsync(sourceConfig.SourcePort, TimeSpan.FromSeconds(10))
+                .GetAwaiter()
+                .GetResult();
             if (!openSuccess)
             {
                 LogMessage.Error($"[源控制] 打开源串口失败：配置={sourceConfig.Name}，Port={sourceConfig.SourcePort}，返回值={openResult}", null);
@@ -135,6 +149,25 @@ public sealed class MeterTestSourceControlService
             LogMessage.Debug($"[源控制] 源串口已打开，跳过重复打开：配置={sourceConfig.Name}，Port={sourceConfig.SourcePort}");
         }
 
+        if (!TryBuildMeterInitCommand(selectedStations, meterArchives, phaseMode, sourceVoltage, out string initCommand, out string initNote, out string? initError))
+        {
+            LogMessage.Error($"[源控制] 初始化电表参数失败：配置={sourceConfig.Name}，{initError}", null);
+            return SourceControlExecutionState.Fail(initError ?? "初始化电表参数失败。");
+        }
+
+        LogMessage.Debug($"[源控制] 准备初始化电表参数：配置={sourceConfig.Name}，{initNote}，command={initCommand}");
+        (bool initSuccess, int initResult) = xyCtr
+            .CallSendCommandAsync(initCommand, true, TimeSpan.FromSeconds(10))
+            .GetAwaiter()
+            .GetResult();
+        if (!initSuccess)
+        {
+            LogMessage.Error($"[源控制] 初始化电表参数接口失败：配置={sourceConfig.Name}，command={initCommand}，返回值={initResult}", null);
+            return SourceControlExecutionState.Fail($"初始化电表参数失败：配置={sourceConfig.Name}，参数={initCommand}，返回值={initResult}");
+        }
+
+        LogMessage.Info($"[源控制] 初始化电表参数成功：配置={sourceConfig.Name}，参数={initCommand}，返回值={initResult}");
+
         MeterTestSourceControlResult result = ExecuteSourceControl(xyCtr, sourceConfig, phaseMode, sourceVoltage);
         LogMessage.Debug(result.Success
             ? $"[源控制] 升源指令执行完成：{result.Message}"
@@ -146,6 +179,45 @@ public sealed class MeterTestSourceControlService
         return result.Success
             ? SourceControlExecutionState.Executed(new MeterTestSourceControlResult(true, finalMessage), sourceConfig.Name, phaseMode, sourceVoltage)
             : SourceControlExecutionState.Fail(finalMessage);
+    }
+
+    /// <summary>
+    /// 检查源控制配置中的端口号是否对应当前计算机实际存在的 COM 口。
+    /// </summary>
+    private static bool TryFindSourcePort(
+        int sourcePort,
+        out string sourcePortName,
+        out string? errorMessage)
+    {
+        sourcePortName = $"COM{sourcePort}";
+        errorMessage = null;
+
+        if (sourcePort <= 0)
+        {
+            errorMessage = $"源串口号无效：{sourcePort}。";
+            return false;
+        }
+
+        try
+        {
+            string[] availablePorts = SerialPort.GetPortNames();
+            string expectedPortName = sourcePortName;
+            if (availablePorts.Any(port => port.Equals(expectedPortName, StringComparison.OrdinalIgnoreCase)))
+            {
+                return true;
+            }
+
+            string availableText = availablePorts.Length == 0
+                ? "未检测到任何串口"
+                : string.Join(", ", availablePorts.OrderBy(port => port, StringComparer.OrdinalIgnoreCase));
+            errorMessage = $"源串口 {sourcePortName} 不存在，当前可用串口：{availableText}。";
+            return false;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"检查源串口 {sourcePortName} 失败：{ex.Message}";
+            return false;
+        }
     }
 
     /// <summary>
@@ -277,7 +349,10 @@ public sealed class MeterTestSourceControlService
             : string.Join("_", ua, ua, ua, "0", "0", "0", "0", "0", "0", Normalize(config.Uab, "120"), Normalize(config.Uac, "240"));
 
         LogMessage.Debug($"[源控制] AnyUIOutput 下发：配置={config.Name}，phaseMode={phaseMode}，sourceVoltage={ua}，command={command}，pulse={config.Pulse}");
-        (bool success, int result) = xyCtr.CallAnyUIOutput(command, config.Pulse);
+        (bool success, int result) = xyCtr
+            .CallAnyUIOutputAsync(command, config.Pulse, TimeSpan.FromSeconds(10))
+            .GetAwaiter()
+            .GetResult();
         return success
             ? MeterTestSourceControlResult.Ok($"升源成功：配置={config.Name}，接口=AnyUIOutput，参数={command}，Pulse={config.Pulse}，返回值={result}")
             : MeterTestSourceControlResult.Fail($"升源失败：配置={config.Name}，接口=AnyUIOutput，参数={command}，Pulse={config.Pulse}，返回值={result}");
@@ -298,7 +373,10 @@ public sealed class MeterTestSourceControlService
         string phase = string.IsNullOrWhiteSpace(config.Phase) ? "H" : config.Phase.Trim();
         string command = $"Adj_{config.Voltage}_{config.Current}_{phase}_{powerFactorCode}_{config.Pulse}_E";
         LogMessage.Debug($"[源控制] Adj 下发：配置={config.Name}，command={command}");
-        (bool success, int result) = xyCtr.CallSendCommand(command, true);
+        (bool success, int result) = xyCtr
+            .CallSendCommandAsync(command, true, TimeSpan.FromSeconds(10))
+            .GetAwaiter()
+            .GetResult();
         return success
             ? MeterTestSourceControlResult.Ok($"升源成功：配置={config.Name}，接口=Adj，参数={command}，返回值={result}")
             : MeterTestSourceControlResult.Fail($"升源失败：配置={config.Name}，接口=Adj，参数={command}，返回值={result}");
@@ -613,6 +691,115 @@ public sealed class MeterTestSourceControlService
         errorMessage = "未能从资产信息识别电压，请先确认资产信息已完整保存到数据库。";
         LogMessage.Info("[源控制] 未识别到资产电压，已停止升源。");
         return false;
+    }
+
+    /// <summary>
+    /// 根据资产信息构造源初始化命令。
+    /// 命令格式：Ini_接线方式_电压代码_电流_有功常数_E。
+    /// </summary>
+    private static bool TryBuildMeterInitCommand(
+        IReadOnlyList<MeterTestStationCommunication> selectedStations,
+        IReadOnlyDictionary<int, MeterArchiveData> meterArchives,
+        MeterTestSourcePhaseMode phaseMode,
+        string sourceVoltage,
+        out string command,
+        out string note,
+        out string? errorMessage)
+    {
+        command = string.Empty;
+        note = string.Empty;
+        errorMessage = null;
+
+        string meterConnection = phaseMode == MeterTestSourcePhaseMode.SinglePhase ? "0" : "1";
+        string meterVoltage = XYCtr.Init_meterV(NormalizeSourceVoltage(sourceVoltage));
+        if (meterVoltage == "-1")
+        {
+            errorMessage = $"资产电压不支持初始化转换：{sourceVoltage}";
+            return false;
+        }
+
+        if (!TryResolveSameArchiveValue(
+                selectedStations,
+                meterArchives,
+                archive => NormalizeCurrentForInit(archive.Current),
+                "基本电流",
+                out string current,
+                out errorMessage))
+        {
+            return false;
+        }
+
+        if (!TryResolveSameArchiveValue(
+                selectedStations,
+                meterArchives,
+                archive => NormalizeNumericText(Normalize(archive.ActiveConstant)),
+                "有功常数",
+                out string activeConstant,
+                out errorMessage))
+        {
+            return false;
+        }
+
+        command = $"Ini_{meterConnection}_{meterVoltage}_{current}_{activeConstant}_E";
+        note = $"接线方式={meterConnection}，电压代码={meterVoltage}，电流={current}，有功常数={activeConstant}";
+        return true;
+    }
+
+    /// <summary>
+    /// 从选中工位资产信息中读取同一个参数；多个工位参数不一致时停止升源。
+    /// </summary>
+    private static bool TryResolveSameArchiveValue(
+        IReadOnlyList<MeterTestStationCommunication> selectedStations,
+        IReadOnlyDictionary<int, MeterArchiveData> meterArchives,
+        Func<MeterArchiveData, string> selector,
+        string fieldName,
+        out string value,
+        out string? errorMessage)
+    {
+        value = string.Empty;
+        errorMessage = null;
+
+        List<string> values = new();
+        foreach (MeterTestStationCommunication station in selectedStations)
+        {
+            if (!meterArchives.TryGetValue(station.StationNo, out MeterArchiveData? archive))
+                continue;
+
+            string fieldValue = Normalize(selector(archive));
+            if (!string.IsNullOrWhiteSpace(fieldValue))
+            {
+                values.Add(fieldValue);
+            }
+        }
+
+        List<string> distinctValues = values
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (distinctValues.Count == 0)
+        {
+            errorMessage = $"未能从资产信息识别{fieldName}，请先确认资产信息已完整保存到数据库。";
+            return false;
+        }
+
+        if (distinctValues.Count > 1)
+        {
+            errorMessage = $"选中工位的{fieldName}不一致：{string.Join("、", distinctValues)}，请先统一资产信息后再初始化电表参数。";
+            return false;
+        }
+
+        value = distinctValues[0];
+        return true;
+    }
+
+    /// <summary>
+    /// 初始化命令里的电流参数只需要数值，例如资产信息 5A 转成 5。
+    /// </summary>
+    private static string NormalizeCurrentForInit(string currentText)
+    {
+        return TryParseNumber(currentText, out decimal current)
+            ? NormalizeNumericText(current.ToString(CultureInfo.InvariantCulture))
+            : Normalize(currentText).Replace("A", string.Empty, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
