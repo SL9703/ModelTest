@@ -7,7 +7,7 @@ namespace ModelTest.MeterTest;
 
 /// <summary>
 /// 工位通信配置 XML 读写服务。
-/// 用于维护 StationTcp 测试模式下 20 个工位的 IP/Port 映射。
+/// 用于维护 StationTcp 测试模式下 48 个工位的 IP/Port 映射。
 /// </summary>
 public sealed class MeterTestStationConfigService
 {

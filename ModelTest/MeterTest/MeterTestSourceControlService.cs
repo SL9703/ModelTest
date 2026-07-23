@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO.Ports;
 using System.Linq;
@@ -22,8 +23,21 @@ namespace ModelTest.MeterTest;
 ///
 /// 窗体只需要调用 <see cref="ExecuteAsync"/>，不再直接编写参数拼装和 DLL 调用逻辑。
 /// </summary>
-public sealed class MeterTestSourceControlService
+public sealed class MeterTestSourceControlService : IDisposable
 {
+    /// <summary>打开串口、初始化、升源和标准表读取之间的统一指令间隔。</summary>
+    private static readonly TimeSpan SourceStepInterval = TimeSpan.FromSeconds(1);
+
+    private readonly object monitorSync = new();
+    private CancellationTokenSource? monitorCancellationTokenSource;
+    private Task? monitorTask;
+    private bool disposed;
+
+    /// <summary>
+    /// 标准表每次读取成功后触发。MeterTest 使用该事件实时刷新台体信息采集区域。
+    /// </summary>
+    public event Action<IReadOnlyDictionary<string, string>>? StandardValuesUpdated;
+
     /// <summary>
     /// 按当前测试小项执行一次源控制。
     /// </summary>
@@ -38,34 +52,64 @@ public sealed class MeterTestSourceControlService
         MeterTestSubItem subItem,
         IReadOnlyList<MeterTestStationCommunication> selectedStations,
         IReadOnlyDictionary<int, MeterArchiveData> meterArchives,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Action<string>? progressLogger = null)
     {
-        LogMessage.Debug($"[源控制] 开始执行：小项={subItem.Name}，绑定配置={subItem.SourceControlConfig}，选中工位={FormatStations(selectedStations)}");
+        ObjectDisposedException.ThrowIf(disposed, this);
+        await StopStandardMeterMonitorAsync().ConfigureAwait(false);
 
-        using XYCtr xyCtr = new();
-        SourceControlExecutionState state = await Task.Run(
-            () =>
-            {
-                try
-                {
-                    return ExecuteCore(planConfig, subItem, selectedStations, meterArchives, xyCtr);
-                }
-                catch (Exception ex)
-                {
-                    LogMessage.Error("[源控制] 执行异常", ex);
-                    return SourceControlExecutionState.Fail($"源控制执行异常：{ex.Message}");
-                }
-            },
-            cancellationToken).ConfigureAwait(false);
-
-        if (!state.Result.Success || !state.ShouldVerify)
+        try
         {
-            return state.Result;
+            LogMessage.Debug($"[源控制] 开始执行：小项={subItem.Name}，绑定配置={subItem.SourceControlConfig}，选中工位={FormatStations(selectedStations)}");
+            ReportProgress(progressLogger, $"开始升源：小项={subItem.Name}，选中工位={FormatStations(selectedStations)}。");
+
+            using XYCtr xyCtr = new();
+            SourceControlExecutionState state = await Task.Run(
+                () =>
+                {
+                    try
+                    {
+                        return ExecuteCore(
+                            planConfig,
+                            subItem,
+                            selectedStations,
+                            meterArchives,
+                            xyCtr,
+                            cancellationToken,
+                            progressLogger);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        // 步骤间等待期间取消时保持任务取消语义，不转换成源控制失败。
+                        throw;
+                    }
+                    catch (Exception ex)
+                    {
+                        LogMessage.Error("[源控制] 执行异常", ex);
+                        return SourceControlExecutionState.Fail($"源控制执行异常：{ex.Message}");
+                    }
+                },
+                cancellationToken).ConfigureAwait(false);
+
+            if (!state.Result.Success || !state.ShouldVerify)
+            {
+                return state.Result;
+            }
+
+            return await VerifySourceRaisedAsync(
+                xyCtr,
+                state,
+                cancellationToken,
+                progressLogger).ConfigureAwait(false);
         }
-
-        MeterTestSourceControlResult verifyResult = await VerifySourceRaisedAsync(xyCtr, state, cancellationToken).ConfigureAwait(false);
-
-        return verifyResult;
+        finally
+        {
+            // 验证阶段本身已经按3秒周期读取；验证结束后继续后台采集，保持台体信息区域实时更新。
+            if (XYCtr.IsSourcePortOpen && !disposed)
+            {
+                StartStandardMeterMonitor();
+            }
+        }
     }
 
     /// <summary>
@@ -76,7 +120,9 @@ public sealed class MeterTestSourceControlService
         MeterTestSubItem subItem,
         IReadOnlyList<MeterTestStationCommunication> selectedStations,
         IReadOnlyDictionary<int, MeterArchiveData> meterArchives,
-        XYCtr xyCtr)
+        XYCtr xyCtr,
+        CancellationToken cancellationToken,
+        Action<string>? progressLogger)
     {
         MeterTestSourceControlConfig? sourceConfig = ResolveSourceControlConfig(planConfig, subItem);
         if (sourceConfig is null)
@@ -97,6 +143,62 @@ public sealed class MeterTestSourceControlService
             return SourceControlExecutionState.Ok("当前未选择工位，跳过源控制。");
         }
 
+        string? sourceCurrentOverride = null;
+        string? sourceCurrentAngleOverride = null;
+        string? sourceVoltageOverride = null;
+        string? meterInitCurrentOverride = null;
+        MeterTestBasicErrorExecutionPlan? basicErrorPlan = null;
+        string startingCurrentNote = string.Empty;
+        if (IsStartingSourceExecution(subItem))
+        {
+            if (!TryResolveStartingCurrent(
+                    selectedStations,
+                    meterArchives,
+                    out sourceCurrentOverride,
+                    out startingCurrentNote,
+                    out string? startingCurrentError))
+            {
+                LogMessage.Error($"[源控制] 启动电流 Ist 计算失败：{startingCurrentError}", null);
+                return SourceControlExecutionState.Fail(startingCurrentError ?? "启动电流计算失败。");
+            }
+
+            LogMessage.Debug($"[源控制] 启动电流计算完成：{startingCurrentNote}");
+            // 起动试验沿用原有规则：Ini 命令以 Ist 作为初始化电流。
+            meterInitCurrentOverride = sourceCurrentOverride;
+        }
+        else if (IsBasicErrorPointExecution(subItem))
+        {
+            if (!MeterTestBasicErrorCalculator.TryCreateExecutionPlan(
+                    subItem,
+                    selectedStations,
+                    meterArchives,
+                    out basicErrorPlan,
+                    out string? basicErrorError))
+            {
+                LogMessage.Error($"[源控制] 基本误差测试点参数计算失败：{basicErrorError}", null);
+                return SourceControlExecutionState.Fail(basicErrorError ?? "基本误差测试点参数计算失败。");
+            }
+
+            sourceCurrentOverride = NormalizeNumericText(
+                basicErrorPlan!.SourceCurrent.ToString(CultureInfo.InvariantCulture));
+            sourceCurrentAngleOverride = NormalizeNumericText(
+                basicErrorPlan.CurrentAngle.ToString(CultureInfo.InvariantCulture));
+            sourceVoltageOverride = NormalizeNumericText(
+                basicErrorPlan.SourcePhaseVoltage.ToString(CultureInfo.InvariantCulture));
+            // 基本误差 Adj 使用“测试电流/基本电流”百分比，
+            // 所以 Ini 必须使用资产信息中的基本电流 Ib/In 建立百分比基准。
+            meterInitCurrentOverride = NormalizeNumericText(
+                basicErrorPlan.BasicCurrent.ToString(CultureInfo.InvariantCulture));
+            startingCurrentNote =
+                $"基本误差点={basicErrorPlan.TestPointName}，方向={basicErrorPlan.Direction}，"
+                + $"相别={basicErrorPlan.Phase}，功率因数={basicErrorPlan.PowerFactorText}，"
+                + $"初始化基本电流={meterInitCurrentOverride}A，"
+                + $"Adj电压={basicErrorPlan.VoltagePercentage:0.######}%，"
+                + $"Adj电流={basicErrorPlan.SourceCurrent:0.#########}/{basicErrorPlan.BasicCurrent:0.#########}×100"
+                + $"={basicErrorPlan.CurrentPercentage:0.#########}%";
+            LogMessage.Debug($"[源控制] 基本误差升源参数计算完成：{startingCurrentNote}");
+        }
+
         if (!TryResolvePhaseMode(sourceConfig, selectedStations, meterArchives, out MeterTestSourcePhaseMode phaseMode, out string phaseNote, out string? errorMessage))
         {
             LogMessage.Error($"[源控制] 配置 {sourceConfig.Name} 电表类型判定失败：{errorMessage}", null);
@@ -105,10 +207,27 @@ public sealed class MeterTestSourceControlService
 
         LogMessage.Debug($"[源控制] 配置 {sourceConfig.Name} 电表类型判定完成：{phaseNote}");
 
-        if (!TryResolveSourceVoltage(sourceConfig, selectedStations, meterArchives, out string sourceVoltage, out string voltageNote, out string? voltageError))
+        if (!TryResolveSourceVoltage(sourceConfig, selectedStations, meterArchives, out string nominalVoltage, out string voltageNote, out string? voltageError))
         {
             LogMessage.Error($"[源控制] 配置 {sourceConfig.Name} 电压判定失败：{voltageError}", null);
             return SourceControlExecutionState.Fail(voltageError ?? "源控制电压参数解析失败。");
+        }
+
+        string sourceVoltage = nominalVoltage;
+        if (!string.IsNullOrWhiteSpace(sourceVoltageOverride))
+        {
+            sourceVoltage = sourceVoltageOverride;
+            voltageNote += $"；基本误差输出电压={sourceVoltage}V";
+        }
+        else if (IsCreepingSourceExecution(subItem))
+        {
+            if (!TryCalculateCreepingVoltage(nominalVoltage, out sourceVoltage, out string? creepingVoltageError))
+            {
+                LogMessage.Error($"[源控制] 潜动电压计算失败：{creepingVoltageError}", null);
+                return SourceControlExecutionState.Fail(creepingVoltageError ?? "潜动电压计算失败。");
+            }
+
+            voltageNote += $"；潜动电压=额定电压{nominalVoltage}V×1.1={sourceVoltage}V";
         }
 
         LogMessage.Debug($"[源控制] 配置 {sourceConfig.Name} 电压判定完成：{voltageNote}");
@@ -143,19 +262,32 @@ public sealed class MeterTestSourceControlService
             }
 
             LogMessage.Info($"[源控制] 打开源串口成功：配置={sourceConfig.Name}，Port={sourceConfig.SourcePort}，返回值={openResult}");
+            ReportProgress(progressLogger, $"打开源串口成功：COM{sourceConfig.SourcePort}，返回值={openResult}。");
         }
         else
         {
             LogMessage.Debug($"[源控制] 源串口已打开，跳过重复打开：配置={sourceConfig.Name}，Port={sourceConfig.SourcePort}");
+            ReportProgress(progressLogger, $"源串口 COM{sourceConfig.SourcePort} 已打开，跳过重复打开。");
         }
 
-        if (!TryBuildMeterInitCommand(selectedStations, meterArchives, phaseMode, sourceVoltage, out string initCommand, out string initNote, out string? initError))
+        DelayBetweenSourceSteps("打开串口", "初始化电表参数", cancellationToken);
+
+        if (!TryBuildMeterInitCommand(
+                selectedStations,
+                meterArchives,
+                phaseMode,
+                nominalVoltage,
+                meterInitCurrentOverride,
+                out string initCommand,
+                out string initNote,
+                out string? initError))
         {
             LogMessage.Error($"[源控制] 初始化电表参数失败：配置={sourceConfig.Name}，{initError}", null);
             return SourceControlExecutionState.Fail(initError ?? "初始化电表参数失败。");
         }
 
         LogMessage.Debug($"[源控制] 准备初始化电表参数：配置={sourceConfig.Name}，{initNote}，command={initCommand}");
+        ReportProgress(progressLogger, $"初始化电表参数：{initNote}，command={initCommand}。");
         (bool initSuccess, int initResult) = xyCtr
             .CallSendCommandAsync(initCommand, true, TimeSpan.FromSeconds(10))
             .GetAwaiter()
@@ -167,18 +299,62 @@ public sealed class MeterTestSourceControlService
         }
 
         LogMessage.Info($"[源控制] 初始化电表参数成功：配置={sourceConfig.Name}，参数={initCommand}，返回值={initResult}");
+        ReportProgress(progressLogger, $"初始化成功：command={initCommand}，返回值={initResult}。");
+        DelayBetweenSourceSteps("初始化电表参数", "升源", cancellationToken);
 
-        MeterTestSourceControlResult result = ExecuteSourceControl(xyCtr, sourceConfig, phaseMode, sourceVoltage);
+        MeterTestSourceControlResult result = ExecuteSourceControl(
+            xyCtr,
+            sourceConfig,
+            phaseMode,
+            sourceVoltage,
+            sourceCurrentOverride,
+            sourceCurrentAngleOverride,
+            basicErrorPlan);
         LogMessage.Debug(result.Success
             ? $"[源控制] 升源指令执行完成：{result.Message}"
             : $"[源控制] 升源指令执行失败：{result.Message}");
-        string finalMessage = string.IsNullOrWhiteSpace(phaseNote)
-            ? result.Message
-            : $"{result.Message}；{phaseNote}";
+        ReportProgress(
+            progressLogger,
+            result.Success ? $"Adj升源指令下发成功：{result.Message}" : $"Adj升源指令下发失败：{result.Message}");
+        string finalMessage = $"{result.Message}；{phaseNote}；{voltageNote}";
+        if (!string.IsNullOrWhiteSpace(startingCurrentNote))
+        {
+            finalMessage += $"；{startingCurrentNote}";
+        }
 
         return result.Success
-            ? SourceControlExecutionState.Executed(new MeterTestSourceControlResult(true, finalMessage), sourceConfig.Name, phaseMode, sourceVoltage)
+            ? SourceControlExecutionState.Executed(
+                new MeterTestSourceControlResult(true, finalMessage),
+                sourceConfig,
+                phaseMode,
+                sourceVoltage,
+                sourceCurrentOverride)
             : SourceControlExecutionState.Fail(finalMessage);
+    }
+
+    /// <summary>
+    /// 在同步 DLL 调用流程中插入可取消的步骤间隔。
+    /// 该方法运行在后台任务中，不阻塞 WinForms UI 线程。
+    /// </summary>
+    private static void DelayBetweenSourceSteps(
+        string completedStep,
+        string nextStep,
+        CancellationToken cancellationToken)
+    {
+        LogMessage.Debug($"[源控制] {completedStep}完成，等待 {SourceStepInterval.TotalSeconds:0} 秒后执行{nextStep}。");
+        Task.Delay(SourceStepInterval, cancellationToken).GetAwaiter().GetResult();
+    }
+
+    /// <summary>
+    /// 在异步验证流程中插入可取消的步骤间隔。
+    /// </summary>
+    private static async Task DelayBetweenSourceStepsAsync(
+        string completedStep,
+        string nextStep,
+        CancellationToken cancellationToken)
+    {
+        LogMessage.Debug($"[源控制] {completedStep}完成，等待 {SourceStepInterval.TotalSeconds:0} 秒后执行{nextStep}。");
+        await Task.Delay(SourceStepInterval, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -317,8 +493,17 @@ public sealed class MeterTestSourceControlService
         XYCtr xyCtr,
         MeterTestSourceControlConfig config,
         MeterTestSourcePhaseMode phaseMode,
-        string sourceVoltage)
+        string sourceVoltage,
+        string? sourceCurrentOverride,
+        string? sourceCurrentAngleOverride,
+        MeterTestBasicErrorExecutionPlan? basicErrorPlan)
     {
+        // 基本误差点的升源参数来自测试点名称和资产信息，统一走 Adj 百分比入口。
+        if (basicErrorPlan is not null)
+        {
+            return ExecuteBasicErrorAdjOutput(xyCtr, config, basicErrorPlan);
+        }
+
         if (!Enum.TryParse(config.InterfaceType, true, out MeterTestSourceInterfaceType interfaceType))
         {
             return MeterTestSourceControlResult.Fail($"源控制配置 {config.Name} 的 interfaceType={config.InterfaceType} 不支持。");
@@ -326,12 +511,61 @@ public sealed class MeterTestSourceControlService
 
         return interfaceType switch
         {
-            MeterTestSourceInterfaceType.AnyUIOutput => ExecuteAnyUiOutput(xyCtr, config, phaseMode, sourceVoltage),
-            MeterTestSourceInterfaceType.Adj => ExecuteAdjOutput(xyCtr, config),
-            MeterTestSourceInterfaceType.RangeOutputUI => ExecuteRangeOutputUi(xyCtr, config, phaseMode),
+            MeterTestSourceInterfaceType.AnyUIOutput => ExecuteAnyUiOutput(
+                xyCtr,
+                config,
+                phaseMode,
+                sourceVoltage,
+                sourceCurrentOverride,
+                sourceCurrentAngleOverride),
+            MeterTestSourceInterfaceType.Adj => ExecuteAdjOutput(xyCtr, config, sourceCurrentOverride),
+            MeterTestSourceInterfaceType.RangeOutputUI => ExecuteRangeOutputUi(xyCtr, config, phaseMode, sourceCurrentOverride),
             MeterTestSourceInterfaceType.ShutPowerSource => ExecuteShutPowerSource(xyCtr, config),
             _ => MeterTestSourceControlResult.Fail($"源控制接口 {interfaceType} 暂未实现。")
         };
+    }
+
+    /// <summary>
+    /// 使用 Adj 接口输出基本误差测试点。
+    /// Adj 命令格式：Adj_电压百分比_电流百分比_相别_功率因数代码_脉冲_E。
+    /// </summary>
+    private static MeterTestSourceControlResult ExecuteBasicErrorAdjOutput(
+        XYCtr xyCtr,
+        MeterTestSourceControlConfig config,
+        MeterTestBasicErrorExecutionPlan plan)
+    {
+        string powerFactorText = plan.Direction == "反向有功"
+            ? $"{plan.PowerFactorText}-反向"
+            : plan.PowerFactorText;
+        string powerFactorCode = XYCtr.ADJLC_CHANGE(powerFactorText);
+        if (powerFactorCode == "-1")
+        {
+            string message = $"Adj 功率因数不支持：{powerFactorText}。";
+            LogMessage.Error($"[源控制] {message}", null);
+            return MeterTestSourceControlResult.Fail(message);
+        }
+
+        string voltagePercentage = NormalizeNumericText(
+            plan.VoltagePercentage.ToString(CultureInfo.InvariantCulture));
+        string currentPercentage = NormalizeNumericText(
+            plan.CurrentPercentage.ToString(CultureInfo.InvariantCulture));
+        string command = $"Adj_{voltagePercentage}_{currentPercentage}_{plan.Phase}_{powerFactorCode}_{config.Pulse}_E";
+        LogMessage.Debug(
+            $"[源控制] 基本误差 Adj 下发：测试点={plan.TestPointName}，方向={plan.Direction}，"
+            + $"相别={plan.Phase}，功率因数={powerFactorText}(代码{powerFactorCode})，"
+            + $"电压={voltagePercentage}%，"
+            + $"电流={plan.SourceCurrent:0.#########}/{plan.BasicCurrent:0.#########}×100={currentPercentage}%，"
+            + $"command={command}");
+
+        (bool success, int result) = xyCtr
+            .CallSendCommandAsync(command, true, TimeSpan.FromSeconds(10))
+            .GetAwaiter()
+            .GetResult();
+        return success
+            ? MeterTestSourceControlResult.Ok(
+                $"升源成功：测试点={plan.TestPointName}，接口=Adj，参数={command}，返回值={result}")
+            : MeterTestSourceControlResult.Fail(
+                $"升源失败：测试点={plan.TestPointName}，接口=Adj，参数={command}，返回值={result}");
     }
 
     /// <summary>
@@ -341,14 +575,18 @@ public sealed class MeterTestSourceControlService
         XYCtr xyCtr,
         MeterTestSourceControlConfig config,
         MeterTestSourcePhaseMode phaseMode,
-        string sourceVoltage)
+        string sourceVoltage,
+        string? sourceCurrentOverride,
+        string? sourceCurrentAngleOverride)
     {
         string ua = NormalizeSourceVoltage(sourceVoltage);
+        string outputCurrent = Normalize(sourceCurrentOverride, "0");
+        string currentAngle = Normalize(sourceCurrentAngleOverride, "0");
         string command = phaseMode == MeterTestSourcePhaseMode.SinglePhase
-            ? string.Join("_", ua, "0", "0", "0", "0", "0", "0", "0", "0", Normalize(config.Uab, "120"), Normalize(config.Uac, "240"))
-            : string.Join("_", ua, ua, ua, "0", "0", "0", "0", "0", "0", Normalize(config.Uab, "120"), Normalize(config.Uac, "240"));
+            ? string.Join("_", ua, "0", "0", outputCurrent, "0", "0", currentAngle, "0", "0", Normalize(config.Uab, "120"), Normalize(config.Uac, "240"))
+            : string.Join("_", ua, ua, ua, outputCurrent, outputCurrent, outputCurrent, currentAngle, currentAngle, currentAngle, Normalize(config.Uab, "120"), Normalize(config.Uac, "240"));
 
-        LogMessage.Debug($"[源控制] AnyUIOutput 下发：配置={config.Name}，phaseMode={phaseMode}，sourceVoltage={ua}，command={command}，pulse={config.Pulse}");
+        LogMessage.Debug($"[源控制] AnyUIOutput 下发：配置={config.Name}，phaseMode={phaseMode}，sourceVoltage={ua}，current={outputCurrent}，currentAngle={currentAngle}，command={command}，pulse={config.Pulse}");
         (bool success, int result) = xyCtr
             .CallAnyUIOutputAsync(command, config.Pulse, TimeSpan.FromSeconds(10))
             .GetAwaiter()
@@ -361,7 +599,10 @@ public sealed class MeterTestSourceControlService
     /// <summary>
     /// 调用 Adj 接口进行升源。
     /// </summary>
-    private static MeterTestSourceControlResult ExecuteAdjOutput(XYCtr xyCtr, MeterTestSourceControlConfig config)
+    private static MeterTestSourceControlResult ExecuteAdjOutput(
+        XYCtr xyCtr,
+        MeterTestSourceControlConfig config,
+        string? sourceCurrentOverride)
     {
         string powerFactorCode = XYCtr.ADJLC_CHANGE(config.PowerFactor);
         if (powerFactorCode == "-1")
@@ -371,7 +612,8 @@ public sealed class MeterTestSourceControlService
         }
 
         string phase = string.IsNullOrWhiteSpace(config.Phase) ? "H" : config.Phase.Trim();
-        string command = $"Adj_{config.Voltage}_{config.Current}_{phase}_{powerFactorCode}_{config.Pulse}_E";
+        string current = sourceCurrentOverride ?? config.Current;
+        string command = $"Adj_{config.Voltage}_{current}_{phase}_{powerFactorCode}_{config.Pulse}_E";
         LogMessage.Debug($"[源控制] Adj 下发：配置={config.Name}，command={command}");
         (bool success, int result) = xyCtr
             .CallSendCommandAsync(command, true, TimeSpan.FromSeconds(10))
@@ -388,9 +630,10 @@ public sealed class MeterTestSourceControlService
     private static MeterTestSourceControlResult ExecuteRangeOutputUi(
         XYCtr xyCtr,
         MeterTestSourceControlConfig config,
-        MeterTestSourcePhaseMode phaseMode)
+        MeterTestSourcePhaseMode phaseMode,
+        string? sourceCurrentOverride)
     {
-        SourcePhaseValues values = BuildSourcePhaseValues(config, phaseMode);
+        SourcePhaseValues values = BuildSourcePhaseValues(config, phaseMode, sourceCurrentOverride);
         string command = string.Join("_", values.Ua, values.Ub, values.Uc, values.Ia, values.Ib, values.Ic);
         LogMessage.Debug($"[源控制] RangeOutputUI 下发：配置={config.Name}，phaseMode={phaseMode}，command={command}");
         (bool success, int result) = xyCtr.CallRangeOutputUI(command);
@@ -412,78 +655,172 @@ public sealed class MeterTestSourceControlService
     }
 
     /// <summary>
-    /// 升源指令成功后等待源稳定，再读取标准表数据判断源是否真正升起。
-    /// 标准表返回 15 组数据：0-2 电压，3-5 电流，6-8 相角，9-11 有功，12-14 无功。
+    /// 升源指令成功后，每隔配置的采样周期读取一次标准表。
+    /// 在验证超时前，相关相位的电压和电流全部进入目标值正负允许误差范围才判定升源成功。
     /// </summary>
-    private static async Task<MeterTestSourceControlResult> VerifySourceRaisedAsync(
+    private async Task<MeterTestSourceControlResult> VerifySourceRaisedAsync(
         XYCtr xyCtr,
         SourceControlExecutionState state,
+        CancellationToken cancellationToken,
+        Action<string>? progressLogger)
+    {
+        TimeSpan verificationTimeout = TimeSpan.FromSeconds(Math.Max(1, state.VerificationTimeoutSeconds));
+        TimeSpan samplingInterval = TimeSpan.FromSeconds(
+            Math.Clamp(state.VerificationIntervalSeconds, 1, Math.Max(1, state.VerificationTimeoutSeconds)));
+        decimal tolerancePercent = state.VerificationTolerancePercent > 0
+            ? state.VerificationTolerancePercent
+            : 0.03m;
+
+        LogMessage.Debug(
+            $"[源控制] 升源指令已下发，开始标准表达标验证：配置={state.SourceConfigName}，"
+            + $"phaseMode={state.PhaseMode}，目标电压={state.SourceVoltage}V，"
+            + $"目标电流={(string.IsNullOrWhiteSpace(state.SourceCurrent) ? "不校验" : state.SourceCurrent + "A")}，"
+            + $"采样周期={samplingInterval.TotalSeconds:0}s，最长等待={verificationTimeout.TotalSeconds:0}s，"
+            + $"允许误差=正负{tolerancePercent:0.######}%。");
+        ReportProgress(
+            progressLogger,
+            $"开始标准表达标验证：目标电压={state.SourceVoltage}V，"
+            + $"目标电流={(string.IsNullOrWhiteSpace(state.SourceCurrent) ? "不校验" : state.SourceCurrent + "A")}，"
+            + $"最长等待={verificationTimeout.TotalSeconds:0}s，采样周期={samplingInterval.TotalSeconds:0}s，"
+            + $"允许误差=±{tolerancePercent:0.######}%。");
+
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        IReadOnlyDictionary<string, string>? lastStandValues = null;
+        string lastDetail = "尚未读取到有效标准表数据";
+        int sampleIndex = 0;
+
+        while (stopwatch.Elapsed < verificationTimeout)
+        {
+            TimeSpan remaining = verificationTimeout - stopwatch.Elapsed;
+            TimeSpan delay = remaining < samplingInterval ? remaining : samplingInterval;
+            if (delay > TimeSpan.Zero)
+            {
+                await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+            }
+
+            sampleIndex++;
+            remaining = verificationTimeout - stopwatch.Elapsed;
+            TimeSpan readTimeout = remaining > TimeSpan.Zero && remaining < TimeSpan.FromSeconds(5)
+                ? remaining
+                : TimeSpan.FromSeconds(5);
+            if (readTimeout <= TimeSpan.Zero)
+            {
+                break;
+            }
+
+            StandardMeterReadResult readResult = await ReadStandardMeterAsync(
+                xyCtr,
+                readTimeout,
+                cancellationToken).ConfigureAwait(false);
+            if (!readResult.Success || readResult.Values is null || readResult.StandValues is null)
+            {
+                lastDetail = readResult.Message;
+                LogMessage.Debug(
+                    $"[源控制] 第{sampleIndex}次标准表采样失败，已等待{stopwatch.Elapsed.TotalSeconds:0.0}s：{readResult.Message}");
+                ReportProgress(
+                    progressLogger,
+                    $"第{sampleIndex}次标准表采样失败，已等待{stopwatch.Elapsed.TotalSeconds:0.0}s：{readResult.Message}。");
+                continue;
+            }
+
+            lastStandValues = readResult.StandValues;
+            PublishStandardValues(lastStandValues);
+
+            if (!TryEvaluateSourceTolerance(
+                    readResult.Values,
+                    state,
+                    tolerancePercent,
+                    out bool withinTolerance,
+                    out lastDetail))
+            {
+                LogMessage.Debug(
+                    $"[源控制] 第{sampleIndex}次标准表采样无法判定，已等待{stopwatch.Elapsed.TotalSeconds:0.0}s：{lastDetail}");
+                ReportProgress(
+                    progressLogger,
+                    $"第{sampleIndex}次标准表采样无法判定，已等待{stopwatch.Elapsed.TotalSeconds:0.0}s：{lastDetail}。");
+                continue;
+            }
+
+            LogMessage.Debug(
+                $"[源控制] 第{sampleIndex}次标准表采样，已等待{stopwatch.Elapsed.TotalSeconds:0.0}s：{lastDetail}，"
+                + $"结果={(withinTolerance ? "达标" : "未达标")}。");
+            ReportProgress(
+                progressLogger,
+                $"第{sampleIndex}次标准表采样，已等待{stopwatch.Elapsed.TotalSeconds:0.0}s："
+                + $"{lastDetail}，结果={(withinTolerance ? "达标" : "未达标")}。");
+            if (withinTolerance)
+            {
+                string successMessage = $"{state.Result.Message}；升源后在{stopwatch.Elapsed.TotalSeconds:0.0}s内达到正负{tolerancePercent:0.######}%：{lastDetail}。";
+                ReportProgress(
+                    progressLogger,
+                    $"升源验证成功：{stopwatch.Elapsed.TotalSeconds:0.0}s内进入±{tolerancePercent:0.######}%范围。");
+                return new MeterTestSourceControlResult(true, successMessage)
+                {
+                    StandValues = lastStandValues
+                };
+            }
+        }
+
+        string failureMessage = $"{state.Result.Message}；升源后{verificationTimeout.TotalSeconds:0}s内未达到正负{tolerancePercent:0.######}%：{lastDetail}。";
+        LogMessage.Error($"[源控制] {failureMessage}", null);
+        ReportProgress(
+            progressLogger,
+            $"升源验证失败：{verificationTimeout.TotalSeconds:0}s内未进入±{tolerancePercent:0.######}%范围，{lastDetail}。");
+        return new MeterTestSourceControlResult(false, failureMessage)
+        {
+            StandValues = lastStandValues
+        };
+    }
+
+    /// <summary>
+    /// 向调用方转发源控制进度。回调异常不得中断硬件控制流程。
+    /// </summary>
+    private static void ReportProgress(Action<string>? progressLogger, string message)
+    {
+        if (progressLogger is null)
+            return;
+
+        try
+        {
+            progressLogger(message);
+        }
+        catch (Exception ex)
+        {
+            LogMessage.Error("[源控制] 进度日志回调异常。", ex);
+        }
+    }
+
+    /// <summary>
+    /// 读取并解析一次标准表数据。读取成功时必须得到完整的15项数据。
+    /// </summary>
+    private static async Task<StandardMeterReadResult> ReadStandardMeterAsync(
+        XYCtr xyCtr,
+        TimeSpan timeout,
         CancellationToken cancellationToken)
     {
-        LogMessage.Debug($"[源控制] 升源指令已下发，等待 10s 后读取标准表：配置={state.SourceConfigName}，phaseMode={state.PhaseMode}，资产电压={state.SourceVoltage}");
-        await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken).ConfigureAwait(false);
-
+        cancellationToken.ThrowIfCancellationRequested();
         byte[] standValueBuffer = new byte[1024];
-        Array.Clear(standValueBuffer, 0, standValueBuffer.Length);
 
-        LogMessage.Debug("[源控制] 开始读取标准表参数：CallReadStandValue(model1)");
-        (bool readSuccess, int readResult) = await xyCtr
-            .CallReadStandValueAsync("model1", standValueBuffer, TimeSpan.FromSeconds(5))
+        (bool success, int result) = await xyCtr
+            .CallReadStandValueAsync("model1", standValueBuffer, timeout)
             .ConfigureAwait(false);
-
-        if (!readSuccess)
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!success)
         {
-            string message = $"{state.Result.Message}；读取标准表失败，返回值={readResult}";
-            LogMessage.Error($"[源控制] {message}", null);
-            return MeterTestSourceControlResult.Fail(message);
+            return StandardMeterReadResult.Fail($"CallReadStandValue失败，返回值={result}");
         }
 
         string rawStandValue = Encoding.Default.GetString(standValueBuffer).TrimEnd('\0', '\r', '\n', ' ');
         List<string> standParts = ModelTool.SplitString(rawStandValue)
             .Select(item => item ?? string.Empty)
             .ToList();
-
-        LogMessage.Debug($"[源控制] 标准表原始返回：{rawStandValue}");
-        LogMessage.Debug($"[源控制] 标准表分割结果：共 {standParts.Count} 项，{string.Join(" | ", standParts.Take(15))}");
-
         if (standParts.Count < 15)
         {
-            string message = $"{state.Result.Message}；标准表数据项不足，期望15项，实际{standParts.Count}项。";
-            LogMessage.Error($"[源控制] {message}", null);
-            return MeterTestSourceControlResult.Fail(message);
+            return StandardMeterReadResult.Fail($"标准表数据项不足，期望15项，实际{standParts.Count}项，原始数据={rawStandValue}");
         }
 
         IReadOnlyDictionary<string, string> standValues = BuildStandValueMap(standParts);
-        if (!TryParseNumber(state.SourceVoltage, out decimal assetVoltage) || assetVoltage <= 0)
-        {
-            string message = $"{state.Result.Message}；资产电压解析失败：{state.SourceVoltage}";
-            LogMessage.Error($"[源控制] {message}", null);
-            return new MeterTestSourceControlResult(false, message)
-            {
-                StandValues = standValues
-            };
-        }
-
-        if (!TryGetStandardVoltageForJudgement(standParts, state.PhaseMode, out decimal standardVoltage, out string standardVoltageText, out string? parseError))
-        {
-            string message = $"{state.Result.Message}；{parseError}";
-            LogMessage.Error($"[源控制] {message}", null);
-            return new MeterTestSourceControlResult(false, message)
-            {
-                StandValues = standValues
-            };
-        }
-
-        decimal ratio = standardVoltage / assetVoltage;
-        bool sourceRaised = ratio < 1m;
-        string judgementText = sourceRaised ? "源升成功，继续执行测试。" : "源升失败，停止后续测试。";
-        string finalMessage = $"{state.Result.Message}；读取标准表成功：电压={standardVoltageText}，资产电压={assetVoltage:0.######}，比值={ratio:0.######}，{judgementText}";
-
-        LogMessage.Debug($"[源控制] 标准表电压判断：phaseMode={state.PhaseMode}，标准表电压={standardVoltageText}，资产电压={assetVoltage:0.######}，比值={ratio:0.######}，结果={judgementText}");
-        return new MeterTestSourceControlResult(sourceRaised, finalMessage)
-        {
-            StandValues = standValues
-        };
+        return StandardMeterReadResult.Ok(standParts, standValues, rawStandValue);
     }
 
     /// <summary>
@@ -514,42 +851,205 @@ public sealed class MeterTestSourceControlService
     }
 
     /// <summary>
-    /// 根据单相/三相取参与升源判断的标准表电压。
-    /// 单相使用 Ua；三相使用 Ua/Ub/Uc 平均值，同时日志保留三相原值。
+    /// 在一次升源验证结束后继续每3秒读取标准表。
+    /// 新一轮控源开始前会先停止该任务，避免监控读取与初始化、升源指令交叉执行。
     /// </summary>
-    private static bool TryGetStandardVoltageForJudgement(
-        IReadOnlyList<string> standParts,
-        MeterTestSourcePhaseMode phaseMode,
-        out decimal standardVoltage,
-        out string standardVoltageText,
-        out string? errorMessage)
+    private void StartStandardMeterMonitor()
     {
-        standardVoltage = 0;
-        standardVoltageText = string.Empty;
-        errorMessage = null;
-
-        if (phaseMode == MeterTestSourcePhaseMode.SinglePhase)
+        lock (monitorSync)
         {
-            if (!TryParseNumber(standParts[0], out standardVoltage))
-            {
-                errorMessage = $"标准表 Ua 电压解析失败：{standParts[0]}";
-                return false;
-            }
+            if (disposed || monitorTask is { IsCompleted: false })
+                return;
 
-            standardVoltageText = $"Ua={standardVoltage:0.######}";
-            return true;
+            monitorCancellationTokenSource = new CancellationTokenSource();
+            CancellationToken token = monitorCancellationTokenSource.Token;
+            monitorTask = Task.Run(() => MonitorStandardMeterAsync(token), CancellationToken.None);
         }
 
-        if (!TryParseNumber(standParts[0], out decimal ua) ||
-            !TryParseNumber(standParts[1], out decimal ub) ||
-            !TryParseNumber(standParts[2], out decimal uc))
+        LogMessage.Debug("[源控制] 标准表3秒周期采集任务已启动。");
+    }
+
+    /// <summary>停止后台标准表采集，并等待当前一次原生读取结束。</summary>
+    private async Task StopStandardMeterMonitorAsync()
+    {
+        CancellationTokenSource? cancellationTokenSource;
+        Task? runningTask;
+        lock (monitorSync)
         {
-            errorMessage = $"标准表三相电压解析失败：Ua={standParts[0]}，Ub={standParts[1]}，Uc={standParts[2]}";
+            cancellationTokenSource = monitorCancellationTokenSource;
+            runningTask = monitorTask;
+            monitorCancellationTokenSource = null;
+            monitorTask = null;
+        }
+
+        if (cancellationTokenSource is null)
+            return;
+
+        cancellationTokenSource.Cancel();
+        if (runningTask is not null)
+        {
+            try
+            {
+                await runningTask.ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                // 正常停止周期采集时会取消等待，不需要作为错误记录。
+            }
+        }
+
+        cancellationTokenSource.Dispose();
+        LogMessage.Debug("[源控制] 标准表3秒周期采集任务已停止。");
+    }
+
+    /// <summary>标准表后台周期采集循环。</summary>
+    private async Task MonitorStandardMeterAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            using XYCtr xyCtr = new();
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(3), cancellationToken).ConfigureAwait(false);
+                StandardMeterReadResult result = await ReadStandardMeterAsync(
+                    xyCtr,
+                    TimeSpan.FromSeconds(5),
+                    cancellationToken).ConfigureAwait(false);
+                if (!result.Success || result.StandValues is null)
+                {
+                    LogMessage.Debug($"[源控制] 标准表周期采集失败：{result.Message}");
+                    continue;
+                }
+
+                PublishStandardValues(result.StandValues);
+                LogMessage.Debug(
+                    $"[源控制] 标准表周期采集："
+                    + $"Ua={result.StandValues["Ua"]}，Ub={result.StandValues["Ub"]}，Uc={result.StandValues["Uc"]}，"
+                    + $"Ia={result.StandValues["Ia"]}，Ib={result.StandValues["Ib"]}，Ic={result.StandValues["Ic"]}。");
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // 窗体关闭或下一轮控源开始时取消周期采集，属于正常生命周期。
+        }
+        catch (Exception ex)
+        {
+            LogMessage.Error("[源控制] 标准表周期采集任务异常", ex);
+        }
+    }
+
+    /// <summary>安全发布标准表数据，避免界面订阅异常中断控源流程。</summary>
+    private void PublishStandardValues(IReadOnlyDictionary<string, string> standValues)
+    {
+        try
+        {
+            StandardValuesUpdated?.Invoke(standValues);
+        }
+        catch (Exception ex)
+        {
+            LogMessage.Error("[源控制] 发布标准表数据失败", ex);
+        }
+    }
+
+    /// <summary>
+    /// 对参与输出的每一相电压和电流分别判断误差范围。
+    /// 普通通信测试只输出电压，因此不校验电流；起动试验传入 Ist 时同时校验电压和电流。
+    /// </summary>
+    private static bool TryEvaluateSourceTolerance(
+        IReadOnlyList<string> standParts,
+        SourceControlExecutionState state,
+        decimal tolerancePercent,
+        out bool withinTolerance,
+        out string detail)
+    {
+        withinTolerance = false;
+        detail = string.Empty;
+        if (!TryParseNumber(state.SourceVoltage, out decimal targetVoltage) || targetVoltage <= 0)
+        {
+            detail = $"目标电压解析失败：{state.SourceVoltage}";
             return false;
         }
 
-        standardVoltage = (ua + ub + uc) / 3m;
-        standardVoltageText = $"Ua={ua:0.######}, Ub={ub:0.######}, Uc={uc:0.######}, Avg={standardVoltage:0.######}";
+        int phaseCount = state.PhaseMode == MeterTestSourcePhaseMode.SinglePhase ? 1 : 3;
+        string[] voltageNames = { "Ua", "Ub", "Uc" };
+        if (!TryEvaluateMeasurements(
+                standParts,
+                0,
+                voltageNames,
+                phaseCount,
+                targetVoltage,
+                tolerancePercent,
+                out bool voltageWithinTolerance,
+                out string voltageDetail))
+        {
+            detail = voltageDetail;
+            return false;
+        }
+
+        bool currentWithinTolerance = true;
+        string currentDetail = "电流不校验";
+        if (!string.IsNullOrWhiteSpace(state.SourceCurrent))
+        {
+            if (!TryParseNumber(state.SourceCurrent, out decimal targetCurrent) || targetCurrent <= 0)
+            {
+                detail = $"目标电流解析失败：{state.SourceCurrent}";
+                return false;
+            }
+
+            string[] currentNames = { "Ia", "Ib", "Ic" };
+            if (!TryEvaluateMeasurements(
+                    standParts,
+                    3,
+                    currentNames,
+                    phaseCount,
+                    targetCurrent,
+                    tolerancePercent,
+                    out currentWithinTolerance,
+                    out currentDetail))
+            {
+                detail = currentDetail;
+                return false;
+            }
+        }
+
+        withinTolerance = voltageWithinTolerance && currentWithinTolerance;
+        detail = $"{voltageDetail}；{currentDetail}";
+        return true;
+    }
+
+    /// <summary>判断一组同目标值的相量是否全部进入允许范围。</summary>
+    private static bool TryEvaluateMeasurements(
+        IReadOnlyList<string> standParts,
+        int startIndex,
+        IReadOnlyList<string> names,
+        int count,
+        decimal target,
+        decimal tolerancePercent,
+        out bool withinTolerance,
+        out string detail)
+    {
+        decimal tolerance = target * tolerancePercent / 100m;
+        decimal lower = target - tolerance;
+        decimal upper = target + tolerance;
+        List<string> actualValues = new();
+        withinTolerance = true;
+
+        for (int index = 0; index < count; index++)
+        {
+            string rawValue = standParts[startIndex + index];
+            if (!TryParseNumber(rawValue, out decimal actual))
+            {
+                detail = $"标准表{names[index]}解析失败：{rawValue}";
+                withinTolerance = false;
+                return false;
+            }
+
+            bool phaseWithinTolerance = actual >= lower && actual <= upper;
+            withinTolerance &= phaseWithinTolerance;
+            actualValues.Add($"{names[index]}={actual:0.#########}");
+        }
+
+        detail = $"目标={target:0.#########}，范围=[{lower:0.#########},{upper:0.#########}]，实测{string.Join("、", actualValues)}";
         return true;
     }
 
@@ -559,10 +1059,11 @@ public sealed class MeterTestSourceControlService
     /// </summary>
     private static SourcePhaseValues BuildSourcePhaseValues(
         MeterTestSourceControlConfig config,
-        MeterTestSourcePhaseMode phaseMode)
+        MeterTestSourcePhaseMode phaseMode,
+        string? sourceCurrentOverride)
     {
         string voltage = Normalize(config.Voltage, "220");
-        string current = Normalize(config.Current, "5");
+        string current = Normalize(sourceCurrentOverride, Normalize(config.Current, "5"));
 
         if (phaseMode == MeterTestSourcePhaseMode.SinglePhase)
         {
@@ -570,7 +1071,7 @@ public sealed class MeterTestSourceControlService
                 Normalize(config.VoltageA, voltage),
                 "0",
                 "0",
-                Normalize(config.CurrentA, current),
+                Normalize(sourceCurrentOverride, Normalize(config.CurrentA, current)),
                 "0",
                 "0");
         }
@@ -579,9 +1080,9 @@ public sealed class MeterTestSourceControlService
             Normalize(config.VoltageA, voltage),
             Normalize(config.VoltageB, voltage),
             Normalize(config.VoltageC, voltage),
-            Normalize(config.CurrentA, current),
-            Normalize(config.CurrentB, current),
-            Normalize(config.CurrentC, current));
+            Normalize(sourceCurrentOverride, Normalize(config.CurrentA, current)),
+            Normalize(sourceCurrentOverride, Normalize(config.CurrentB, current)),
+            Normalize(sourceCurrentOverride, Normalize(config.CurrentC, current)));
     }
 
     /// <summary>
@@ -623,6 +1124,105 @@ public sealed class MeterTestSourceControlService
         }
 
         return value.Trim();
+    }
+
+    /// <summary>判断当前源控制小项是否为起动试验的启动电流升源。</summary>
+    private static bool IsStartingSourceExecution(MeterTestSubItem subItem)
+    {
+        return Enum.TryParse(subItem.ExecutionMode, true, out MeterTestExecutionMode executionMode)
+            && executionMode == MeterTestExecutionMode.StartingSource;
+    }
+
+    /// <summary>判断当前小项是否为潜动试验的1.1倍额定电压升源。</summary>
+    private static bool IsCreepingSourceExecution(MeterTestSubItem subItem)
+    {
+        return Enum.TryParse(subItem.ExecutionMode, true, out MeterTestExecutionMode executionMode)
+            && executionMode == MeterTestExecutionMode.CreepingSource;
+    }
+
+    /// <summary>判断当前小项是否为有功基本误差完整测试点。</summary>
+    private static bool IsBasicErrorPointExecution(MeterTestSubItem subItem)
+    {
+        return Enum.TryParse(subItem.ExecutionMode, true, out MeterTestExecutionMode executionMode)
+            && executionMode == MeterTestExecutionMode.BasicErrorPoint;
+    }
+
+    /// <summary>
+    /// 按潜动试验规则计算输出电压：Ucreep=1.1×额定电压。
+    /// </summary>
+    private static bool TryCalculateCreepingVoltage(
+        string nominalVoltage,
+        out string creepingVoltage,
+        out string? errorMessage)
+    {
+        creepingVoltage = string.Empty;
+        errorMessage = null;
+        string normalizedNominalVoltage = NormalizeSourceVoltage(nominalVoltage);
+        if (!TryParseNumber(normalizedNominalVoltage, out decimal voltage) || voltage <= 0)
+        {
+            errorMessage = $"额定电压无法解析：{nominalVoltage}";
+            return false;
+        }
+
+        creepingVoltage = NormalizeNumericText(
+            (voltage * 1.1m).ToString(CultureInfo.InvariantCulture));
+        return true;
+    }
+
+    /// <summary>
+    /// 按 JJG596 起动试验规则计算 Ist。
+    /// 直接式以基本电流/10 为基准，互感式以基本电流/20 为基准；多个工位最终 Ist 必须一致，
+    /// 因为同一次源控制只能向同一套源设备下发一个公共电流参数。
+    /// </summary>
+    private static bool TryResolveStartingCurrent(
+        IReadOnlyList<MeterTestStationCommunication> selectedStations,
+        IReadOnlyDictionary<int, MeterArchiveData> meterArchives,
+        out string startingCurrent,
+        out string note,
+        out string? errorMessage)
+    {
+        startingCurrent = string.Empty;
+        note = string.Empty;
+        errorMessage = null;
+        List<(int StationNo, decimal Current)> calculatedValues = new();
+
+        foreach (MeterTestStationCommunication station in selectedStations)
+        {
+            if (!meterArchives.TryGetValue(station.StationNo, out MeterArchiveData? archive))
+            {
+                errorMessage = $"工位{station.StationNo}缺少资产档案，无法计算启动电流。";
+                return false;
+            }
+
+            if (!MeterTestStartingTestCalculator.TryCalculateStartingCurrent(
+                    archive,
+                    out decimal ist,
+                    out string calculationNote,
+                    out string? calculationError))
+            {
+                errorMessage = $"工位{station.StationNo}{calculationError}";
+                return false;
+            }
+
+            calculatedValues.Add((station.StationNo, ist));
+            LogMessage.Debug($"[源控制] 工位{station.StationNo}启动电流：{calculationNote}。");
+        }
+
+        List<decimal> distinctValues = calculatedValues
+            .Select(item => item.Current)
+            .Distinct()
+            .ToList();
+        if (distinctValues.Count != 1)
+        {
+            errorMessage = "选中工位计算出的启动电流不一致："
+                + string.Join("、", calculatedValues.Select(item => $"工位{item.StationNo}={item.Current:0.######}A"))
+                + "，请先统一资产信息后再升源。";
+            return false;
+        }
+
+        startingCurrent = NormalizeNumericText(distinctValues[0].ToString(CultureInfo.InvariantCulture));
+        note = $"Ist={startingCurrent}A，计算依据：{string.Join("；", calculatedValues.Select(item => $"工位{item.StationNo}={item.Current:0.######}A"))}";
+        return true;
     }
 
     /// <summary>
@@ -702,6 +1302,7 @@ public sealed class MeterTestSourceControlService
         IReadOnlyDictionary<int, MeterArchiveData> meterArchives,
         MeterTestSourcePhaseMode phaseMode,
         string sourceVoltage,
+        string? sourceCurrentOverride,
         out string command,
         out string note,
         out string? errorMessage)
@@ -718,13 +1319,18 @@ public sealed class MeterTestSourceControlService
             return false;
         }
 
-        if (!TryResolveSameArchiveValue(
-                selectedStations,
-                meterArchives,
-                archive => NormalizeCurrentForInit(archive.Current),
-                "基本电流",
-                out string current,
-                out errorMessage))
+        string current;
+        if (!string.IsNullOrWhiteSpace(sourceCurrentOverride))
+        {
+            current = NormalizeCurrentForInit(sourceCurrentOverride);
+        }
+        else if (!TryResolveSameArchiveValue(
+                     selectedStations,
+                     meterArchives,
+                     archive => NormalizeCurrentForInit(archive.Current),
+                     "基本电流",
+                     out current,
+                     out errorMessage))
         {
             return false;
         }
@@ -842,6 +1448,27 @@ public sealed class MeterTestSourceControlService
     /// </summary>
     private sealed record SourcePhaseValues(string Ua, string Ub, string Uc, string Ia, string Ib, string Ic);
 
+    /// <summary>一次标准表读取和解析结果。</summary>
+    private sealed record StandardMeterReadResult(
+        bool Success,
+        string Message,
+        IReadOnlyList<string>? Values,
+        IReadOnlyDictionary<string, string>? StandValues)
+    {
+        public static StandardMeterReadResult Ok(
+            IReadOnlyList<string> values,
+            IReadOnlyDictionary<string, string> standValues,
+            string rawValue)
+        {
+            return new StandardMeterReadResult(true, rawValue, values, standValues);
+        }
+
+        public static StandardMeterReadResult Fail(string message)
+        {
+            return new StandardMeterReadResult(false, message, null, null);
+        }
+    }
+
     /// <summary>
     /// 源控制指令执行后的上下文。只有真正下发过源控制指令时才需要继续读取标准表校验。
     /// </summary>
@@ -850,25 +1477,93 @@ public sealed class MeterTestSourceControlService
         string SourceConfigName,
         MeterTestSourcePhaseMode PhaseMode,
         string SourceVoltage,
+        string SourceCurrent,
+        int VerificationTimeoutSeconds,
+        int VerificationIntervalSeconds,
+        decimal VerificationTolerancePercent,
         bool ShouldVerify)
     {
         public static SourceControlExecutionState Ok(string message)
         {
-            return new SourceControlExecutionState(MeterTestSourceControlResult.Ok(message), string.Empty, MeterTestSourcePhaseMode.ThreePhase, string.Empty, false);
+            return new SourceControlExecutionState(
+                MeterTestSourceControlResult.Ok(message),
+                string.Empty,
+                MeterTestSourcePhaseMode.ThreePhase,
+                string.Empty,
+                string.Empty,
+                20,
+                3,
+                0.03m,
+                false);
         }
 
         public static SourceControlExecutionState Fail(string message)
         {
-            return new SourceControlExecutionState(MeterTestSourceControlResult.Fail(message), string.Empty, MeterTestSourcePhaseMode.ThreePhase, string.Empty, false);
+            return new SourceControlExecutionState(
+                MeterTestSourceControlResult.Fail(message),
+                string.Empty,
+                MeterTestSourcePhaseMode.ThreePhase,
+                string.Empty,
+                string.Empty,
+                20,
+                3,
+                0.03m,
+                false);
         }
 
         public static SourceControlExecutionState Executed(
             MeterTestSourceControlResult result,
-            string sourceConfigName,
+            MeterTestSourceControlConfig sourceConfig,
             MeterTestSourcePhaseMode phaseMode,
-            string sourceVoltage)
+            string sourceVoltage,
+            string? sourceCurrent)
         {
-            return new SourceControlExecutionState(result, sourceConfigName, phaseMode, sourceVoltage, true);
+            return new SourceControlExecutionState(
+                result,
+                sourceConfig.Name,
+                phaseMode,
+                sourceVoltage,
+                sourceCurrent ?? string.Empty,
+                sourceConfig.VerificationTimeoutSeconds,
+                sourceConfig.VerificationIntervalSeconds,
+                sourceConfig.VerificationTolerancePercent,
+                true);
+        }
+    }
+
+    /// <summary>停止标准表后台采集任务并释放事件订阅。</summary>
+    public void Dispose()
+    {
+        CancellationTokenSource? cancellationTokenSource;
+        Task? runningTask;
+        lock (monitorSync)
+        {
+            if (disposed)
+                return;
+
+            disposed = true;
+            cancellationTokenSource = monitorCancellationTokenSource;
+            runningTask = monitorTask;
+            monitorCancellationTokenSource = null;
+            monitorTask = null;
+            StandardValuesUpdated = null;
+        }
+
+        cancellationTokenSource?.Cancel();
+        if (cancellationTokenSource is not null)
+        {
+            if (runningTask is null)
+            {
+                cancellationTokenSource.Dispose();
+            }
+            else
+            {
+                _ = runningTask.ContinueWith(
+                    _ => cancellationTokenSource.Dispose(),
+                    CancellationToken.None,
+                    TaskContinuationOptions.ExecuteSynchronously,
+                    TaskScheduler.Default);
+            }
         }
     }
 

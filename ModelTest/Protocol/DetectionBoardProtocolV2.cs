@@ -619,6 +619,116 @@ public sealed class DetectionBoardProtocolV2
     }
 
     /// <summary>
+    /// 构造装置通信板“当前测试电表类别”命令（0x80）。
+    /// 地址 0x00 表示装置通信板，0xFF 表示向所有连接设备广播。
+    /// </summary>
+    public byte[] BuildDeviceBoardMeterCategoryFrame(byte address, DeviceBoardMeterCategory category)
+    {
+        if (category is < DeviceBoardMeterCategory.SinglePhase or > DeviceBoardMeterCategory.ThreePhaseThreeWire)
+        {
+            throw new ArgumentOutOfRangeException(nameof(category), "电表类别只能是单相、三相四线或三相三线。");
+        }
+
+        return BuildDeviceBoardControlFrame(address, 0x80, new[] { (byte)category });
+    }
+
+    /// <summary>构造装置通信板“运行指示灯”命令（0x81）。</summary>
+    public byte[] BuildDeviceBoardRunLampFrame(byte address, DeviceBoardRunLampState state)
+    {
+        if (state is < DeviceBoardRunLampState.Testing or > DeviceBoardRunLampState.Reset)
+        {
+            throw new ArgumentOutOfRangeException(nameof(state), "运行指示灯状态必须在0x01-0x05之间。");
+        }
+
+        return BuildDeviceBoardControlFrame(address, 0x81, new[] { (byte)state });
+    }
+
+    /// <summary>
+    /// 构造装置通信板“直接式/互感式/单相选择”命令（0x82）。
+    /// PC控制时必须给出模式；恢复旋钮检测或读取旋钮状态时，第二字节固定为0x00占位。
+    /// </summary>
+    public byte[] BuildDeviceBoardConnectionModeFrame(
+        byte address,
+        DeviceBoardControlSource source,
+        DeviceBoardConnectionMode mode = DeviceBoardConnectionMode.None)
+    {
+        ValidateDeviceBoardConnectionMode(source, mode);
+        byte[] data = { (byte)source, (byte)mode };
+        return BuildDeviceBoardControlFrame(address, 0x82, data);
+    }
+
+    /// <summary>
+    /// 构造装置通信板“零线电流切换”命令（0x83）。
+    /// PC控制时必须选择相电流或零线电流；恢复旋钮检测时，第二字节固定为0x00占位。
+    /// </summary>
+    public byte[] BuildDeviceBoardNeutralCurrentModeFrame(
+        byte address,
+        DeviceBoardControlSource source,
+        DeviceBoardNeutralCurrentMode mode = DeviceBoardNeutralCurrentMode.None)
+    {
+        if (source == DeviceBoardControlSource.PcControl &&
+            mode is not (DeviceBoardNeutralCurrentMode.PhaseCurrent or DeviceBoardNeutralCurrentMode.NeutralCurrent))
+        {
+            throw new ArgumentOutOfRangeException(nameof(mode), "PC控制零线电流切换时必须选择相电流或零线电流。");
+        }
+
+        if (source == DeviceBoardControlSource.RestoreKnobDetection)
+        {
+            mode = DeviceBoardNeutralCurrentMode.None;
+        }
+        else if (source != DeviceBoardControlSource.PcControl)
+        {
+            throw new ArgumentOutOfRangeException(nameof(source), "零线电流切换下行只支持PC控制或恢复旋钮检测。");
+        }
+
+        byte[] data = { (byte)source, (byte)mode };
+        return BuildDeviceBoardControlFrame(address, 0x83, data);
+    }
+
+    /// <summary>
+    /// 校验0x82切换应答。装置通信板切换时会先上传一条广播帧，再返回下行命令的应答；
+    /// 本方法只认可方向为上行、协议类型为0x02且模式与期望一致的第二条应答。
+    /// 应答地址按协议不参与判断。
+    /// </summary>
+    public bool TryValidateDeviceBoardConnectionModeResponse(
+        ReadOnlySpan<byte> frame,
+        DeviceBoardConnectionMode expectedMode,
+        out string error)
+    {
+        error = string.Empty;
+        if (!TryParseFrame(frame, out DetectionBoardProtocolV2Frame? parsed, out error) || parsed is null)
+        {
+            return false;
+        }
+
+        if (parsed.Direction != UplinkDirection || parsed.ProtocolType != 0x02 || parsed.CommandCode != 0x82)
+        {
+            error = $"不是期望的0x82上行应答，方向={parsed.Direction:X2}，协议={parsed.ProtocolType:X2}，命令={parsed.CommandCode:X2}。";
+            return false;
+        }
+
+        if (parsed.Data.Length != 2)
+        {
+            error = $"0x82应答数据项长度错误，期望2字节，实际{parsed.Data.Length}字节。";
+            return false;
+        }
+
+        if (parsed.Data[0] is not ((byte)DeviceBoardControlSource.PcControl or (byte)DeviceBoardControlSource.DeviceBoardReport))
+        {
+            error = $"0x82应答来源错误，期望01或02，实际{parsed.Data[0]:X2}。";
+            return false;
+        }
+
+        if (parsed.Data[1] != (byte)expectedMode)
+        {
+            error = $"0x82应答模式不一致，期望{(byte)expectedMode:X2}，实际{parsed.Data[1]:X2}。";
+            return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
     /// 构造告警状态量读取命令帧。命令码 0x49，数据项固定 0x00。
     /// </summary>
     public byte[] BuildAlarmStatusReadFrame(byte address)
@@ -679,6 +789,22 @@ public sealed class DetectionBoardProtocolV2
     {
         ValidateDirection(direction);
         ValidateAddress(address);
+
+        return BuildFrameCore(direction, address, protocolType, commandCode, data);
+    }
+
+    /// <summary>
+    /// 构造装置通信板专用控制帧。装置通信板协议是电表控制协议，协议类型固定为0x02。
+    /// </summary>
+    private static byte[] BuildDeviceBoardControlFrame(byte address, byte commandCode, ReadOnlySpan<byte> data)
+    {
+        ValidateDeviceBoardAddress(address);
+        return BuildFrameCore(DownlinkDirection, address, protocolType: 0x02, commandCode, data);
+    }
+
+    /// <summary>构造已完成方向和地址校验的基础 V2 帧。</summary>
+    private static byte[] BuildFrameCore(byte direction, byte address, byte protocolType, byte commandCode, ReadOnlySpan<byte> data)
+    {
 
         int payloadLength = 2 + 1 + 1 + 1 + 1 + data.Length + 1;
         if (payloadLength > ushort.MaxValue)
@@ -829,6 +955,45 @@ public sealed class DetectionBoardProtocolV2
     {
         if (address == 0)
             throw new ArgumentOutOfRangeException(nameof(address), "地址有效范围为 1~254，0xFF 为广播地址。");
+    }
+
+    /// <summary>装置通信板只使用地址0x00，全部连接设备使用广播地址0xFF。</summary>
+    private static void ValidateDeviceBoardAddress(byte address)
+    {
+        if (address is not (0x00 or BroadcastAddress))
+        {
+            throw new ArgumentOutOfRangeException(nameof(address), "装置通信板地址只能是0x00或广播地址0xFF。");
+        }
+    }
+
+    /// <summary>校验0x82下行来源和模式的合法组合。</summary>
+    private static void ValidateDeviceBoardConnectionMode(
+        DeviceBoardControlSource source,
+        DeviceBoardConnectionMode mode)
+    {
+        if (source == DeviceBoardControlSource.PcControl)
+        {
+            if (mode is not (DeviceBoardConnectionMode.ThreePhaseDirect or
+                DeviceBoardConnectionMode.ThreePhaseTransformer or
+                DeviceBoardConnectionMode.SinglePhase))
+            {
+                throw new ArgumentOutOfRangeException(nameof(mode), "PC控制台体接线模式时必须选择直接式、互感式或单相。");
+            }
+
+            return;
+        }
+
+        if (source is DeviceBoardControlSource.RestoreKnobDetection or DeviceBoardControlSource.ReadKnobStatus)
+        {
+            if (mode != DeviceBoardConnectionMode.None)
+            {
+                throw new ArgumentOutOfRangeException(nameof(mode), "恢复旋钮检测或读取旋钮状态时，模式必须为0x00占位。");
+            }
+
+            return;
+        }
+
+        throw new ArgumentOutOfRangeException(nameof(source), "0x82下行只支持PC控制、恢复旋钮检测或读取旋钮状态。");
     }
 
     private static void ValidateModuleNumber(byte moduleNumber)
@@ -1016,6 +1181,50 @@ public sealed class DetectionBoardProtocolV2
     private static bool IsValidMeterVoltageLoopPowerOperation(byte operation) => IsValidMeterVoltageLoopPowerReadPhase(operation) || operation is 0xAA or 0xBB;
 
     private static bool IsValidMeterVoltageLoopPowerReadPhase(byte phase) => phase is >= 0x01 and <= 0x04;
+}
+
+/// <summary>装置通信板当前测试电表类别（0x80）。</summary>
+public enum DeviceBoardMeterCategory : byte
+{
+    SinglePhase = 0x01,
+    ThreePhaseFourWire = 0x02,
+    ThreePhaseThreeWire = 0x03
+}
+
+/// <summary>装置通信板运行指示灯状态（0x81）。</summary>
+public enum DeviceBoardRunLampState : byte
+{
+    Testing = 0x01,
+    Passed = 0x02,
+    Failed = 0x03,
+    Off = 0x04,
+    Reset = 0x05
+}
+
+/// <summary>装置通信板模式控制来源或功能字（0x82/0x83的数据项1）。</summary>
+public enum DeviceBoardControlSource : byte
+{
+    PcControl = 0x01,
+    DeviceBoardReport = 0x02,
+    RestoreKnobDetection = 0xFF,
+    ReadKnobStatus = 0xAA
+}
+
+/// <summary>装置通信板接线模式（0x82的数据项2）。</summary>
+public enum DeviceBoardConnectionMode : byte
+{
+    None = 0x00,
+    ThreePhaseDirect = 0x01,
+    ThreePhaseTransformer = 0x02,
+    SinglePhase = 0x03
+}
+
+/// <summary>装置通信板单相副回路模式（0x83的数据项2）。</summary>
+public enum DeviceBoardNeutralCurrentMode : byte
+{
+    None = 0x00,
+    PhaseCurrent = 0x01,
+    NeutralCurrent = 0x02
 }
 
 public sealed record DetectionBoardProtocolV2Frame(

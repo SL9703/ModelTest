@@ -1770,7 +1770,7 @@ namespace ModelTest
             // 
             toolStripStatusVersion.Name = "toolStripStatusVersion";
             toolStripStatusVersion.Size = new Size(163, 28);
-            toolStripStatusVersion.Text = "测试版本：2.0.6";
+            toolStripStatusVersion.Text = "测试版本：2.0.7";
             // 
             // statusTimeTimer
             // 

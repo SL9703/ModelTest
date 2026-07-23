@@ -21,6 +21,7 @@ namespace ModelTest
         private static readonly Thread _asyncDllWorkerThread = CreateAsyncDllWorkerThread();
         private static int _openCommAsyncState;
         private static int _readStandValueAsyncState;
+        private static int _readStandConstAsyncState;
         private static int _sendCommandAsyncState;
         private static int _anyUiOutputAsyncState;
         public static bool IsSourcePortOpen { get; private set; }
@@ -524,6 +525,21 @@ namespace ModelTest
             }
         }
 
+        /// <summary>
+        /// 在 XYCtr 专用 STA 工作线程上读取标准表脉冲常数。
+        /// 该接口与标准表周期采集共用同一条原生 DLL 调用队列，避免并发进入 xyctr.dll。
+        /// </summary>
+        public Task<(bool Success, int Result)> CallReadStandConstAsync(
+            byte[] constants,
+            TimeSpan? timeout = null)
+        {
+            return ExecuteExclusiveWithTimeoutAsync(
+                () => Interlocked.CompareExchange(ref _readStandConstAsyncState, 1, 0) == 0,
+                () => Volatile.Write(ref _readStandConstAsyncState, 0),
+                () => CallReadStandConst(constants),
+                nameof(ReadStandConst),
+                timeout);
+        }
         /// <summary>
         /// 在 XYCtr 专用 STA 工作线程上调用电表初始化/调节命令接口。
         /// </summary>

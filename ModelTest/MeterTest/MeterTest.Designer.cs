@@ -556,7 +556,7 @@
             // colMeterType
             // 
             colMeterType.HeaderText = "电表类型";
-            colMeterType.Items.AddRange(new object[] { "单相", "三相" });
+            colMeterType.Items.AddRange(new object[] { "单相", "三相三线", "三相四线" });
             colMeterType.MinimumWidth = 150;
             colMeterType.Name = "colMeterType";
             colMeterType.Resizable = DataGridViewTriState.False;
@@ -746,7 +746,6 @@
             Name = "MeterTest";
             StartPosition = FormStartPosition.CenterParent;
             Text = "电表测试";
-            WindowState = FormWindowState.Maximized;
             mainLayout.ResumeLayout(false);
             headerPanel.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)picLogo).EndInit();

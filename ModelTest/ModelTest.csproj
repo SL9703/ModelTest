@@ -46,6 +46,21 @@
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 			<CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
 		</None>
+		 <None Update="png\*.png">
+			 <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+			 <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+		 </None>
+		 <!-- 顶部 XCKJ 标识单独声明，确保发布包一定包含该文件。 -->
+		<None Update="png\xckj.png">
+			 <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+			 <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+		 </None>
+		 <!-- 同时嵌入程序集，发布包缺少 png 目录时仍可显示顶部标识。 -->
+    <EmbeddedResource Include="png\xckj.png" LogicalName="ModelTest.MeterTest.xckj.png" />
+		 <None Update="MeterTest\config\*.xml">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+			<CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+		</None>
 		<None Update="MeterTest\data\*.*">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 			<CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>

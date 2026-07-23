@@ -5,11 +5,17 @@ namespace ModelTest.MeterTest;
 
 /// <summary>
 /// MeterTest 测试方案配置根对象。
-/// XML 层级为：源控制配置、控制 PCB 配置、测试方案。
+/// XML 层级为：源控制配置、控制 PCB 配置、蓝牙 TCP 通道配置、测试方案。
 /// </summary>
 [XmlRoot("MeterTestPlanConfig")]
 public class MeterTestPlanConfig
 {
+    /// <summary>
+    /// 升源前的台体类型切换配置，根据资产信息选择单相、三相直接式或三相互感式。
+    /// </summary>
+    [XmlElement("BenchTypeSwitchConfig")]
+    public MeterTestBenchTypeSwitchConfig BenchTypeSwitchConfig { get; set; } = new();
+
     /// <summary>
     /// 源控制配置集合，用于执行测试前升源或降源。
     /// </summary>
@@ -25,10 +31,44 @@ public class MeterTestPlanConfig
     public List<MeterTestControlPcbGroup> ControlPcbGroups { get; set; } = new();
 
     /// <summary>
+    /// 工位与蓝牙转换器专用 TCP 端点的映射。
+    /// 该配置独立于资产信息中的 485 IP/Port，蓝牙流程禁止回退使用 485 端点。
+    /// </summary>
+    [XmlArray("BluetoothTcpChannels")]
+    [XmlArrayItem("BluetoothTcpChannel")]
+    public List<MeterTestBluetoothTcpChannel> BluetoothTcpChannels { get; set; } = new();
+
+    /// <summary>
     /// 测试方案集合。界面左侧 TreeView 按此集合生成方案树。
     /// </summary>
     [XmlElement("Scheme")]
     public List<MeterTestScheme> Schemes { get; set; } = new();
+}
+
+/// <summary>
+/// 升源前通过装置通信板切换台体接线类型的固定通信配置。
+/// </summary>
+public class MeterTestBenchTypeSwitchConfig
+{
+    /// <summary>是否启用升源前台体类型切换。</summary>
+    [XmlAttribute("enabled")]
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>装置通信板固定 IP。</summary>
+    [XmlAttribute("ip")]
+    public string Ip { get; set; } = "192.168.127.101";
+
+    /// <summary>装置通信板固定 TCP 端口。</summary>
+    [XmlAttribute("port")]
+    public int Port { get; set; } = 4001;
+
+    /// <summary>连接和应答超时时间，单位毫秒。</summary>
+    [XmlAttribute("timeoutMs")]
+    public int TimeoutMs { get; set; } = 5000;
+
+    /// <summary>切换成功后进入控源流程前的等待时间，单位毫秒。</summary>
+    [XmlAttribute("delayAfterSuccessMs")]
+    public int DelayAfterSuccessMs { get; set; } = 1000;
 }
 
 /// <summary>
@@ -68,6 +108,29 @@ public class MeterTestControlPcbGroup
     /// <summary>起始工位对应的 PCB 表位地址，后续工位按顺序递增。</summary>
     [XmlAttribute("meterAddressStart")]
     public int MeterAddressStart { get; set; } = 1;
+}
+
+/// <summary>
+/// 单个工位的蓝牙转换器专用 TCP 通道。
+/// 每个工位单独配置，便于多工位并发时分别建立连接。
+/// </summary>
+public class MeterTestBluetoothTcpChannel
+{
+    /// <summary>工位号，有效范围为1-48。</summary>
+    [XmlAttribute("station")]
+    public int Station { get; set; }
+
+    /// <summary>是否启用该工位的蓝牙通道。</summary>
+    [XmlAttribute("enabled")]
+    public bool Enabled { get; set; }
+
+    /// <summary>蓝牙转换器专用 TCP IP，不是资产信息中的 485 IP。</summary>
+    [XmlAttribute("ip")]
+    public string Ip { get; set; } = string.Empty;
+
+    /// <summary>蓝牙转换器专用 TCP 端口，不是资产信息中的 485 Port。</summary>
+    [XmlAttribute("port")]
+    public int Port { get; set; }
 }
 
 /// <summary>
@@ -144,6 +207,14 @@ public class MeterTestSubItem
     [XmlAttribute("serialPortServerStep")]
     public string SerialPortServerStep { get; set; } = string.Empty;
 
+    /// <summary>
+    /// 蓝牙专用TCP流程步骤：Reset、ConnectMeter、Preprocess、ReadAddress。
+    /// 每个选中工位都根据BluetoothTcpChannels使用独立TcpClient，
+    /// 不复用资产信息中的485端点、StationTcp或控制PCB连接。
+    /// </summary>
+    [XmlAttribute("bluetoothStep")]
+    public string BluetoothStep { get; set; } = string.Empty;
+
     /// <summary>日计时测试时间，单位秒。</summary>
     [XmlAttribute("dailyTimingTime")]
     public int DailyTimingTime { get; set; } = 10;
@@ -166,6 +237,58 @@ public class MeterTestSubItem
     /// <summary>日计时流程轮次，当前默认执行 1-3 轮。</summary>
     [XmlAttribute("dailyTimingRound")]
     public int DailyTimingRound { get; set; }
+
+    /// <summary>0x35潜动走字试验的目标脉冲数，协议字段为1字节。</summary>
+    [XmlAttribute("creepingPulseCount")]
+    public int CreepingPulseCount { get; set; } = 1;
+
+    /// <summary>0x35潜动走字试验的手动配置时间，单位秒；启动节点和等待节点分别读取各自配置值。</summary>
+    [XmlAttribute("creepingTimeSeconds")]
+    public int CreepingTimeSeconds { get; set; } = 60;
+
+    /// <summary>0x38基本误差试验使用的被测表脉冲数；0表示按不少于10秒自动计算，1-99表示固定值。</summary>
+    [XmlAttribute("basicErrorPulseCount")]
+    public int BasicErrorPulseCount { get; set; } = 2;
+
+    /// <summary>0x38基本误差试验次数，允许1-10，起动试验默认1。</summary>
+    [XmlAttribute("basicErrorTestCount")]
+    public int BasicErrorTestCount { get; set; } = 1;
+
+    /// <summary>0x38脉冲类型：0表示有功，1表示无功。</summary>
+    [XmlAttribute("basicErrorPulseType")]
+    public int BasicErrorPulseType { get; set; }
+
+    /// <summary>误差结果绝对值阈值；大于0时使用配置值，基本误差点配置0时按JJG596表1自动计算。</summary>
+    [XmlAttribute("basicErrorLimit")]
+    public decimal BasicErrorLimit { get; set; } = 1.5m;
+
+    /// <summary>基本误差电能方向：ForwardActive（正向有功）或 ReverseActive（反向有功）。</summary>
+    [XmlAttribute("basicErrorDirection")]
+    public string BasicErrorDirection { get; set; } = string.Empty;
+
+    /// <summary>基本误差输出相别，H 表示合源，A/B/C 表示分相。</summary>
+    [XmlAttribute("basicErrorPhase")]
+    public string BasicErrorPhase { get; set; } = "H";
+
+    /// <summary>基本误差功率因数，例如 1.0、0.5L、0.8C。</summary>
+    [XmlAttribute("basicErrorPowerFactor")]
+    public string BasicErrorPowerFactor { get; set; } = "1.0";
+
+    /// <summary>基本误差电压倍数，1 表示 1U（额定电压）。</summary>
+    [XmlAttribute("basicErrorVoltageMultiplier")]
+    public decimal BasicErrorVoltageMultiplier { get; set; } = 1m;
+
+    /// <summary>基本误差电流点：Imin、Itr、10Itr、0.5Imax、Imax、1.2Imax。</summary>
+    [XmlAttribute("basicErrorCurrentPoint")]
+    public string BasicErrorCurrentPoint { get; set; } = string.Empty;
+
+    /// <summary>基本误差单次测量的最短时间，单位秒。</summary>
+    [XmlAttribute("basicErrorMinimumWaitSeconds")]
+    public int BasicErrorMinimumWaitSeconds { get; set; } = 10;
+
+    /// <summary>基本误差理论测量时间结束后的结果计算余量，单位秒。</summary>
+    [XmlAttribute("basicErrorWaitPaddingSeconds")]
+    public int BasicErrorWaitPaddingSeconds { get; set; } = 10;
 
     /// <summary>StationTcp 模式下发送的请求 HEX 报文。</summary>
     [XmlAttribute("requestHex")]
@@ -233,7 +356,8 @@ public enum ResponseParserType
 {
     HexMatch,
     Sgcc698BroadcastAddress,
-    MeterControlDailyTiming
+    MeterControlDailyTiming,
+    MeterControlCreepingTest
 }
 
 /// <summary>
@@ -243,7 +367,39 @@ public enum MeterTestExecutionMode
 {
     StationTcp,
     ControlPcbDailyTiming,
+    /// <summary>
+    /// 读取标准表脉冲常数，并通过控制PCB依次下发A2、A0和0x38开始试验命令。
+    /// </summary>
+    ControlPcbStartingError,
     SerialPortServerBaudRateSync,
+    /// <summary>
+    /// 根据资产信息计算 Ist，并在升源前把启动电流用于电表初始化参数。
+    /// </summary>
+    StartingSource,
+    /// <summary>
+    /// 根据资产额定电压计算1.1倍潜动电压，单相输出Ua、三相输出Ua/Ub/Uc，电流保持为0。
+    /// </summary>
+    CreepingSource,
+    /// <summary>通过V2控制PCB按工位发送0x35潜动走字试验启动报文，并等待逐表位应答。</summary>
+    ControlPcbCreepingStart,
+    /// <summary>按XML中手动配置的秒数等待潜动试验，不执行公式计算。</summary>
+    CreepingWait,
+    /// <summary>通过V2控制PCB按工位发送0x35+AA，并读取累计脉冲数和累计时间。</summary>
+    ControlPcbCreepingRead,
+    /// <summary>根据已读取的累计脉冲数判定潜动试验，脉冲数小于等于1为合格。</summary>
+    CreepingPulseJudge,
+    /// <summary>
+    /// 根据资产档案计算各工位Tst上限，并按最大值统一等待。
+    /// </summary>
+    StartingTimeWait,
+    /// <summary>通过控制PCB发送0x38+AA读取起动误差float结果。</summary>
+    ControlPcbStartingErrorRead,
+    /// <summary>按配置阈值判断已读取的起动误差结果。</summary>
+    StartingErrorJudge,
+    /// <summary>执行单个基本误差测试点内部的升源、启动、等待、读取和判定完整流程。</summary>
+    BasicErrorPoint,
+    /// <summary>按工位建立独立TCP连接，执行国网智芯蓝牙转换器检测步骤。</summary>
+    BluetoothStationTcp,
     /// <summary>
     /// 仅用于在方案树中预置尚未接入报文的测试流程，启用前需要补充对应执行器。
     /// </summary>
@@ -288,6 +444,18 @@ public class MeterTestSourceControlConfig
     /// <summary>输出前是否先打开源通信口。</summary>
     [XmlAttribute("openCommBeforeOutput")]
     public bool OpenCommBeforeOutput { get; set; } = true;
+
+    /// <summary>升源后等待标准表进入允许误差范围的最长时间，单位为秒。</summary>
+    [XmlAttribute("verificationTimeoutSeconds")]
+    public int VerificationTimeoutSeconds { get; set; } = 20;
+
+    /// <summary>升源验证期间读取标准表的时间间隔，单位为秒。</summary>
+    [XmlAttribute("verificationIntervalSeconds")]
+    public int VerificationIntervalSeconds { get; set; } = 3;
+
+    /// <summary>电压和电流允许误差，单位为百分数；0.03 表示正负 0.03%。</summary>
+    [XmlAttribute("verificationTolerancePercent")]
+    public decimal VerificationTolerancePercent { get; set; } = 0.03m;
 
     /// <summary>默认电压。</summary>
     [XmlAttribute("voltage")]

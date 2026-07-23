@@ -20,4 +20,32 @@
   <Station stationNo="18" ip="127.0.0.1" port="4018" />
   <Station stationNo="19" ip="127.0.0.1" port="4019" />
   <Station stationNo="20" ip="127.0.0.1" port="4020" />
+  <Station stationNo="21" ip="127.0.0.1" port="4021" />
+  <Station stationNo="22" ip="127.0.0.1" port="4022" />
+  <Station stationNo="23" ip="127.0.0.1" port="4023" />
+  <Station stationNo="24" ip="127.0.0.1" port="4024" />
+  <Station stationNo="25" ip="127.0.0.1" port="4025" />
+  <Station stationNo="26" ip="127.0.0.1" port="4026" />
+  <Station stationNo="27" ip="127.0.0.1" port="4027" />
+  <Station stationNo="28" ip="127.0.0.1" port="4028" />
+  <Station stationNo="29" ip="127.0.0.1" port="4029" />
+  <Station stationNo="30" ip="127.0.0.1" port="4030" />
+  <Station stationNo="31" ip="127.0.0.1" port="4031" />
+  <Station stationNo="32" ip="127.0.0.1" port="4032" />
+  <Station stationNo="33" ip="127.0.0.1" port="4033" />
+  <Station stationNo="34" ip="127.0.0.1" port="4034" />
+  <Station stationNo="35" ip="127.0.0.1" port="4035" />
+  <Station stationNo="36" ip="127.0.0.1" port="4036" />
+  <Station stationNo="37" ip="127.0.0.1" port="4037" />
+  <Station stationNo="38" ip="127.0.0.1" port="4038" />
+  <Station stationNo="39" ip="127.0.0.1" port="4039" />
+  <Station stationNo="40" ip="127.0.0.1" port="4040" />
+  <Station stationNo="41" ip="127.0.0.1" port="4041" />
+  <Station stationNo="42" ip="127.0.0.1" port="4042" />
+  <Station stationNo="43" ip="127.0.0.1" port="4043" />
+  <Station stationNo="44" ip="127.0.0.1" port="4044" />
+  <Station stationNo="45" ip="127.0.0.1" port="4045" />
+  <Station stationNo="46" ip="127.0.0.1" port="4046" />
+  <Station stationNo="47" ip="127.0.0.1" port="4047" />
+  <Station stationNo="48" ip="127.0.0.1" port="4048" />
 </MeterTestStationConfig>

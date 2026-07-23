@@ -39,7 +39,7 @@ namespace ModelTest.MeterTest;
 /// - UpdatedAt：数据库更新时间。
 /// 
 /// 表：MeterTestStationConfig
-/// 用途：保存 20 个工位的通信配置，后续可替代 XML/界面临时配置。
+/// 用途：保存 48 个工位的通信配置，后续可替代 XML/界面临时配置。
 /// 字段：
 /// - Id：自增主键。
 /// - StationNo：工位号。

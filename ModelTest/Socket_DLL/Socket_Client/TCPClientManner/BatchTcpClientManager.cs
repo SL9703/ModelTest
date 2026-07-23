@@ -40,6 +40,8 @@ namespace ModelTest.Socket_DLL.Socket_Client.TCPClientManner
         public int HeartbeatInterval { get; set; } = 30000;
         public int ReceiveTimeout { get; set; } = 30000;
         public int SendTimeout { get; set; } = 30000;
+        /// <summary>单次建连超时时间，单位毫秒。</summary>
+        public int ConnectTimeout { get; set; } = 10000;
         public bool EnableHeartbeat { get; set; } = false;
         public string HeartbeatMessage { get; set; } = "PING";
         #endregion
@@ -157,7 +159,7 @@ namespace ModelTest.Socket_DLL.Socket_Client.TCPClientManner
 
                 // 连接
                 var connectTask = client.ConnectAsync(connection.ServerIp, connection.ServerPort);
-                var timeoutTask = Task.Delay(10000);
+                var timeoutTask = Task.Delay(ConnectTimeout);
 
                 if (await Task.WhenAny(connectTask, timeoutTask) == timeoutTask)
                 {

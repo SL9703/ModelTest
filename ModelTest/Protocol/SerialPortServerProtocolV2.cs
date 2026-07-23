@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Net;
 using System.Text;
 
@@ -38,6 +39,18 @@ public sealed class SerialPortServerProtocolV2
 
     /// <summary>终端控制协议类型：bit0=0，设备类型为终端。</summary>
     public const byte TerminalControlProtocolType = 0x04;
+
+    /// <summary>电表 V2 串口服务器端口属性更改命令。</summary>
+    public const byte MeterPortPropertyCommand = 0xF1;
+
+    /// <summary>电表 V2 串口服务器端口信息获取命令。</summary>
+    public const byte MeterPortInformationCommand = 0xF3;
+
+    /// <summary>电表 V2 串口服务器管理命令下行地址固定为 0x00。</summary>
+    public const byte MeterManagementRequestAddress = 0x00;
+
+    /// <summary>电表 V2 串口服务器固定管理端口，协议规定不可在线更改。</summary>
+    public const ushort ManagementPortNumber = 64444;
 
     /// <summary>示例串口服务器报文使用的协议类型，兼容终端配置示例。</summary>
     public const byte SerialServerControlProtocolType = TerminalControlProtocolType;
@@ -80,6 +93,79 @@ public sealed class SerialPortServerProtocolV2
         byte protocolType = SerialServerControlProtocolType)
     {
         ValidateAddress(address);
+
+        return BuildDownlinkFrame(address, commandCode, data, protocolType);
+    }
+
+    /// <summary>
+    /// 构造电表 V2 串口服务器 F3 端口信息读取报文。
+    /// 固定报文为：55 44 08 00 00 00 02 F3 00 FD AA BB。
+    /// </summary>
+    public byte[] BuildMeterPortInfoReadFrame()
+    {
+        byte[] data = { 0x00 };
+        return BuildDownlinkFrame(
+            MeterManagementRequestAddress,
+            MeterPortInformationCommand,
+            data,
+            MeterControlProtocolType);
+    }
+
+    /// <summary>
+    /// 构造电表 V2 串口服务器 F1 端口属性更改报文。
+    /// 数据项依次为：端口 ushort LE、波特率 uint LE、校验位、断电保存标志。
+    /// </summary>
+    public byte[] BuildMeterPortPropertyChangeFrame(
+        ushort port,
+        uint baudRate,
+        SerialPortServerParity parity,
+        bool saveOnPowerLoss = true)
+    {
+        if (port == 0 || port == ManagementPortNumber)
+        {
+            throw new ArgumentOutOfRangeException(nameof(port), "端口必须是1-65535，且64444管理端口不可在线更改。");
+        }
+
+        if (baudRate == 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(baudRate), "波特率必须大于0。");
+        }
+
+        byte[] data = new byte[8];
+        BinaryPrimitives.WriteUInt16LittleEndian(data.AsSpan(0, 2), port);
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(2, 4), baudRate);
+        data[6] = GetMeterPortParityCode(parity);
+        data[7] = saveOnPowerLoss ? (byte)0x01 : (byte)0x00;
+        return BuildDownlinkFrame(
+            MeterManagementRequestAddress,
+            MeterPortPropertyCommand,
+            data,
+            MeterControlProtocolType);
+    }
+
+    /// <summary>
+    /// 将程序内部校验枚举转换为电表 F1/F3 协议编码：0偶、1奇、2无。
+    /// </summary>
+    public static byte GetMeterPortParityCode(SerialPortServerParity parity)
+    {
+        return parity switch
+        {
+            SerialPortServerParity.Even => 0x00,
+            SerialPortServerParity.Odd => 0x01,
+            SerialPortServerParity.None => 0x02,
+            _ => throw new ArgumentOutOfRangeException(nameof(parity), "校验位只支持偶校验、奇校验或无校验。")
+        };
+    }
+
+    /// <summary>
+    /// 构造通用 V2 下行帧。电表 F1/F3 允许地址 0x00，因此不复用旧终端协议的地址限制。
+    /// </summary>
+    private static byte[] BuildDownlinkFrame(
+        byte address,
+        byte commandCode,
+        ReadOnlySpan<byte> data,
+        byte protocolType)
+    {
 
         // 长度字段本身 2 字节，后面包含方向、地址、协议类型、命令码、数据项和校验和。
         int dataLength = 7 + data.Length;
@@ -331,6 +417,123 @@ public sealed class SerialPortServerProtocolV2
     }
 
     /// <summary>
+    /// 解析电表 V2 串口服务器 F3 端口信息应答。
+    /// 上行地址通道不参与校验；数据项1为数据项2长度，数据项2每条记录固定8字节：
+    /// 序号(从0开始) + 端口ushort LE + 波特率uint LE + 校验位。
+    /// 数据位固定为8，停止位固定为1，报文中不重复上传。
+    /// </summary>
+    public bool TryParseMeterPortInformation(
+        ReadOnlySpan<byte> frame,
+        out IReadOnlyList<MeterSerialPortServerPortSetting> settings,
+        out string error)
+    {
+        settings = Array.Empty<MeterSerialPortServerPortSetting>();
+        error = string.Empty;
+
+        if (!TryParseFrame(frame, out SerialPortServerFrame? parsed, out error) || parsed is null)
+        {
+            return false;
+        }
+
+        if (parsed.Direction != UplinkDirection ||
+            parsed.ProtocolType != MeterControlProtocolType ||
+            parsed.CommandCode != MeterPortInformationCommand)
+        {
+            error = $"不是期望的电表串口服务器F3端口信息应答：Direction={parsed.Direction:X2}，Protocol={parsed.ProtocolType:X2}，Command={parsed.CommandCode:X2}。";
+            return false;
+        }
+
+        if (parsed.Data.Length < 2)
+        {
+            error = "F3端口信息应答缺少2字节数据长度。";
+            return false;
+        }
+
+        int portDataLength = BinaryPrimitives.ReadUInt16LittleEndian(parsed.Data.AsSpan(0, 2));
+        int availableLength = parsed.Data.Length - 2;
+        if (portDataLength != availableLength)
+        {
+            error = $"F3端口信息长度不一致，声明={portDataLength}，实际={availableLength}。";
+            return false;
+        }
+
+        const int recordLength = 8;
+        if (portDataLength == 0 || portDataLength % recordLength != 0)
+        {
+            error = $"F3端口信息数据长度必须是{recordLength}的正整数倍，实际={portDataLength}。";
+            return false;
+        }
+
+        List<MeterSerialPortServerPortSetting> parsedSettings = new(portDataLength / recordLength);
+        for (int recordIndex = 0; recordIndex < portDataLength / recordLength; recordIndex++)
+        {
+            int offset = 2 + recordIndex * recordLength;
+            byte sequence = parsed.Data[offset];
+            ushort port = BinaryPrimitives.ReadUInt16LittleEndian(parsed.Data.AsSpan(offset + 1, 2));
+            uint baudRate = BinaryPrimitives.ReadUInt32LittleEndian(parsed.Data.AsSpan(offset + 3, 4));
+            byte parityCode = parsed.Data[offset + 7];
+            if (parityCode > 0x02)
+            {
+                error = $"F3第{recordIndex + 1}条端口信息的校验位编码无效：{parityCode:X2}。";
+                return false;
+            }
+
+            parsedSettings.Add(new MeterSerialPortServerPortSetting(sequence, port, baudRate, parityCode));
+        }
+
+        settings = parsedSettings;
+        return true;
+    }
+
+    /// <summary>
+    /// 校验电表 V2 串口服务器 F1 设置应答。
+    /// F1 成功应答必须原样返回端口、波特率、校验位和断电保存标志；上行地址通道忽略。
+    /// </summary>
+    public bool TryValidateMeterPortPropertyResponse(
+        ReadOnlySpan<byte> frame,
+        ushort expectedPort,
+        uint expectedBaudRate,
+        SerialPortServerParity expectedParity,
+        bool expectedSaveOnPowerLoss,
+        out string error)
+    {
+        error = string.Empty;
+        if (!TryParseFrame(frame, out SerialPortServerFrame? parsed, out error) || parsed is null)
+        {
+            return false;
+        }
+
+        if (parsed.Direction != UplinkDirection ||
+            parsed.ProtocolType != MeterControlProtocolType ||
+            parsed.CommandCode != MeterPortPropertyCommand ||
+            parsed.Data.Length != 8)
+        {
+            error = $"不是期望的电表串口服务器F1设置应答：Direction={parsed.Direction:X2}，Protocol={parsed.ProtocolType:X2}，Command={parsed.CommandCode:X2}，DataLength={parsed.Data.Length}。";
+            return false;
+        }
+
+        ushort actualPort = BinaryPrimitives.ReadUInt16LittleEndian(parsed.Data.AsSpan(0, 2));
+        uint actualBaudRate = BinaryPrimitives.ReadUInt32LittleEndian(parsed.Data.AsSpan(2, 4));
+        byte actualParity = parsed.Data[6];
+        byte actualSaveFlag = parsed.Data[7];
+        byte expectedParityCode = GetMeterPortParityCode(expectedParity);
+        byte expectedSaveFlag = expectedSaveOnPowerLoss ? (byte)0x01 : (byte)0x00;
+
+        if (actualPort != expectedPort ||
+            actualBaudRate != expectedBaudRate ||
+            actualParity != expectedParityCode ||
+            actualSaveFlag != expectedSaveFlag)
+        {
+            error =
+                $"F1设置应答内容不匹配，期望Port={expectedPort},Baud={expectedBaudRate},Parity={expectedParityCode:X2},Save={expectedSaveFlag:X2}；"
+                + $"实际Port={actualPort},Baud={actualBaudRate},Parity={actualParity:X2},Save={actualSaveFlag:X2}。";
+            return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
     /// 解析 FF 0C 读取串口参数的应答。
     /// 每组参数为 4 字节：波特率码、数据位、停止位、校验位。
     /// 由于协议数据没有返回 TCP 端口号，这里按 951 + 通道号生成展示端口。
@@ -510,3 +713,20 @@ public sealed record SerialPortServerPortSetting(
     byte DataBitsCode,
     byte StopBitsCode,
     byte ParityCode);
+
+/// <summary>
+/// 电表 V2 F3 应答中的一条真实端口信息。
+/// 与旧 DF 协议不同，序号从0开始，端口号和波特率由设备直接上传；数据位固定8、停止位固定1。
+/// </summary>
+public sealed record MeterSerialPortServerPortSetting(
+    byte Sequence,
+    ushort Port,
+    uint BaudRate,
+    byte ParityCode)
+{
+    /// <summary>F3协议固定数据位。</summary>
+    public const int DataBits = 8;
+
+    /// <summary>F3协议固定停止位。</summary>
+    public const int StopBits = 1;
+}

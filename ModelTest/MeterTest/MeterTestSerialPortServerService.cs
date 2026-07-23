@@ -7,24 +7,18 @@ namespace ModelTest.MeterTest;
 /// MeterTest 测试前串口服务器波特率同步服务。
 ///
 /// 串口服务器管理端固定连接 IP:64444：
-/// 1. 读取全部 COM 参数；
-/// 2. 将 COM0、COM1……映射为 TCP 端口 951、952……；
-/// 3. 与资产信息中的工位端口和波特率比较；
-/// 4. 只对不一致的通道执行解锁、设置和保存重启。
+/// 1. 使用电表 V2 F3 命令读取设备上传的真实端口、波特率和校验位；
+/// 2. 与资产信息中的工位端口和波特率比较；
+/// 3. 只对不一致端口发送 F1 属性更改命令，并使用断电保存标志。
 /// </summary>
 public sealed class MeterTestSerialPortServerService
 {
     /// <summary>串口服务器管理端口。</summary>
-    public const int ManagementPort = 64444;
-
-    /// <summary>串口服务器板卡地址，协议示例使用 01。</summary>
-    public const byte ServerAddress = 0x01;
+    public const int ManagementPort = SerialPortServerProtocolV2.ManagementPortNumber;
 
     /// <summary>单次管理命令等待应答的超时时间。</summary>
     public const int ResponseTimeoutMilliseconds = 5000;
 
-    private const byte ReadSerialParametersType = 0x0B;
-    private const string UnlockPassword = "admin";
     private readonly SerialPortServerProtocolV2 protocol = new();
 
     /// <summary>
@@ -67,30 +61,25 @@ public sealed class MeterTestSerialPortServerService
             details.Add($"串口服务器管理端连接成功：{ipAddress.Trim()}:{ManagementPort}");
 
             await using NetworkStream stream = client.GetStream();
-            byte[] readRequest = protocol.BuildReadParametersFrame(
-                ServerAddress,
-                ReadSerialParametersType,
-                SerialPortServerProtocolV2.MeterControlProtocolType);
+            byte[] readRequest = protocol.BuildMeterPortInfoReadFrame();
             byte[] readResponse = await SendAndReceiveAsync(stream, readRequest, cancellationToken).ConfigureAwait(false);
-            details.Add($"发送读取参数：{SerialPortServerProtocolV2.ToHexString(readRequest)}");
-            details.Add($"收到读取应答：{SerialPortServerProtocolV2.ToHexString(readResponse)}");
+            details.Add($"发送F3端口信息读取：{SerialPortServerProtocolV2.ToHexString(readRequest)}");
+            details.Add($"收到F3端口信息应答：{SerialPortServerProtocolV2.ToHexString(readResponse)}");
 
-            if (!protocol.TryParseSerialPortParameters(readResponse, out IReadOnlyList<SerialPortServerPortSetting>? settings, out string parseError))
+            if (!protocol.TryParseMeterPortInformation(
+                    readResponse,
+                    out IReadOnlyList<MeterSerialPortServerPortSetting>? settings,
+                    out string parseError))
             {
                 return MeterTestSerialPortServerResult.Fail($"读取串口参数失败：{parseError}", details);
             }
 
-            if (!string.IsNullOrWhiteSpace(parseError))
-            {
-                details.Add($"读取参数提示：{parseError}");
-            }
-
-            Dictionary<int, SerialPortServerPortSetting> settingsByPort = settings
-                .ToDictionary(setting => setting.TcpPort);
-            foreach (SerialPortServerPortSetting setting in settings)
+            Dictionary<int, MeterSerialPortServerPortSetting> settingsByPort = settings
+                .ToDictionary(setting => (int)setting.Port);
+            foreach (MeterSerialPortServerPortSetting setting in settings)
             {
                 details.Add(
-                    $"读取端口 {setting.TcpPort}（COM{setting.Channel}）：{FormatSetting(setting)}");
+                    $"读取端口 {setting.Port}（序号{setting.Sequence}）：{FormatSetting(setting)}");
             }
 
             List<MeterTestSerialPortBaudUpdate> mismatches = updates
@@ -99,7 +88,7 @@ public sealed class MeterTestSerialPortServerService
 
             foreach (MeterTestSerialPortBaudUpdate update in updates.Where(update => IsSettingMatched(settingsByPort, update)))
             {
-                SerialPortServerPortSetting current = settingsByPort[update.Port];
+                MeterSerialPortServerPortSetting current = settingsByPort[update.Port];
                 details.Add(
                     $"工位{update.StationNo} 端口 {update.Port} 波特率一致，无需修改：{FormatSetting(current)}");
             }
@@ -110,36 +99,30 @@ public sealed class MeterTestSerialPortServerService
             }
 
             details.Add($"检测到 {mismatches.Count} 个端口参数不一致，开始修改。");
-            byte[] unlockRequest = protocol.BuildUnlockFrame(
-                ServerAddress,
-                UnlockPassword,
-                SerialPortServerProtocolV2.MeterControlProtocolType);
-            byte[] unlockResponse = await SendAndReceiveAsync(stream, unlockRequest, cancellationToken).ConfigureAwait(false);
-            details.Add($"发送解锁：{SerialPortServerProtocolV2.ToHexString(unlockRequest)}");
-            details.Add($"收到解锁应答：{SerialPortServerProtocolV2.ToHexString(unlockResponse)}");
-            EnsureAck(unlockResponse, 0x02, "解锁");
-
             foreach (MeterTestSerialPortBaudUpdate update in mismatches)
             {
-                byte[] setRequest = protocol.BuildSetBaudRateFrame(
-                    ServerAddress,
-                    (byte)update.Channel,
-                    update.BaudRate,
-                    update.DataBits,
-                    update.StopBits,
+                byte[] setRequest = protocol.BuildMeterPortPropertyChangeFrame(
+                    (ushort)update.Port,
+                    (uint)update.BaudRate,
                     update.Parity,
-                    applyImmediately: true,
-                    protocolType: SerialPortServerProtocolV2.MeterControlProtocolType);
+                    saveOnPowerLoss: true);
                 byte[] setResponse = await SendAndReceiveAsync(stream, setRequest, cancellationToken).ConfigureAwait(false);
                 details.Add(
-                    $"工位{update.StationNo} 端口 {update.Port} 修改为 {update.BaudRateProfile}，发送：{SerialPortServerProtocolV2.ToHexString(setRequest)}");
-                details.Add($"收到设置应答：{SerialPortServerProtocolV2.ToHexString(setResponse)}");
-                EnsureAck(setResponse, 0x0B, $"设置端口 {update.Port} 波特率");
+                    $"工位{update.StationNo} 端口 {update.Port} 修改为 {update.BaudRateProfile}，发送F1：{SerialPortServerProtocolV2.ToHexString(setRequest)}");
+                details.Add($"收到F1设置应答：{SerialPortServerProtocolV2.ToHexString(setResponse)}");
+                if (!protocol.TryValidateMeterPortPropertyResponse(
+                        setResponse,
+                        (ushort)update.Port,
+                        (uint)update.BaudRate,
+                        update.Parity,
+                        expectedSaveOnPowerLoss: true,
+                        out string ackError))
+                {
+                    throw new InvalidOperationException($"设置端口 {update.Port} 属性应答校验失败：{ackError}");
+                }
             }
 
-            // 设置报文使用 0x01“立即生效”，因此这里不再发送 FF 0D 保存重启，
-            // 避免串口服务器重启导致当前管理连接断开，也不需要额外重连。
-            return MeterTestSerialPortServerResult.Succeeded("串口服务器波特率修改完成，参数已立即生效。", details);
+            return MeterTestSerialPortServerResult.Succeeded("串口服务器端口属性修改完成，F1已按断电保存方式设置。", details);
         }
         catch (OperationCanceledException)
         {
@@ -161,11 +144,10 @@ public sealed class MeterTestSerialPortServerService
         List<MeterTestSerialPortBaudUpdate> updates = new();
         foreach (MeterTestSerialPortBaudRequirement requirement in requirements)
         {
-            int channel = requirement.Port - SerialPortServerProtocolV2.FirstMappedTcpPort;
-            if (channel < 0 || channel >= SerialPortServerProtocolV2.DefaultComPortCount)
+            if (requirement.Port is < 1 or > 65535 || requirement.Port == ManagementPort)
             {
                 throw new InvalidOperationException(
-                    $"工位{requirement.StationNo} 端口 {requirement.Port} 不在串口服务器端口映射范围 951-{SerialPortServerProtocolV2.FirstMappedTcpPort + SerialPortServerProtocolV2.DefaultComPortCount - 1} 内。");
+                    $"工位{requirement.StationNo} 端口 {requirement.Port} 无效，端口必须是1-65535且不能是管理端口64444。");
             }
 
             if (!TryParseBaudRateProfile(requirement.BaudRate, out BaudRateProfile? profile, out string error))
@@ -176,10 +158,7 @@ public sealed class MeterTestSerialPortServerService
             MeterTestSerialPortBaudUpdate update = new(
                 requirement.StationNo,
                 requirement.Port,
-                channel,
                 profile.BaudRate,
-                profile.DataBits,
-                profile.StopBits,
                 profile.Parity,
                 profile.DisplayText);
 
@@ -205,18 +184,16 @@ public sealed class MeterTestSerialPortServerService
     /// 判断串口服务器当前参数是否符合资产信息中的目标波特率。
     /// </summary>
     private static bool IsSettingMatched(
-        IReadOnlyDictionary<int, SerialPortServerPortSetting> settingsByPort,
+        IReadOnlyDictionary<int, MeterSerialPortServerPortSetting> settingsByPort,
         MeterTestSerialPortBaudUpdate update)
     {
-        if (!settingsByPort.TryGetValue(update.Port, out SerialPortServerPortSetting? current))
+        if (!settingsByPort.TryGetValue(update.Port, out MeterSerialPortServerPortSetting? current))
         {
             return false;
         }
 
-        return current.BaudRate == update.BaudRate &&
-               current.DataBitsCode == (update.DataBits == 7 ? 0x00 : 0x01) &&
-               current.StopBitsCode == (update.StopBits == 1 ? 0x00 : 0x01) &&
-               current.ParityCode == (byte)update.Parity;
+        return current.BaudRate == (uint)update.BaudRate &&
+               current.ParityCode == SerialPortServerProtocolV2.GetMeterPortParityCode(update.Parity);
     }
 
     /// <summary>
@@ -307,48 +284,20 @@ public sealed class MeterTestSerialPortServerService
     }
 
     /// <summary>
-    /// 校验设置类命令的上行应答是否返回了原命令数据项。
+    /// 将 F3 当前端口参数格式化为资产信息中使用的可读格式。
+    /// F3 不上传数据位和停止位，按协议固定值展示为8位数据、1位停止位。
     /// </summary>
-    private static void EnsureAck(
-        byte[] response,
-        byte expectedDataItem,
-        string operation,
-        byte expectedProtocolType = SerialPortServerProtocolV2.MeterControlProtocolType)
+    private static string FormatSetting(MeterSerialPortServerPortSetting setting)
     {
-        SerialPortServerProtocolV2 protocol = new();
-        if (!protocol.TryParseFrame(response, out SerialPortServerFrame? parsed, out string error) ||
-            parsed is null)
-        {
-            throw new InvalidOperationException($"{operation}应答解析失败：{error}");
-        }
-
-        if (parsed.Direction != SerialPortServerProtocolV2.UplinkDirection ||
-            parsed.ProtocolType != expectedProtocolType ||
-            parsed.CommandCode != SerialPortServerProtocolV2.SerialServerCommand ||
-            parsed.Data.Length < 2 ||
-            parsed.Data[0] != 0xFF ||
-            parsed.Data[1] != expectedDataItem)
-        {
-            throw new InvalidOperationException($"{operation}应答内容不匹配。");
-        }
-    }
-
-    /// <summary>
-    /// 将当前通道参数格式化为可读日志。
-    /// </summary>
-    private static string FormatSetting(SerialPortServerPortSetting setting)
-    {
-        string baud = setting.BaudRate?.ToString() ?? $"未知(码={setting.BaudRateCode:X2})";
-        string dataBits = setting.DataBitsCode == 0x00 ? "7" : setting.DataBitsCode == 0x01 ? "8" : $"未知({setting.DataBitsCode:X2})";
-        string stopBits = setting.StopBitsCode == 0x00 ? "1" : setting.StopBitsCode == 0x01 ? "2" : $"未知({setting.StopBitsCode:X2})";
+        string baud = setting.BaudRate == 0 ? "未接硬件(0)" : setting.BaudRate.ToString();
         string parity = setting.ParityCode switch
         {
-            0x00 => "N",
-            0x01 => "E",
-            0x02 => "O",
+            0x00 => "E",
+            0x01 => "O",
+            0x02 => "N",
             _ => $"未知({setting.ParityCode:X2})"
         };
-        return $"{baud}-{dataBits}-{parity}-{stopBits}";
+        return $"{baud}-{MeterSerialPortServerPortSetting.DataBits}-{parity}-{MeterSerialPortServerPortSetting.StopBits}";
     }
 
     /// <summary>
@@ -386,19 +335,16 @@ public sealed class MeterTestSerialPortServerService
             return false;
         }
 
-        try
+        if (baudRate <= 0)
         {
-            SerialPortServerProtocolV2.GetBaudRateCode(baudRate);
-        }
-        catch (ArgumentOutOfRangeException)
-        {
-            error = $"不支持波特率 {baudRate}。";
+            error = "波特率必须大于0。";
             return false;
         }
 
-        if (dataBits is not (7 or 8) || stopBits is not (1 or 2))
+        if (dataBits != MeterSerialPortServerPortSetting.DataBits ||
+            stopBits != MeterSerialPortServerPortSetting.StopBits)
         {
-            error = "数据位只支持 7/8，停止位只支持 1/2。";
+            error = "电表V2串口服务器协议固定为8位数据、1位停止位，格式必须为 波特率-8-校验位-1。";
             return false;
         }
 
@@ -451,9 +397,6 @@ public sealed record MeterTestSerialPortServerResult(
 internal sealed record MeterTestSerialPortBaudUpdate(
     int StationNo,
     int Port,
-    int Channel,
     int BaudRate,
-    int DataBits,
-    int StopBits,
     SerialPortServerParity Parity,
     string BaudRateProfile);

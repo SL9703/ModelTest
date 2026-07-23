@@ -94,6 +94,33 @@
             btnStartBasicErrorTest = new Button();
             btnGetBasicErrorTestResult = new Button();
             labelBasicErrorHint = new Label();
+            groupBoxDeviceCommunicationBoard = new GroupBox();
+            labelDeviceBoardAddress = new Label();
+            tbxDeviceBoardAddress = new TextBox();
+            labelDeviceBoardAddressHint = new Label();
+            labelDeviceBoardMeterCategory = new Label();
+            cbxDeviceBoardMeterCategory = new ComboBox();
+            btnSetDeviceBoardMeterCategory = new Button();
+            labelDeviceBoardRunLamp = new Label();
+            cbxDeviceBoardRunLamp = new ComboBox();
+            btnSetDeviceBoardRunLamp = new Button();
+            labelDeviceBoardConnectionMode = new Label();
+            cbxDeviceBoardConnectionSource = new ComboBox();
+            cbxDeviceBoardConnectionMode = new ComboBox();
+            btnSetDeviceBoardConnectionMode = new Button();
+            labelDeviceBoardNeutralCurrent = new Label();
+            cbxDeviceBoardNeutralSource = new ComboBox();
+            cbxDeviceBoardNeutralMode = new ComboBox();
+            btnSetDeviceBoardNeutralMode = new Button();
+            labelDeviceBoardHint = new Label();
+            groupBoxCreepingRegisterTest = new GroupBox();
+            labelCreepingPulseCount = new Label();
+            tbxCreepingPulseCount = new TextBox();
+            labelCreepingTime = new Label();
+            tbxCreepingTime = new TextBox();
+            btnStartCreepingTest = new Button();
+            btnGetCreepingTestResult = new Button();
+            labelCreepingResult = new Label();
             groupBox3 = new GroupBox();
             label4 = new Label();
             tbxMeterV2Addr = new TextBox();
@@ -106,6 +133,8 @@
             groupBoxStationDetection.SuspendLayout();
             groupBoxMotorCrimping.SuspendLayout();
             groupBoxBasicErrorTest.SuspendLayout();
+            groupBoxDeviceCommunicationBoard.SuspendLayout();
+            groupBoxCreepingRegisterTest.SuspendLayout();
             groupBox3.SuspendLayout();
             SuspendLayout();
             // 
@@ -194,6 +223,8 @@
             // 
             // panel1
             // 
+            panel1.Controls.Add(groupBoxDeviceCommunicationBoard);
+            panel1.Controls.Add(groupBoxCreepingRegisterTest);
             panel1.Controls.Add(groupBoxBasicErrorTest);
             panel1.Controls.Add(groupBoxMotorCrimping);
             panel1.Controls.Add(groupBoxStationDetection);
@@ -799,6 +830,288 @@
             labelBasicErrorHint.Text = "0x38/0x21 二选一，默认 0x38；0x38 需要填写脉冲数(1-99)和次数(1-10)。"
                 + "\r\n若选择“有功+无功”，会分别按有功和无功发送并获取结果。";
             // 
+            // groupBoxDeviceCommunicationBoard
+            // 
+            groupBoxDeviceCommunicationBoard.Controls.Add(labelDeviceBoardHint);
+            groupBoxDeviceCommunicationBoard.Controls.Add(btnSetDeviceBoardNeutralMode);
+            groupBoxDeviceCommunicationBoard.Controls.Add(cbxDeviceBoardNeutralMode);
+            groupBoxDeviceCommunicationBoard.Controls.Add(cbxDeviceBoardNeutralSource);
+            groupBoxDeviceCommunicationBoard.Controls.Add(labelDeviceBoardNeutralCurrent);
+            groupBoxDeviceCommunicationBoard.Controls.Add(btnSetDeviceBoardConnectionMode);
+            groupBoxDeviceCommunicationBoard.Controls.Add(cbxDeviceBoardConnectionMode);
+            groupBoxDeviceCommunicationBoard.Controls.Add(cbxDeviceBoardConnectionSource);
+            groupBoxDeviceCommunicationBoard.Controls.Add(labelDeviceBoardConnectionMode);
+            groupBoxDeviceCommunicationBoard.Controls.Add(btnSetDeviceBoardRunLamp);
+            groupBoxDeviceCommunicationBoard.Controls.Add(cbxDeviceBoardRunLamp);
+            groupBoxDeviceCommunicationBoard.Controls.Add(labelDeviceBoardRunLamp);
+            groupBoxDeviceCommunicationBoard.Controls.Add(btnSetDeviceBoardMeterCategory);
+            groupBoxDeviceCommunicationBoard.Controls.Add(cbxDeviceBoardMeterCategory);
+            groupBoxDeviceCommunicationBoard.Controls.Add(labelDeviceBoardMeterCategory);
+            groupBoxDeviceCommunicationBoard.Controls.Add(labelDeviceBoardAddressHint);
+            groupBoxDeviceCommunicationBoard.Controls.Add(tbxDeviceBoardAddress);
+            groupBoxDeviceCommunicationBoard.Controls.Add(labelDeviceBoardAddress);
+            groupBoxDeviceCommunicationBoard.Location = new Point(1020, 314);
+            groupBoxDeviceCommunicationBoard.Name = "groupBoxDeviceCommunicationBoard";
+            groupBoxDeviceCommunicationBoard.Size = new Size(1170, 344);
+            groupBoxDeviceCommunicationBoard.TabIndex = 7;
+            groupBoxDeviceCommunicationBoard.TabStop = false;
+            groupBoxDeviceCommunicationBoard.Text = "装置通信板";
+            // 
+            // labelDeviceBoardAddress
+            // 
+            labelDeviceBoardAddress.AutoSize = true;
+            labelDeviceBoardAddress.Location = new Point(20, 42);
+            labelDeviceBoardAddress.Name = "labelDeviceBoardAddress";
+            labelDeviceBoardAddress.Size = new Size(128, 28);
+            labelDeviceBoardAddress.TabIndex = 0;
+            labelDeviceBoardAddress.Text = "通信板地址";
+            // 
+            // tbxDeviceBoardAddress
+            // 
+            tbxDeviceBoardAddress.Location = new Point(180, 38);
+            tbxDeviceBoardAddress.Name = "tbxDeviceBoardAddress";
+            tbxDeviceBoardAddress.Size = new Size(150, 34);
+            tbxDeviceBoardAddress.TabIndex = 1;
+            tbxDeviceBoardAddress.Text = "00";
+            // 
+            // labelDeviceBoardAddressHint
+            // 
+            labelDeviceBoardAddressHint.AutoSize = true;
+            labelDeviceBoardAddressHint.ForeColor = Color.FromArgb(255, 255, 192);
+            labelDeviceBoardAddressHint.Location = new Point(350, 42);
+            labelDeviceBoardAddressHint.Name = "labelDeviceBoardAddressHint";
+            labelDeviceBoardAddressHint.Size = new Size(358, 28);
+            labelDeviceBoardAddressHint.TabIndex = 2;
+            labelDeviceBoardAddressHint.Text = "00：装置通信板；FF：广播全部设备";
+            // 
+            // labelDeviceBoardMeterCategory
+            // 
+            labelDeviceBoardMeterCategory.AutoSize = true;
+            labelDeviceBoardMeterCategory.Location = new Point(20, 94);
+            labelDeviceBoardMeterCategory.Name = "labelDeviceBoardMeterCategory";
+            labelDeviceBoardMeterCategory.Size = new Size(150, 28);
+            labelDeviceBoardMeterCategory.TabIndex = 3;
+            labelDeviceBoardMeterCategory.Text = "当前电表类别";
+            // 
+            // cbxDeviceBoardMeterCategory
+            // 
+            cbxDeviceBoardMeterCategory.DropDownStyle = ComboBoxStyle.DropDownList;
+            cbxDeviceBoardMeterCategory.FormattingEnabled = true;
+            cbxDeviceBoardMeterCategory.Items.AddRange(new object[] { "0x01-单相", "0x02-三相四线", "0x03-三相三线" });
+            cbxDeviceBoardMeterCategory.Location = new Point(180, 90);
+            cbxDeviceBoardMeterCategory.Name = "cbxDeviceBoardMeterCategory";
+            cbxDeviceBoardMeterCategory.Size = new Size(300, 36);
+            cbxDeviceBoardMeterCategory.TabIndex = 4;
+            // 
+            // btnSetDeviceBoardMeterCategory
+            // 
+            btnSetDeviceBoardMeterCategory.Location = new Point(510, 86);
+            btnSetDeviceBoardMeterCategory.Name = "btnSetDeviceBoardMeterCategory";
+            btnSetDeviceBoardMeterCategory.Size = new Size(190, 44);
+            btnSetDeviceBoardMeterCategory.TabIndex = 5;
+            btnSetDeviceBoardMeterCategory.Text = "设置电表类别";
+            btnSetDeviceBoardMeterCategory.UseVisualStyleBackColor = true;
+            btnSetDeviceBoardMeterCategory.Click += btnSetDeviceBoardMeterCategory_Click;
+            // 
+            // labelDeviceBoardRunLamp
+            // 
+            labelDeviceBoardRunLamp.AutoSize = true;
+            labelDeviceBoardRunLamp.Location = new Point(20, 146);
+            labelDeviceBoardRunLamp.Name = "labelDeviceBoardRunLamp";
+            labelDeviceBoardRunLamp.Size = new Size(128, 28);
+            labelDeviceBoardRunLamp.TabIndex = 6;
+            labelDeviceBoardRunLamp.Text = "运行指示灯";
+            // 
+            // cbxDeviceBoardRunLamp
+            // 
+            cbxDeviceBoardRunLamp.DropDownStyle = ComboBoxStyle.DropDownList;
+            cbxDeviceBoardRunLamp.FormattingEnabled = true;
+            cbxDeviceBoardRunLamp.Items.AddRange(new object[] { "0x01-测试中", "0x02-测试合格", "0x03-测试不合格/出错", "0x04-关闭", "0x05-复位" });
+            cbxDeviceBoardRunLamp.Location = new Point(180, 142);
+            cbxDeviceBoardRunLamp.Name = "cbxDeviceBoardRunLamp";
+            cbxDeviceBoardRunLamp.Size = new Size(300, 36);
+            cbxDeviceBoardRunLamp.TabIndex = 7;
+            // 
+            // btnSetDeviceBoardRunLamp
+            // 
+            btnSetDeviceBoardRunLamp.Location = new Point(510, 138);
+            btnSetDeviceBoardRunLamp.Name = "btnSetDeviceBoardRunLamp";
+            btnSetDeviceBoardRunLamp.Size = new Size(190, 44);
+            btnSetDeviceBoardRunLamp.TabIndex = 8;
+            btnSetDeviceBoardRunLamp.Text = "设置运行灯";
+            btnSetDeviceBoardRunLamp.UseVisualStyleBackColor = true;
+            btnSetDeviceBoardRunLamp.Click += btnSetDeviceBoardRunLamp_Click;
+            // 
+            // labelDeviceBoardConnectionMode
+            // 
+            labelDeviceBoardConnectionMode.AutoSize = true;
+            labelDeviceBoardConnectionMode.Location = new Point(20, 198);
+            labelDeviceBoardConnectionMode.Name = "labelDeviceBoardConnectionMode";
+            labelDeviceBoardConnectionMode.Size = new Size(128, 28);
+            labelDeviceBoardConnectionMode.TabIndex = 9;
+            labelDeviceBoardConnectionMode.Text = "台体接线模式";
+            // 
+            // cbxDeviceBoardConnectionSource
+            // 
+            cbxDeviceBoardConnectionSource.DropDownStyle = ComboBoxStyle.DropDownList;
+            cbxDeviceBoardConnectionSource.FormattingEnabled = true;
+            cbxDeviceBoardConnectionSource.Items.AddRange(new object[] { "0x01-PC控制", "0xFF-恢复旋钮检测", "0xAA-读取旋钮状态" });
+            cbxDeviceBoardConnectionSource.Location = new Point(180, 194);
+            cbxDeviceBoardConnectionSource.Name = "cbxDeviceBoardConnectionSource";
+            cbxDeviceBoardConnectionSource.Size = new Size(250, 36);
+            cbxDeviceBoardConnectionSource.TabIndex = 10;
+            cbxDeviceBoardConnectionSource.SelectedIndexChanged += cbxDeviceBoardConnectionSource_SelectedIndexChanged;
+            // 
+            // cbxDeviceBoardConnectionMode
+            // 
+            cbxDeviceBoardConnectionMode.DropDownStyle = ComboBoxStyle.DropDownList;
+            cbxDeviceBoardConnectionMode.FormattingEnabled = true;
+            cbxDeviceBoardConnectionMode.Items.AddRange(new object[] { "0x01-三相直接式", "0x02-三相互感式", "0x03-单相" });
+            cbxDeviceBoardConnectionMode.Location = new Point(450, 194);
+            cbxDeviceBoardConnectionMode.Name = "cbxDeviceBoardConnectionMode";
+            cbxDeviceBoardConnectionMode.Size = new Size(260, 36);
+            cbxDeviceBoardConnectionMode.TabIndex = 11;
+            // 
+            // btnSetDeviceBoardConnectionMode
+            // 
+            btnSetDeviceBoardConnectionMode.Location = new Point(740, 190);
+            btnSetDeviceBoardConnectionMode.Name = "btnSetDeviceBoardConnectionMode";
+            btnSetDeviceBoardConnectionMode.Size = new Size(210, 44);
+            btnSetDeviceBoardConnectionMode.TabIndex = 12;
+            btnSetDeviceBoardConnectionMode.Text = "设置/读取接线模式";
+            btnSetDeviceBoardConnectionMode.UseVisualStyleBackColor = true;
+            btnSetDeviceBoardConnectionMode.Click += btnSetDeviceBoardConnectionMode_Click;
+            // 
+            // labelDeviceBoardNeutralCurrent
+            // 
+            labelDeviceBoardNeutralCurrent.AutoSize = true;
+            labelDeviceBoardNeutralCurrent.Location = new Point(20, 250);
+            labelDeviceBoardNeutralCurrent.Name = "labelDeviceBoardNeutralCurrent";
+            labelDeviceBoardNeutralCurrent.Size = new Size(128, 28);
+            labelDeviceBoardNeutralCurrent.TabIndex = 13;
+            labelDeviceBoardNeutralCurrent.Text = "零线电流模式";
+            // 
+            // cbxDeviceBoardNeutralSource
+            // 
+            cbxDeviceBoardNeutralSource.DropDownStyle = ComboBoxStyle.DropDownList;
+            cbxDeviceBoardNeutralSource.FormattingEnabled = true;
+            cbxDeviceBoardNeutralSource.Items.AddRange(new object[] { "0x01-PC控制", "0xFF-恢复旋钮检测" });
+            cbxDeviceBoardNeutralSource.Location = new Point(180, 246);
+            cbxDeviceBoardNeutralSource.Name = "cbxDeviceBoardNeutralSource";
+            cbxDeviceBoardNeutralSource.Size = new Size(250, 36);
+            cbxDeviceBoardNeutralSource.TabIndex = 14;
+            cbxDeviceBoardNeutralSource.SelectedIndexChanged += cbxDeviceBoardNeutralSource_SelectedIndexChanged;
+            // 
+            // cbxDeviceBoardNeutralMode
+            // 
+            cbxDeviceBoardNeutralMode.DropDownStyle = ComboBoxStyle.DropDownList;
+            cbxDeviceBoardNeutralMode.FormattingEnabled = true;
+            cbxDeviceBoardNeutralMode.Items.AddRange(new object[] { "0x01-相电流", "0x02-切换到零线" });
+            cbxDeviceBoardNeutralMode.Location = new Point(450, 246);
+            cbxDeviceBoardNeutralMode.Name = "cbxDeviceBoardNeutralMode";
+            cbxDeviceBoardNeutralMode.Size = new Size(260, 36);
+            cbxDeviceBoardNeutralMode.TabIndex = 15;
+            // 
+            // btnSetDeviceBoardNeutralMode
+            // 
+            btnSetDeviceBoardNeutralMode.Location = new Point(740, 242);
+            btnSetDeviceBoardNeutralMode.Name = "btnSetDeviceBoardNeutralMode";
+            btnSetDeviceBoardNeutralMode.Size = new Size(210, 44);
+            btnSetDeviceBoardNeutralMode.TabIndex = 16;
+            btnSetDeviceBoardNeutralMode.Text = "设置零线电流模式";
+            btnSetDeviceBoardNeutralMode.UseVisualStyleBackColor = true;
+            btnSetDeviceBoardNeutralMode.Click += btnSetDeviceBoardNeutralMode_Click;
+            // 
+            // labelDeviceBoardHint
+            // 
+            labelDeviceBoardHint.AutoSize = false;
+            labelDeviceBoardHint.ForeColor = Color.FromArgb(255, 255, 192);
+            labelDeviceBoardHint.Location = new Point(20, 296);
+            labelDeviceBoardHint.Name = "labelDeviceBoardHint";
+            labelDeviceBoardHint.Size = new Size(1120, 36);
+            labelDeviceBoardHint.TabIndex = 17;
+            labelDeviceBoardHint.Text = "0x82/0x83 选择PC控制后会停止旋钮检测；选择恢复旋钮检测后，设备重新按柜体旋钮状态切换。";
+            // 
+            // groupBoxCreepingRegisterTest
+            // 
+            groupBoxCreepingRegisterTest.Controls.Add(labelCreepingResult);
+            groupBoxCreepingRegisterTest.Controls.Add(btnGetCreepingTestResult);
+            groupBoxCreepingRegisterTest.Controls.Add(btnStartCreepingTest);
+            groupBoxCreepingRegisterTest.Controls.Add(tbxCreepingTime);
+            groupBoxCreepingRegisterTest.Controls.Add(labelCreepingTime);
+            groupBoxCreepingRegisterTest.Controls.Add(tbxCreepingPulseCount);
+            groupBoxCreepingRegisterTest.Controls.Add(labelCreepingPulseCount);
+            groupBoxCreepingRegisterTest.Location = new Point(1020, 676);
+            groupBoxCreepingRegisterTest.Name = "groupBoxCreepingRegisterTest";
+            groupBoxCreepingRegisterTest.Size = new Size(1170, 174);
+            groupBoxCreepingRegisterTest.TabIndex = 8;
+            groupBoxCreepingRegisterTest.TabStop = false;
+            groupBoxCreepingRegisterTest.Text = "潜动走字试验";
+            // 
+            // labelCreepingPulseCount
+            // 
+            labelCreepingPulseCount.AutoSize = true;
+            labelCreepingPulseCount.Location = new Point(20, 48);
+            labelCreepingPulseCount.Name = "labelCreepingPulseCount";
+            labelCreepingPulseCount.Size = new Size(82, 28);
+            labelCreepingPulseCount.TabIndex = 0;
+            labelCreepingPulseCount.Text = "脉冲数";
+            // 
+            // tbxCreepingPulseCount
+            // 
+            tbxCreepingPulseCount.Location = new Point(110, 42);
+            tbxCreepingPulseCount.Name = "tbxCreepingPulseCount";
+            tbxCreepingPulseCount.Size = new Size(120, 34);
+            tbxCreepingPulseCount.TabIndex = 1;
+            tbxCreepingPulseCount.Text = "1";
+            // 
+            // labelCreepingTime
+            // 
+            labelCreepingTime.AutoSize = true;
+            labelCreepingTime.Location = new Point(260, 48);
+            labelCreepingTime.Name = "labelCreepingTime";
+            labelCreepingTime.Size = new Size(105, 28);
+            labelCreepingTime.TabIndex = 2;
+            labelCreepingTime.Text = "时间（秒）";
+            // 
+            // tbxCreepingTime
+            // 
+            tbxCreepingTime.Location = new Point(375, 42);
+            tbxCreepingTime.Name = "tbxCreepingTime";
+            tbxCreepingTime.Size = new Size(140, 34);
+            tbxCreepingTime.TabIndex = 3;
+            tbxCreepingTime.Text = "60";
+            // 
+            // btnStartCreepingTest
+            // 
+            btnStartCreepingTest.Location = new Point(550, 36);
+            btnStartCreepingTest.Name = "btnStartCreepingTest";
+            btnStartCreepingTest.Size = new Size(170, 46);
+            btnStartCreepingTest.TabIndex = 4;
+            btnStartCreepingTest.Text = "开始潜动走字";
+            btnStartCreepingTest.UseVisualStyleBackColor = true;
+            btnStartCreepingTest.Click += btnStartCreepingTest_Click;
+            // 
+            // btnGetCreepingTestResult
+            // 
+            btnGetCreepingTestResult.Location = new Point(740, 36);
+            btnGetCreepingTestResult.Name = "btnGetCreepingTestResult";
+            btnGetCreepingTestResult.Size = new Size(190, 46);
+            btnGetCreepingTestResult.TabIndex = 5;
+            btnGetCreepingTestResult.Text = "获取潜动结果";
+            btnGetCreepingTestResult.UseVisualStyleBackColor = true;
+            btnGetCreepingTestResult.Click += btnGetCreepingTestResult_Click;
+            // 
+            // labelCreepingResult
+            // 
+            labelCreepingResult.BorderStyle = BorderStyle.FixedSingle;
+            labelCreepingResult.Location = new Point(20, 98);
+            labelCreepingResult.Name = "labelCreepingResult";
+            labelCreepingResult.Size = new Size(1110, 52);
+            labelCreepingResult.TabIndex = 6;
+            labelCreepingResult.Text = "累计结果：未获取";
+            labelCreepingResult.TextAlign = ContentAlignment.MiddleLeft;
+            // 
             // groupBox3
             // 
             groupBox3.Controls.Add(tbxMeterV2Addr);
@@ -853,6 +1166,10 @@
             groupBoxMotorCrimping.ResumeLayout(false);
             groupBoxBasicErrorTest.ResumeLayout(false);
             groupBoxBasicErrorTest.PerformLayout();
+            groupBoxDeviceCommunicationBoard.ResumeLayout(false);
+            groupBoxDeviceCommunicationBoard.PerformLayout();
+            groupBoxCreepingRegisterTest.ResumeLayout(false);
+            groupBoxCreepingRegisterTest.PerformLayout();
             groupBox3.ResumeLayout(false);
             groupBox3.PerformLayout();
             ResumeLayout(false);
@@ -929,5 +1246,32 @@
         private Button btnStartBasicErrorTest;
         private Button btnGetBasicErrorTestResult;
         private Label labelBasicErrorHint;
+        private GroupBox groupBoxDeviceCommunicationBoard;
+        private Label labelDeviceBoardAddress;
+        private TextBox tbxDeviceBoardAddress;
+        private Label labelDeviceBoardAddressHint;
+        private Label labelDeviceBoardMeterCategory;
+        private ComboBox cbxDeviceBoardMeterCategory;
+        private Button btnSetDeviceBoardMeterCategory;
+        private Label labelDeviceBoardRunLamp;
+        private ComboBox cbxDeviceBoardRunLamp;
+        private Button btnSetDeviceBoardRunLamp;
+        private Label labelDeviceBoardConnectionMode;
+        private ComboBox cbxDeviceBoardConnectionSource;
+        private ComboBox cbxDeviceBoardConnectionMode;
+        private Button btnSetDeviceBoardConnectionMode;
+        private Label labelDeviceBoardNeutralCurrent;
+        private ComboBox cbxDeviceBoardNeutralSource;
+        private ComboBox cbxDeviceBoardNeutralMode;
+        private Button btnSetDeviceBoardNeutralMode;
+        private Label labelDeviceBoardHint;
+        private GroupBox groupBoxCreepingRegisterTest;
+        private Label labelCreepingPulseCount;
+        private TextBox tbxCreepingPulseCount;
+        private Label labelCreepingTime;
+        private TextBox tbxCreepingTime;
+        private Button btnStartCreepingTest;
+        private Button btnGetCreepingTestResult;
+        private Label labelCreepingResult;
     }
 }

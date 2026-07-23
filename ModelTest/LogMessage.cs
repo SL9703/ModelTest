@@ -58,25 +58,15 @@ namespace ModelTest
         public static void TestLog(string? ex, string testName) => Instance.WriteTestLog(ex?.ToString(), testName);
 
         /// <summary>
-        /// MeterTest 工位通信日志，按 IP、端口和工位号独立保存。
-        /// </summary>
-        public static void MeterTestStationLog(string ip, int port, int stationNo, string? message)
-            => Instance.WriteMeterTestStationLog(ip, port, stationNo, message);
-
-        /// <summary>
-        /// MeterTest 工位通信日志，按测试项和工位号独立保存。
+        /// MeterTest 工位通信日志，按父级TestItem和工位号独立保存。
+        /// testItemName不得传入TestSubItem名称，所有子步骤必须追加到同一个TestItem文件。
         /// </summary>
         public static void MeterTestStationLog(string testItemName, int stationNo, string? message)
             => Instance.WriteMeterTestStationLog(testItemName, stationNo, message);
 
         /// <summary>
-        /// MeterTest 工位通信日志原样写入，调用方负责组织时间和分隔线格式。
-        /// </summary>
-        public static void MeterTestStationRawLog(string ip, int port, int stationNo, string? message)
-            => Instance.WriteMeterTestStationRawLog(ip, port, stationNo, message);
-
-        /// <summary>
-        /// MeterTest 工位通信日志原样写入，按测试项和工位号独立保存。
+        /// MeterTest 工位通信日志原样写入，按父级TestItem和工位号独立保存。
+        /// testItemName不得传入TestSubItem名称。
         /// </summary>
         public static void MeterTestStationRawLog(string testItemName, int stationNo, string? message)
             => Instance.WriteMeterTestStationRawLog(testItemName, stationNo, message);
@@ -100,36 +90,12 @@ namespace ModelTest
             AppendLine(logPath, logMessage);
         }
 
-        private void WriteMeterTestStationLog(string ip, int port, int stationNo, string? message)
-        {
-            DateTime now = DateTime.Now;
-            string safeIp = SanitizeFileName(ip);
-            string safeFileName = SanitizeFileName($"{safeIp}_{port}工位{stationNo}");
-            string logDirectory = Path.Combine(_baseLogDirectory, "TextLog");
-            EnsureLogDirectoryExists(logDirectory);
-
-            string logPath = Path.Combine(logDirectory, $"{safeFileName}.log");
-            string logMessage = $"[{now:yyyy-MM-dd HH:mm:ss:fff}] - {message}";
-            AppendLine(logPath, logMessage);
-        }
-
         private void WriteMeterTestStationLog(string testItemName, int stationNo, string? message)
         {
             DateTime now = DateTime.Now;
             string logPath = GetMeterTestStationLogPath(testItemName, stationNo, now);
             string logMessage = $"[{now:yyyy-MM-dd HH:mm:ss:fff}] - {message}";
             AppendLine(logPath, logMessage);
-        }
-
-        private void WriteMeterTestStationRawLog(string ip, int port, int stationNo, string? message)
-        {
-            string safeIp = SanitizeFileName(ip);
-            string safeFileName = SanitizeFileName($"{safeIp}_{port}工位{stationNo}");
-            string logDirectory = Path.Combine(_baseLogDirectory, "TextLog");
-            EnsureLogDirectoryExists(logDirectory);
-
-            string logPath = Path.Combine(logDirectory, $"{safeFileName}.log");
-            AppendLine(logPath, message ?? string.Empty);
         }
 
         private void WriteMeterTestStationRawLog(string testItemName, int stationNo, string? message)
@@ -170,6 +136,7 @@ namespace ModelTest
                 now.ToString("dd"));
 
             EnsureLogDirectoryExists(logDirectory);
+            // 文件粒度固定为TestItem+工位；TestSubItem及内部步骤只能写入文件内容。
             string safeFileName = SanitizeFileName($"{testItemName}工位{stationNo}");
             return Path.Combine(logDirectory, $"{safeFileName}.log");
         }

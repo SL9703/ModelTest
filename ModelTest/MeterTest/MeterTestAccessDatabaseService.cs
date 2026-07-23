@@ -206,6 +206,61 @@ public sealed class MeterTestAccessDatabaseService
     }
 
     /// <summary>
+    /// 一次读取全部方案、测试项、测试小项的工位结果。
+    /// 方案树状态图标使用该接口批量恢复历史结果，避免为每个树节点重复打开数据库连接。
+    /// </summary>
+    public IReadOnlyList<MeterTestStoredStationResultData> LoadAllStationResults()
+    {
+        EnsureInitialized();
+
+        List<MeterTestStoredStationResultData> results = new();
+        using SqliteConnection connection = CreateOpenConnection();
+        using SqliteCommand command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT
+                SchemeName,
+                TestItemName,
+                TestSubItemName,
+                StationNo,
+                TestContent,
+                MeterAddress,
+                Result,
+                ResultTimeText,
+                ToolTip,
+                Message,
+                ResultColorArgb
+            FROM MeterTestStationResult
+            ORDER BY SchemeName, TestItemName, TestSubItemName, StationNo;
+            """;
+
+        using SqliteDataReader reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            int resultColorArgb = reader.IsDBNull(10)
+                ? Color.FromArgb(31, 41, 55).ToArgb()
+                : reader.GetInt32(10);
+            StationDisplayStateData state = new(
+                reader.IsDBNull(4) ? string.Empty : reader.GetString(4),
+                reader.IsDBNull(5) ? string.Empty : reader.GetString(5),
+                reader.IsDBNull(6) ? string.Empty : reader.GetString(6),
+                reader.IsDBNull(7) ? string.Empty : reader.GetString(7),
+                Color.FromArgb(resultColorArgb),
+                reader.IsDBNull(8) ? string.Empty : reader.GetString(8),
+                reader.IsDBNull(9) ? string.Empty : reader.GetString(9));
+
+            results.Add(new MeterTestStoredStationResultData(
+                reader.IsDBNull(0) ? string.Empty : reader.GetString(0),
+                reader.IsDBNull(1) ? string.Empty : reader.GetString(1),
+                reader.IsDBNull(2) ? string.Empty : reader.GetString(2),
+                reader.GetInt32(3),
+                state));
+        }
+
+        return results;
+    }
+
+    /// <summary>
     /// 保存工位通信配置。
     /// </summary>
     public void SaveStationConfig(int stationNo, string ip, int port, bool enabled)
@@ -736,6 +791,16 @@ public sealed record StationDisplayStateData(
     Color ResultColor,
     string ToolTip,
     string Message);
+
+/// <summary>
+/// 方案树批量恢复时使用的单条工位结果，包含完整方案层级定位信息。
+/// </summary>
+public sealed record MeterTestStoredStationResultData(
+    string SchemeName,
+    string TestItemName,
+    string TestSubItemName,
+    int StationNo,
+    StationDisplayStateData State);
 
 /// <summary>
 /// 单个工位的电表档案数据。

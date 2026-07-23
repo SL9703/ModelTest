@@ -23,7 +23,7 @@ public sealed class MeterTestStationConfig
 public sealed class MeterTestStationCommunication
 {
     /// <summary>
-    /// 工位号，通常为 1-20。
+    /// 工位号，当前范围为 1-48。
     /// </summary>
     [XmlAttribute("stationNo")]
     public int StationNo { get; set; }
