@@ -20,10 +20,13 @@ namespace ModelTest
         private static readonly BlockingCollection<Action> _asyncDllQueue = new BlockingCollection<Action>();
         private static readonly Thread _asyncDllWorkerThread = CreateAsyncDllWorkerThread();
         private static int _openCommAsyncState;
+        private static int _closeCommAsyncState;
+        private static int _shutPowerSourceAsyncState;
         private static int _readStandValueAsyncState;
         private static int _readStandConstAsyncState;
         private static int _sendCommandAsyncState;
         private static int _anyUiOutputAsyncState;
+        private static int _rangeOutputUiAsyncState;
         public static bool IsSourcePortOpen { get; private set; }
         public const int TimeoutResult = -2;
         public const int BusyResult = -3;
@@ -82,6 +85,23 @@ namespace ModelTest
                 }
             }
         }
+
+        /// <summary>
+        /// 在 XYCtr 专用 STA 工作线程上调用降源接口。
+        /// 降源与打开串口、升源及标准表采集共用同一队列，避免并发进入旧版 xyctr.dll。
+        /// </summary>
+        public Task<(bool Success, int Result)> CallShutPowerSourceAsync(
+            int shutPowerSource,
+            TimeSpan? timeout = null)
+        {
+            return ExecuteExclusiveWithTimeoutAsync(
+                () => Interlocked.CompareExchange(ref _shutPowerSourceAsyncState, 1, 0) == 0,
+                () => Volatile.Write(ref _shutPowerSourceAsyncState, 0),
+                () => CallShutPowerSource(shutPowerSource),
+                nameof(ShutPowerSource),
+                timeout);
+        }
+
         /// <summary>
         /// 打开源串口
         /// </summary>
@@ -149,6 +169,48 @@ namespace ModelTest
         /// <returns></returns>
         [DllImport("xyctr.dll")]
         private static extern int CloseComm();
+
+        /// <summary>
+        /// 同步关闭源串口并返回原生接口结果，供专用 STA 队列执行恢复流程。
+        /// </summary>
+        public (bool Success, int Result) CallCloseCommWithResult()
+        {
+            if (_disposed)
+            {
+                throw new ObjectDisposedException(nameof(XYCtr));
+            }
+
+            lock (lockObject)
+            {
+                try
+                {
+                    int result = CloseComm();
+                    IsSourcePortOpen = false;
+                    return (result == 1, result);
+                }
+                catch (Exception ex)
+                {
+                    IsSourcePortOpen = false;
+                    LogMessage.Error("关闭源串口DLL调用异常", ex);
+                    return (false, -1);
+                }
+            }
+        }
+
+        /// <summary>
+        /// 在 XYCtr 专用 STA 工作线程上关闭源串口，避免与打开、升源和标准表读取并发。
+        /// </summary>
+        public Task<(bool Success, int Result)> CallCloseCommAsync(TimeSpan? timeout = null)
+        {
+            return ExecuteExclusiveWithTimeoutAsync(
+                () => Interlocked.CompareExchange(ref _closeCommAsyncState, 1, 0) == 0,
+                () => Volatile.Write(ref _closeCommAsyncState, 0),
+                CallCloseCommWithResult,
+                nameof(CloseComm),
+                timeout,
+                () => IsSourcePortOpen = false);
+        }
+
         public static void CallCloseComm()
         {
             Thread thread = new Thread(() =>
@@ -540,6 +602,7 @@ namespace ModelTest
                 nameof(ReadStandConst),
                 timeout);
         }
+
         /// <summary>
         /// 在 XYCtr 专用 STA 工作线程上调用电表初始化/调节命令接口。
         /// </summary>
@@ -1033,6 +1096,22 @@ namespace ModelTest
                     return (false, -1);
                 }
             }
+        }
+
+        /// <summary>
+        /// 在 XYCtr 专用 STA 工作线程上调用量程输出接口。
+        /// MeterTest 通过该入口统一控制超时时间，并避免和其他源接口并发进入旧版 DLL。
+        /// </summary>
+        public Task<(bool Success, int Result)> CallRangeOutputUIAsync(
+            string command,
+            TimeSpan? timeout = null)
+        {
+            return ExecuteExclusiveWithTimeoutAsync(
+                () => Interlocked.CompareExchange(ref _rangeOutputUiAsyncState, 1, 0) == 0,
+                () => Volatile.Write(ref _rangeOutputUiAsyncState, 0),
+                () => CallRangeOutputUI(command),
+                nameof(RangeOutputUI),
+                timeout);
         }
         /// <summary>
         /// 电表参数转换

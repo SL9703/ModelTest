@@ -1,5 +1,6 @@
 using System.Net.Sockets;
 using ModelTest.Protocol;
+using ModelTest.Tools;
 
 namespace ModelTest.MeterTest;
 
@@ -29,13 +30,21 @@ public sealed class MeterTestSerialPortServerService
         IReadOnlyList<MeterTestSerialPortBaudRequirement> requirements,
         CancellationToken cancellationToken)
     {
+        string endpoint = $"{ipAddress?.Trim()}:{ManagementPort}";
+        string currentOperation = "参数校验";
+        LogMessage.Debug(
+            $"[串口服务器接口] 开始波特率同步：端点={endpoint}，目标工位数={requirements.Count}，"
+            + $"目标={string.Join("；", requirements.Select(item => $"工位{item.StationNo}/Port={item.Port}/{item.BaudRate}"))}。"
+        );
         if (string.IsNullOrWhiteSpace(ipAddress))
         {
+            LogMessage.Error("[串口服务器接口] 波特率同步终止：串口服务器 IP 不能为空。", null);
             return MeterTestSerialPortServerResult.Fail("串口服务器 IP 不能为空。");
         }
 
         if (requirements.Count == 0)
         {
+            LogMessage.Debug($"[串口服务器接口] {endpoint} 没有需要检查的目标通道，本次调用直接完成。");
             return MeterTestSerialPortServerResult.Succeeded("没有需要检查的串口服务器通道。");
         }
 
@@ -51,26 +60,51 @@ public sealed class MeterTestSerialPortServerService
         }
         catch (Exception ex)
         {
+            LogMessage.Error($"[串口服务器接口] {endpoint} 资产波特率参数校验失败。", ex);
             return MeterTestSerialPortServerResult.Fail(ex.Message, details);
         }
 
         using TcpClient client = new();
         try
         {
-            await client.ConnectAsync(ipAddress.Trim(), ManagementPort, cancellationToken).ConfigureAwait(false);
+            currentOperation = "连接管理端";
+            LogMessage.Debug(
+                $"[串口服务器接口] 准备连接：端点={endpoint}，"
+                + $"超时={ResponseTimeoutMilliseconds}ms。"
+            );
+            using CancellationTokenSource connectCts =
+                CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            connectCts.CancelAfter(ResponseTimeoutMilliseconds);
+            await client.ConnectAsync(ipAddress.Trim(), ManagementPort, connectCts.Token).ConfigureAwait(false);
             details.Add($"串口服务器管理端连接成功：{ipAddress.Trim()}:{ManagementPort}");
+            LogMessage.Debug($"[串口服务器接口] 连接成功：端点={endpoint}。");
 
             await using NetworkStream stream = client.GetStream();
             byte[] readRequest = protocol.BuildMeterPortInfoReadFrame();
+            currentOperation = "F3读取端口信息";
+            string readRequestHex = SerialPortServerProtocolV2.ToHexString(readRequest);
+            details.Add($"发送F3端口信息读取：{readRequestHex}");
+            LogMessage.Debug(
+                $"[串口服务器接口][PC-->Server] 端点={endpoint}，命令=F3读取端口信息，"
+                + $"超时={ResponseTimeoutMilliseconds}ms，报文={readRequestHex}"
+            );
             byte[] readResponse = await SendAndReceiveAsync(stream, readRequest, cancellationToken).ConfigureAwait(false);
-            details.Add($"发送F3端口信息读取：{SerialPortServerProtocolV2.ToHexString(readRequest)}");
-            details.Add($"收到F3端口信息应答：{SerialPortServerProtocolV2.ToHexString(readResponse)}");
+            string readResponseHex = SerialPortServerProtocolV2.ToHexString(readResponse);
+            details.Add($"收到F3端口信息应答：{readResponseHex}");
+            LogMessage.Debug(
+                $"[串口服务器接口][Server-->PC] 端点={endpoint}，命令=F3读取端口信息，"
+                + $"报文={readResponseHex}"
+            );
 
             if (!protocol.TryParseMeterPortInformation(
                     readResponse,
                     out IReadOnlyList<MeterSerialPortServerPortSetting>? settings,
                     out string parseError))
             {
+                LogMessage.Error(
+                    $"[串口服务器接口] F3应答解析失败：端点={endpoint}，"
+                    + $"响应={readResponseHex}，原因={parseError}",
+                    null);
                 return MeterTestSerialPortServerResult.Fail($"读取串口参数失败：{parseError}", details);
             }
 
@@ -95,6 +129,10 @@ public sealed class MeterTestSerialPortServerService
 
             if (mismatches.Count == 0)
             {
+                LogMessage.Debug(
+                    $"[串口服务器接口] 波特率同步完成：端点={endpoint}，"
+                    + $"目标端口={updates.Count}，不一致端口=0，结论=合格。"
+                );
                 return MeterTestSerialPortServerResult.Succeeded("串口服务器波特率检查完成，所有目标端口均已匹配。", details);
             }
 
@@ -106,10 +144,22 @@ public sealed class MeterTestSerialPortServerService
                     (uint)update.BaudRate,
                     update.Parity,
                     saveOnPowerLoss: true);
-                byte[] setResponse = await SendAndReceiveAsync(stream, setRequest, cancellationToken).ConfigureAwait(false);
+                currentOperation = $"F1设置端口{update.Port}";
+                string setRequestHex = SerialPortServerProtocolV2.ToHexString(setRequest);
                 details.Add(
-                    $"工位{update.StationNo} 端口 {update.Port} 修改为 {update.BaudRateProfile}，发送F1：{SerialPortServerProtocolV2.ToHexString(setRequest)}");
-                details.Add($"收到F1设置应答：{SerialPortServerProtocolV2.ToHexString(setResponse)}");
+                    $"工位{update.StationNo} 端口 {update.Port} 修改为 {update.BaudRateProfile}，发送F1：{setRequestHex}");
+                LogMessage.Debug(
+                    $"[串口服务器接口][PC-->Server] 端点={endpoint}，命令=F1端口属性更改，"
+                    + $"工位={update.StationNo}，目标端口={update.Port}，目标波特率={update.BaudRateProfile}，"
+                    + $"断电保存=true，超时={ResponseTimeoutMilliseconds}ms，报文={setRequestHex}"
+                );
+                byte[] setResponse = await SendAndReceiveAsync(stream, setRequest, cancellationToken).ConfigureAwait(false);
+                string setResponseHex = SerialPortServerProtocolV2.ToHexString(setResponse);
+                details.Add($"收到F1设置应答：{setResponseHex}");
+                LogMessage.Debug(
+                    $"[串口服务器接口][Server-->PC] 端点={endpoint}，命令=F1端口属性更改，"
+                    + $"工位={update.StationNo}，目标端口={update.Port}，报文={setResponseHex}"
+                );
                 if (!protocol.TryValidateMeterPortPropertyResponse(
                         setResponse,
                         (ushort)update.Port,
@@ -118,18 +168,36 @@ public sealed class MeterTestSerialPortServerService
                         expectedSaveOnPowerLoss: true,
                         out string ackError))
                 {
+                    LogMessage.Error(
+                        $"[串口服务器接口] F1应答校验失败：端点={endpoint}，"
+                        + $"工位={update.StationNo}，端口={update.Port}，响应={setResponseHex}，原因={ackError}",
+                        null);
                     throw new InvalidOperationException($"设置端口 {update.Port} 属性应答校验失败：{ackError}");
                 }
             }
 
+            LogMessage.Debug(
+                $"[串口服务器接口] 波特率同步完成：端点={endpoint}，"
+                + $"目标端口={updates.Count}，已修改={mismatches.Count}，结论=合格。"
+            );
             return MeterTestSerialPortServerResult.Succeeded("串口服务器端口属性修改完成，F1已按断电保存方式设置。", details);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException ex)
         {
-            return MeterTestSerialPortServerResult.Fail("串口服务器波特率检查已取消或等待应答超时。", details);
+            bool cancelledByUser = cancellationToken.IsCancellationRequested;
+            string message = cancelledByUser
+                ? $"串口服务器波特率检查已取消，阶段={currentOperation}。"
+                : $"串口服务器等待应答超时，阶段={currentOperation}，超时={ResponseTimeoutMilliseconds}ms。";
+            details.Add(message);
+            LogMessage.Error($"[串口服务器接口] {endpoint} {message}", ex);
+            return MeterTestSerialPortServerResult.Fail(message, details);
         }
         catch (Exception ex)
         {
+            details.Add($"接口异常阶段：{currentOperation}；{ex.Message}");
+            LogMessage.Error(
+                $"[串口服务器接口] 波特率同步异常：端点={endpoint}，阶段={currentOperation}。",
+                ex);
             return MeterTestSerialPortServerResult.Fail($"串口服务器波特率检查失败：{ex.Message}", details);
         }
     }
@@ -150,7 +218,8 @@ public sealed class MeterTestSerialPortServerService
                     $"工位{requirement.StationNo} 端口 {requirement.Port} 无效，端口必须是1-65535且不能是管理端口64444。");
             }
 
-            if (!TryParseBaudRateProfile(requirement.BaudRate, out BaudRateProfile? profile, out string error))
+            if (!TryParseBaudRateProfile(requirement.BaudRate, out BaudRateProfile? profile, out string error) ||
+                profile is null)
             {
                 throw new InvalidOperationException($"工位{requirement.StationNo} 波特率配置错误：{error}");
             }
@@ -221,7 +290,7 @@ public sealed class MeterTestSerialPortServerService
             }
 
             receiveBuffer.AddRange(buffer.AsSpan(0, length).ToArray());
-            if (TryTakeFrame(receiveBuffer, out byte[]? frame))
+            if (TryTakeFrame(receiveBuffer, out byte[] frame))
             {
                 return frame;
             }
@@ -231,9 +300,9 @@ public sealed class MeterTestSerialPortServerService
     /// <summary>
     /// 从接收缓冲区提取一帧 55 44 V2 报文。
     /// </summary>
-    private static bool TryTakeFrame(List<byte> buffer, out byte[]? frame)
+    private static bool TryTakeFrame(List<byte> buffer, out byte[] frame)
     {
-        frame = null;
+        frame = Array.Empty<byte>();
         int startIndex = -1;
         for (int index = 0; index < buffer.Count - 1; index++)
         {
@@ -352,6 +421,7 @@ public sealed class MeterTestSerialPortServerService
         return true;
     }
 
+    /// <summary>资产波特率文本解析后的数值参数，供 F3 比对和 F1 组帧共同使用。</summary>
     private sealed record BaudRateProfile(
         int BaudRate,
         int DataBits,
@@ -376,6 +446,7 @@ public sealed record MeterTestSerialPortServerResult(
     string Message,
     IReadOnlyList<string> Details)
 {
+    /// <summary>创建一个成功结果，并保留本次管理接口的全部过程明细。</summary>
     public static MeterTestSerialPortServerResult Succeeded(
         string message,
         IReadOnlyList<string>? details = null)
@@ -383,6 +454,7 @@ public sealed record MeterTestSerialPortServerResult(
         return new MeterTestSerialPortServerResult(true, message, details ?? Array.Empty<string>());
     }
 
+    /// <summary>创建一个失败结果，并保留失败前已经产生的连接、发送和接收明细。</summary>
     public static MeterTestSerialPortServerResult Fail(
         string message,
         IReadOnlyList<string>? details = null)

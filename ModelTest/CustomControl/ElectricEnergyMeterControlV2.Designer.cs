@@ -121,6 +121,12 @@
             btnStartCreepingTest = new Button();
             btnGetCreepingTestResult = new Button();
             labelCreepingResult = new Label();
+            groupBoxWalkingTest = new GroupBox();
+            btnStartWalkingTest = new Button();
+            btnStopWalkingTest = new Button();
+            btnGetWalkingTestResult = new Button();
+            labelWalkingPulseResult = new Label();
+            labelWalkingEnergyResult = new Label();
             groupBox3 = new GroupBox();
             label4 = new Label();
             tbxMeterV2Addr = new TextBox();
@@ -135,6 +141,7 @@
             groupBoxBasicErrorTest.SuspendLayout();
             groupBoxDeviceCommunicationBoard.SuspendLayout();
             groupBoxCreepingRegisterTest.SuspendLayout();
+            groupBoxWalkingTest.SuspendLayout();
             groupBox3.SuspendLayout();
             SuspendLayout();
             // 
@@ -225,6 +232,7 @@
             // 
             panel1.Controls.Add(groupBoxDeviceCommunicationBoard);
             panel1.Controls.Add(groupBoxCreepingRegisterTest);
+            panel1.Controls.Add(groupBoxWalkingTest);
             panel1.Controls.Add(groupBoxBasicErrorTest);
             panel1.Controls.Add(groupBoxMotorCrimping);
             panel1.Controls.Add(groupBoxStationDetection);
@@ -1046,7 +1054,7 @@
             groupBoxCreepingRegisterTest.Size = new Size(1170, 174);
             groupBoxCreepingRegisterTest.TabIndex = 8;
             groupBoxCreepingRegisterTest.TabStop = false;
-            groupBoxCreepingRegisterTest.Text = "潜动走字试验";
+            groupBoxCreepingRegisterTest.Text = "潜动试验（0x25）";
             // 
             // labelCreepingPulseCount
             // 
@@ -1056,6 +1064,7 @@
             labelCreepingPulseCount.Size = new Size(82, 28);
             labelCreepingPulseCount.TabIndex = 0;
             labelCreepingPulseCount.Text = "脉冲数";
+            labelCreepingPulseCount.Visible = false;
             // 
             // tbxCreepingPulseCount
             // 
@@ -1064,6 +1073,7 @@
             tbxCreepingPulseCount.Size = new Size(120, 34);
             tbxCreepingPulseCount.TabIndex = 1;
             tbxCreepingPulseCount.Text = "1";
+            tbxCreepingPulseCount.Visible = false;
             // 
             // labelCreepingTime
             // 
@@ -1073,6 +1083,7 @@
             labelCreepingTime.Size = new Size(105, 28);
             labelCreepingTime.TabIndex = 2;
             labelCreepingTime.Text = "时间（秒）";
+            labelCreepingTime.Visible = false;
             // 
             // tbxCreepingTime
             // 
@@ -1081,20 +1092,21 @@
             tbxCreepingTime.Size = new Size(140, 34);
             tbxCreepingTime.TabIndex = 3;
             tbxCreepingTime.Text = "60";
+            tbxCreepingTime.Visible = false;
             // 
             // btnStartCreepingTest
             // 
-            btnStartCreepingTest.Location = new Point(550, 36);
+            btnStartCreepingTest.Location = new Point(20, 36);
             btnStartCreepingTest.Name = "btnStartCreepingTest";
             btnStartCreepingTest.Size = new Size(170, 46);
             btnStartCreepingTest.TabIndex = 4;
-            btnStartCreepingTest.Text = "开始潜动走字";
+            btnStartCreepingTest.Text = "启动潜动试验";
             btnStartCreepingTest.UseVisualStyleBackColor = true;
             btnStartCreepingTest.Click += btnStartCreepingTest_Click;
             // 
             // btnGetCreepingTestResult
             // 
-            btnGetCreepingTestResult.Location = new Point(740, 36);
+            btnGetCreepingTestResult.Location = new Point(210, 36);
             btnGetCreepingTestResult.Name = "btnGetCreepingTestResult";
             btnGetCreepingTestResult.Size = new Size(190, 46);
             btnGetCreepingTestResult.TabIndex = 5;
@@ -1109,8 +1121,72 @@
             labelCreepingResult.Name = "labelCreepingResult";
             labelCreepingResult.Size = new Size(1110, 52);
             labelCreepingResult.TabIndex = 6;
-            labelCreepingResult.Text = "累计结果：未获取";
+            labelCreepingResult.Text = "实际脉冲数：未获取";
             labelCreepingResult.TextAlign = ContentAlignment.MiddleLeft;
+            // 
+            // groupBoxWalkingTest
+            // 
+            groupBoxWalkingTest.Controls.Add(labelWalkingEnergyResult);
+            groupBoxWalkingTest.Controls.Add(labelWalkingPulseResult);
+            groupBoxWalkingTest.Controls.Add(btnGetWalkingTestResult);
+            groupBoxWalkingTest.Controls.Add(btnStopWalkingTest);
+            groupBoxWalkingTest.Controls.Add(btnStartWalkingTest);
+            groupBoxWalkingTest.Location = new Point(1020, 860);
+            groupBoxWalkingTest.Name = "groupBoxWalkingTest";
+            groupBoxWalkingTest.Size = new Size(1170, 150);
+            groupBoxWalkingTest.TabIndex = 9;
+            groupBoxWalkingTest.TabStop = false;
+            groupBoxWalkingTest.Text = "走字试验（0x37）";
+            // 
+            // btnStartWalkingTest
+            // 
+            btnStartWalkingTest.Location = new Point(20, 36);
+            btnStartWalkingTest.Name = "btnStartWalkingTest";
+            btnStartWalkingTest.Size = new Size(170, 46);
+            btnStartWalkingTest.TabIndex = 0;
+            btnStartWalkingTest.Text = "开始";
+            btnStartWalkingTest.UseVisualStyleBackColor = true;
+            btnStartWalkingTest.Click += btnStartWalkingTest_Click;
+            // 
+            // btnStopWalkingTest
+            // 
+            btnStopWalkingTest.Location = new Point(210, 36);
+            btnStopWalkingTest.Name = "btnStopWalkingTest";
+            btnStopWalkingTest.Size = new Size(170, 46);
+            btnStopWalkingTest.TabIndex = 1;
+            btnStopWalkingTest.Text = "停止";
+            btnStopWalkingTest.UseVisualStyleBackColor = true;
+            btnStopWalkingTest.Click += btnStopWalkingTest_Click;
+            // 
+            // btnGetWalkingTestResult
+            // 
+            btnGetWalkingTestResult.Location = new Point(400, 36);
+            btnGetWalkingTestResult.Name = "btnGetWalkingTestResult";
+            btnGetWalkingTestResult.Size = new Size(190, 46);
+            btnGetWalkingTestResult.TabIndex = 2;
+            btnGetWalkingTestResult.Text = "结果获取";
+            btnGetWalkingTestResult.UseVisualStyleBackColor = true;
+            btnGetWalkingTestResult.Click += btnGetWalkingTestResult_Click;
+            // 
+            // labelWalkingPulseResult
+            // 
+            labelWalkingPulseResult.BorderStyle = BorderStyle.FixedSingle;
+            labelWalkingPulseResult.Location = new Point(20, 96);
+            labelWalkingPulseResult.Name = "labelWalkingPulseResult";
+            labelWalkingPulseResult.Size = new Size(540, 38);
+            labelWalkingPulseResult.TabIndex = 3;
+            labelWalkingPulseResult.Text = "待测表脉冲数：未获取";
+            labelWalkingPulseResult.TextAlign = ContentAlignment.MiddleLeft;
+            // 
+            // labelWalkingEnergyResult
+            // 
+            labelWalkingEnergyResult.BorderStyle = BorderStyle.FixedSingle;
+            labelWalkingEnergyResult.Location = new Point(580, 96);
+            labelWalkingEnergyResult.Name = "labelWalkingEnergyResult";
+            labelWalkingEnergyResult.Size = new Size(570, 38);
+            labelWalkingEnergyResult.TabIndex = 4;
+            labelWalkingEnergyResult.Text = "标准表电能量：未获取";
+            labelWalkingEnergyResult.TextAlign = ContentAlignment.MiddleLeft;
             // 
             // groupBox3
             // 
@@ -1170,6 +1246,7 @@
             groupBoxDeviceCommunicationBoard.PerformLayout();
             groupBoxCreepingRegisterTest.ResumeLayout(false);
             groupBoxCreepingRegisterTest.PerformLayout();
+            groupBoxWalkingTest.ResumeLayout(false);
             groupBox3.ResumeLayout(false);
             groupBox3.PerformLayout();
             ResumeLayout(false);
@@ -1273,5 +1350,11 @@
         private Button btnStartCreepingTest;
         private Button btnGetCreepingTestResult;
         private Label labelCreepingResult;
+        private GroupBox groupBoxWalkingTest;
+        private Button btnStartWalkingTest;
+        private Button btnStopWalkingTest;
+        private Button btnGetWalkingTestResult;
+        private Label labelWalkingPulseResult;
+        private Label labelWalkingEnergyResult;
     }
 }

@@ -1,23 +1,16 @@
 using System;
-using System.Buffers.Binary;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Globalization;
 using System.IO;
 using System.Linq;
-using System.Net;
-using System.Net.Sockets;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using System.Text;
-using System.Text.RegularExpressions;
-using ModelTest.CustomControl;
-using ModelTest.Protocol;
-using ModelTest.Tools;
 
 namespace ModelTest.MeterTest
 {
@@ -36,6 +29,7 @@ namespace ModelTest.MeterTest
         private const int MaxStationLogEntries = 2000;
         private const int MaxCommonLogEntries = 500;
         private const string SchemeStatusPendingImageKey = "StatusPending";
+        private const string SchemeStatusRunningImageKey = "StatusRunning";
         private const string SchemeStatusPassedImageKey = "StatusPassed";
         private const string SchemeStatusFailedImageKey = "StatusFailed";
         private const string ReadMeterAddressTestName = "读取表位地址";
@@ -43,58 +37,49 @@ namespace ModelTest.MeterTest
         private const string DefaultStationIp = "127.0.0.1";
         private const string StationLogSeparator = "-----------------------------------------------------------------";
         private const int DefaultStationStartPort = 4001;
-        private const byte MeterFrameStartV1 = 0x55;
-        private const byte MeterFrameStopV1 = 0xAA;
-        private const byte MeterFrameStartV2A = 0x55;
-        private const byte MeterFrameStartV2B = 0x44;
-        private const byte MeterFrameStopV2A = 0xAA;
-        private const byte MeterFrameStopV2B = 0xBB;
-        private const byte MeterDirectionPcToMcu = 0x00;
-        private const byte MeterDirectionMcuToPc = 0x01;
-        private const byte MeterControlProtocolV1 = 0x00;
-        private const byte MeterControlProtocolV2 = 0x02;
-        private const byte MeterDailyTimingCommand = 0x36;
-        private const byte DailyTimingStartDataItem = 0x00;
-        private const byte DailyTimingResultDataItem = 0xAA;
-        private const byte MeterStandardActiveConstantCommand = 0xA2;
-        private const byte MeterActiveConstantCommand = 0xA0;
-        private const byte MeterBasicErrorCommand38 = 0x38;
-        private const byte BasicErrorStartOperation = 0x00;
-        private const byte BasicErrorResultOperation = 0xAA;
-        private const byte ActivePulseType = 0x00;
+        private readonly Dictionary<string, IReadOnlyList<MeterTestAssetOptionData>> assetOptionCache =
+            new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, Label> hardwareValueLabels = new();
+        private readonly Dictionary<Button, OperationButtonVisualState> operationButtonVisualStates = new();
         private readonly MeterTestConfigService configService = new();
         private readonly MeterTestStationConfigService stationConfigService = new();
         private readonly MeterTestAccessDatabaseService accessDatabaseService = new();
         private readonly MeterTestBenchTypeSwitchService benchTypeSwitchService = new();
-        private readonly MeterTestSourceControlService sourceControlService = new();
+        private readonly MeterTestSourceControlService sourceControlService;
+        private readonly MeterTestRunPreparationService runPreparationService;
         private readonly MeterTestSerialPortServerService serialPortServerService = new();
+        private readonly MeterTestCommunicationAddressService communicationAddressService = new();
+        private readonly MeterTestCommunicationTestService communicationTestService;
         private readonly MeterTestStationPowerService stationPowerService = new();
         private readonly MeterTestControlPcbConnectionManager controlPcbConnectionManager = new();
-        private readonly MeterTestBluetoothInterfaceService bluetoothInterfaceService = new();
+        private readonly MeterTestControlPcbCommandService controlPcbCommandService;
+        private readonly MeterTestStationTcpSessionService stationTcpSessionService = new();
+        private readonly MeterTestBluetoothInterfaceService bluetoothInterfaceService;
+        private readonly MeterTestCountdownService countdownService = new();
+        private readonly MeterTestDailyTimingService dailyTimingService;
+        private readonly MeterTestDeviceSelfCheckService deviceSelfCheckService;
+        private readonly MeterTestConstantTestService constantTestService;
+        private readonly MeterTestCreepingTestService creepingTestService;
         private readonly MeterTestBasicErrorService basicErrorService;
+        private readonly MeterTestStartingErrorService startingErrorService;
         private readonly CancellationTokenSource stationPowerControlCts = new();
         private readonly string configFilePath;
         private readonly string stationConfigFilePath;
         private MeterTestPlanConfig meterTestPlanConfig = new();
         private CancellationTokenSource? executionCts;
+        private bool isSourceShutdownInProgress;
         private readonly Dictionary<StationResultKey, StationDisplayState> stationResultCache = new();
-        private readonly ConcurrentDictionary<int, float> startingErrorResults = new();
         private readonly Dictionary<int, List<TestProcessLogEntry>> stationTestLogEntries = new();
         private readonly List<TestProcessLogEntry> commonTestLogEntries = new();
+        private readonly object measurementSyncRoot = new();
+        private readonly List<MeterTestMeasurementData> currentRunMeasurements = new();
         private ImageList? schemeStatusImageList;
         private string currentRunId = Guid.NewGuid().ToString("N");
+        private DateTime currentRunStartedAt = DateTime.Now;
+        private List<SelectedSubItemContext> lastExecutedContexts = new();
+        private List<int> lastExecutedStationNumbers = new();
         private long testLogSequence;
         private int selectedTestLogStationNo = 1;
-        private bool serialPortServerBaudFlowExecuted;
-        private bool serialPortServerBaudFlowSucceeded;
-        private IReadOnlyDictionary<int, bool> serialPortServerBaudStationResults = new Dictionary<int, bool>();
-        private IReadOnlyDictionary<int, SerialPortServerStationTrace> serialPortServerStationTraces =
-            new Dictionary<int, SerialPortServerStationTrace>();
-        private bool dailyTimingFlowExecuted;
-        private bool dailyTimingFlowSucceeded;
-        private readonly ConcurrentDictionary<int, byte> creepingActiveStations = new();
-        private readonly ConcurrentDictionary<int, CreepingPulseMeasurement> creepingPulseResults = new();
         private Task controlPcbInitializationTask = Task.CompletedTask;
         private bool isUpdatingStationSelection;
         private bool isLoadingStationConfig;
@@ -103,12 +88,57 @@ namespace ModelTest.MeterTest
         private bool isApplyingBarcodeExtraction;
         private int assetBarcodeStartIndex = 8;
         private int assetBarcodeEndIndex = 20;
+        private int assetBarcodeRule2FirstStart = 6;
+        private int assetBarcodeRule2FirstLength = 2;
+        private int assetBarcodeRule2SecondStart = 10;
+        private int assetBarcodeRule2SecondLength = 10;
+        private string assetBarcodeRuleType = MeterTestBarcodeExtractor.Rule1Range;
         private MeterTestGridViewMode currentGridViewMode = MeterTestGridViewMode.TestPlan;
+        private MeterTestResultUserControl? resultUserControl;
 
+        /// <summary>
+        /// 创建 MeterTest 主界面并装配所有流程服务。
+        /// 本类只保留方案调度、UI 刷新和测试状态维护，硬件通信及业务流程由对应服务执行。
+        /// </summary>
         public MeterTest()
         {
             InitializeComponent();
-            basicErrorService = new MeterTestBasicErrorService(sourceControlService, controlPcbConnectionManager);
+            controlPcbCommandService = new MeterTestControlPcbCommandService(controlPcbConnectionManager);
+            dailyTimingService = new MeterTestDailyTimingService(controlPcbCommandService, countdownService);
+            sourceControlService = new MeterTestSourceControlService(accessDatabaseService);
+            runPreparationService = new MeterTestRunPreparationService(
+                accessDatabaseService,
+                benchTypeSwitchService,
+                sourceControlService,
+                controlPcbConnectionManager);
+            communicationTestService = new MeterTestCommunicationTestService(
+                serialPortServerService,
+                communicationAddressService,
+                stationTcpSessionService,
+                accessDatabaseService);
+            deviceSelfCheckService = new MeterTestDeviceSelfCheckService(
+                sourceControlService,
+                controlPcbCommandService);
+            creepingTestService = new MeterTestCreepingTestService(
+                controlPcbConnectionManager,
+                accessDatabaseService,
+                countdownService);
+            constantTestService = new MeterTestConstantTestService(
+                controlPcbCommandService,
+                stationTcpSessionService,
+                communicationAddressService,
+                countdownService,
+                accessDatabaseService);
+            basicErrorService = new MeterTestBasicErrorService(
+                sourceControlService,
+                controlPcbConnectionManager,
+                countdownService,
+                accessDatabaseService);
+            startingErrorService = new MeterTestStartingErrorService(
+                controlPcbConnectionManager,
+                accessDatabaseService,
+                countdownService);
+            bluetoothInterfaceService = new MeterTestBluetoothInterfaceService(communicationAddressService);
             ConfigureBufferedRendering();
 
             // 首屏初始化期间隐藏并冻结根布局，避免数据库、表格和动态控件逐项显示。
@@ -119,8 +149,10 @@ namespace ModelTest.MeterTest
                 configFilePath = GetMeterTestConfigPath();
                 stationConfigFilePath = GetMeterTestStationConfigPath();
                 ConfigureDataGridViewSorting();
-                InitializeStationProcessGrid();
                 accessDatabaseService.EnsureInitialized();
+                LoadAssetOptionDefinitions();
+                InitializeStationProcessGrid();
+                InitializeResultUserControl();
                 LoadAssetBarcodeSettingToInputs();
                 InitializeHardwareCollectionGrid();
                 BindEvents();
@@ -129,6 +161,7 @@ namespace ModelTest.MeterTest
                 LoadMeterTestPlanConfig();
                 LoadHeaderLogo();
                 LoadOperationButtonImages();
+                ConfigureOperationButtonStyles();
                 ApplyTestPlanView();
                 ConfigureWindowBounds();
             }
@@ -159,6 +192,7 @@ namespace ModelTest.MeterTest
                 middleArea,
                 processLayout,
                 stationSelectionPanel,
+                countdownPanel,
                 hardwareLayout,
                 stationGrid,
                 processGrid,
@@ -186,6 +220,7 @@ namespace ModelTest.MeterTest
             groupProcess.SuspendLayout();
             processLayout.SuspendLayout();
             stationSelectionPanel.SuspendLayout();
+            countdownPanel.SuspendLayout();
             stationGrid.SuspendLayout();
             processGrid.SuspendLayout();
             groupHardware.SuspendLayout();
@@ -201,6 +236,7 @@ namespace ModelTest.MeterTest
             groupHardware.ResumeLayout(false);
             processGrid.ResumeLayout(false);
             stationGrid.ResumeLayout(false);
+            countdownPanel.ResumeLayout(false);
             stationSelectionPanel.ResumeLayout(false);
             processLayout.ResumeLayout(false);
             groupProcess.ResumeLayout(false);
@@ -236,17 +272,24 @@ namespace ModelTest.MeterTest
         private void BindEvents()
         {
             sourceControlService.StandardValuesUpdated += SourceControlService_StandardValuesUpdated;
+            countdownService.StateChanged += CountdownService_StateChanged;
             btnStartTest.Click += async (_, _) => await StartSelectedTestAsync();
-            btnStopTest.Click += (_, _) => CancelRunningTest();
+            btnStopTest.Click += async (_, _) => await StopRunningTestAndShutDownAsync();
             btnTestPlan.Click += async (_, _) => await RefreshTestPlanAndMeterArchiveAsync();
             btnAssetInfo.Click += (_, _) => RefreshMeterArchiveDisplay();
+            btnTestResults.Click += (_, _) => ShowTestResults();
+            btnSaveTestResults.Click += (_, _) => SaveCurrentTestResultsManually();
             btnSaveAssetInfo.Click += (_, _) => SaveAllAssetInfo();
             btnBatchApplyAssetInfo.Click += (_, _) => BatchApplyFirstStationAssetInfo();
             btnSelectAllStations.Click += async (_, _) => await SetAllStationSelectionAsync(true);
             btnClearStationSelection.Click += async (_, _) => await SetAllStationSelectionAsync(false);
+            btnShutDownSource.Click += async (_, _) => await ShutDownSourceAsync();
             rbSingleStation.CheckedChanged += async (_, _) => await ApplySingleStationSelectionRuleAsync();
             tbxBarcodeStartIndex.TextChanged += (_, _) => SaveBarcodeSettingFromInputs();
             tbxBarcodeEndIndex.TextChanged += (_, _) => SaveBarcodeSettingFromInputs();
+            tbxBarcodeSecondStart.TextChanged += (_, _) => SaveBarcodeSettingFromInputs();
+            tbxBarcodeSecondLength.TextChanged += (_, _) => SaveBarcodeSettingFromInputs();
+            cbxBarcodeRule.SelectedIndexChanged += (_, _) => BarcodeRuleSelectionChanged();
             stationGrid.CurrentCellDirtyStateChanged += (_, _) =>
             {
                 if (stationGrid.IsCurrentCellDirty)
@@ -277,7 +320,8 @@ namespace ModelTest.MeterTest
                     SaveStationCommunicationConfig();
                 }
 
-                if (!isLoadingMeterArchive && e.RowIndex >= 0 && e.ColumnIndex == colStationBarcode.Index)
+                if (currentGridViewMode == MeterTestGridViewMode.AssetInfo &&
+                    !isLoadingMeterArchive && e.RowIndex >= 0 && e.ColumnIndex == colStationBarcode.Index)
                 {
                     DataGridViewRow changedRow = stationGrid.Rows[e.RowIndex];
                     ApplyBarcodeExtractionToRow(changedRow);
@@ -287,9 +331,18 @@ namespace ModelTest.MeterTest
                     return;
                 }
 
-                if (!isLoadingMeterArchive && e.RowIndex >= 0 && IsEditableAssetColumn(e.ColumnIndex))
+                if (currentGridViewMode == MeterTestGridViewMode.AssetInfo &&
+                    !isLoadingMeterArchive && e.RowIndex >= 0 && IsEditableAssetColumn(e.ColumnIndex))
                 {
                     DataGridViewRow changedRow = stationGrid.Rows[e.RowIndex];
+                    if (e.ColumnIndex == colMeterAccessMode.Index)
+                    {
+                        ConfigureCurrentSpecificationCell(
+                            changedRow,
+                            GetCellText(changedRow, colMeterAccessMode, GetDefaultAssetOption("AccessMode")),
+                            GetCellText(changedRow, colMeterCurrentSpecification, string.Empty));
+                    }
+
                     SaveMeterArchiveFromRow(changedRow);
                     if (e.ColumnIndex == colStationMeterAddress.Index)
                     {
@@ -328,7 +381,13 @@ namespace ModelTest.MeterTest
             {
                 stationPowerControlCts.Cancel();
                 sourceControlService.StandardValuesUpdated -= SourceControlService_StandardValuesUpdated;
+                countdownService.StateChanged -= CountdownService_StateChanged;
                 sourceControlService.Dispose();
+                if (executionCts is null)
+                {
+                    communicationAddressService.EndRun();
+                    bluetoothInterfaceService.EndRun();
+                }
                 try
                 {
                     await controlPcbInitializationTask;
@@ -337,6 +396,7 @@ namespace ModelTest.MeterTest
                 {
                 }
                 await controlPcbConnectionManager.DisposeAsync();
+                stationTcpSessionService.Dispose();
                 schemeTreeView.ImageList = null;
                 schemeStatusImageList?.Dispose();
                 schemeStatusImageList = null;
@@ -349,6 +409,20 @@ namespace ModelTest.MeterTest
         private void SourceControlService_StandardValuesUpdated(IReadOnlyDictionary<string, string> standValues)
         {
             RunOnUiThread(() => UpdateHardwareMetricsFromStandValues(standValues));
+        }
+
+        /// <summary>把统一倒计时服务的状态刷新到测试过程区域右侧红色标签。</summary>
+        private void CountdownService_StateChanged(MeterTestCountdownState state)
+        {
+            RunOnUiThread(() =>
+            {
+                lblTestCountdown.ForeColor = state.IsActive
+                    ? Color.Red
+                    : Color.FromArgb(107, 114, 128);
+                lblTestCountdown.Text = state.IsActive
+                    ? $"{state.Title}：{state.RemainingSeconds}s"
+                    : "倒计时：未开始";
+            });
         }
 
         /// <summary>
@@ -373,8 +447,10 @@ namespace ModelTest.MeterTest
         /// </summary>
         private void RefreshMeterArchiveDisplay()
         {
-            ApplyAssetInfoView();
+            // 先从档案表覆盖测试视图中的临时“表位地址”，再切换资产列。
+            // 地址读取结果只属于方案运行态，禁止反向写入资产信息的电表地址。
             LoadMeterArchivesToGrid();
+            ApplyAssetInfoView();
             AddProcessLog("系统", "电表档案刷新", true, "电表档案已从本地数据库刷新到测试过程区域。", 0);
         }
 
@@ -384,10 +460,22 @@ namespace ModelTest.MeterTest
         private void LoadMeterTestPlanConfig()
         {
             meterTestPlanConfig = configService.LoadOrCreate(configFilePath);
+            MeterTestStationConfig stationConfig = stationConfigService.LoadOrCreate(
+                stationConfigFilePath,
+                MaxStationCount,
+                DefaultStationIp,
+                DefaultStationStartPort,
+                meterTestPlanConfig);
+            stationConfigService.ApplyRuntimeDeviceConfigs(meterTestPlanConfig, stationConfig);
             SaveControlPcbConfigToAccess();
             LoadAllStationResultsFromAccess();
             BuildSchemeTree();
-            AddProcessLog("系统", "配置加载", true, $"已加载配置：{configFilePath}", 0);
+            AddProcessLog(
+                "系统",
+                "配置加载",
+                true,
+                $"已加载测试方案：{configFilePath}\r\n已加载现场设备配置：{stationConfigFilePath}",
+                0);
         }
 
         /// <summary>
@@ -404,7 +492,7 @@ namespace ModelTest.MeterTest
                     message =>
                     {
                         LogMessage.Debug($"[控制PCB连接] {message}");
-                        RunOnUiThread(() => AddProcessLog("系统", "控制PCB连接", !message.Contains("失败", StringComparison.OrdinalIgnoreCase), message, 0));
+                        RunOnUiThread(() => HandleControlPcbConnectionStatus(message));
                     },
                     stationPowerControlCts.Token);
             }
@@ -416,6 +504,54 @@ namespace ModelTest.MeterTest
             {
                 LogMessage.Error("[控制PCB连接] 启动初始化异常", ex);
             }
+        }
+
+        /// <summary>
+        /// 将控制PCB连接消息区分为过程提示和最终结论。
+        /// “开始连接”不代表成功；底层状态变化只写Debug，避免与最终失败信息重复。
+        /// </summary>
+        private void HandleControlPcbConnectionStatus(string message)
+        {
+            string title = $"控制PCB连接 - {ExtractControlPcbConnectionTarget(message)}";
+            if (message.StartsWith("控制PCB开始连接：", StringComparison.OrdinalIgnoreCase))
+            {
+                AddProcessInfoLog("系统", title, "连接中", message);
+                return;
+            }
+
+            if (message.StartsWith("控制PCB连接成功：", StringComparison.OrdinalIgnoreCase))
+            {
+                AddProcessLog("系统", title, true, message, 0);
+                return;
+            }
+
+            if (message.StartsWith("控制PCB连接失败：", StringComparison.OrdinalIgnoreCase) ||
+                message.StartsWith("控制PCB连接跳过：", StringComparison.OrdinalIgnoreCase) ||
+                message.StartsWith("控制PCB应答处理异常：", StringComparison.OrdinalIgnoreCase))
+            {
+                AddProcessLog("系统", title, false, message, 0);
+                return;
+            }
+
+            if (message.StartsWith("控制PCB连接状态变化：", StringComparison.OrdinalIgnoreCase))
+            {
+                // BatchTcpClientManager可能先上报底层失败状态，ConnectOnceAsync随后会给出唯一最终结论。
+                return;
+            }
+
+            AddProcessInfoLog("系统", title, "提示", message);
+        }
+
+        /// <summary>从控制PCB状态文本中提取端点或配置名称，便于区分多条连接。</summary>
+        private static string ExtractControlPcbConnectionTarget(string message)
+        {
+            int separatorIndex = message.IndexOf('：');
+            if (separatorIndex < 0 || separatorIndex >= message.Length - 1)
+                return "未指定端点";
+
+            string detail = message[(separatorIndex + 1)..].Trim();
+            int commaIndex = detail.IndexOf('，');
+            return commaIndex > 0 ? detail[..commaIndex].Trim() : detail;
         }
 
         /// <summary>
@@ -447,6 +583,9 @@ namespace ModelTest.MeterTest
 
                     foreach (MeterTestSubItem subItem in testItem.TestSubItems)
                     {
+                        if (!ShouldShowSubItemInSchemeTree(subItem))
+                            continue;
+
                         itemNode.Nodes.Add(new TreeNode(subItem.Name)
                         {
                             Tag = subItem,
@@ -474,7 +613,7 @@ namespace ModelTest.MeterTest
         }
 
         /// <summary>
-        /// 加载方案树状态图标。优先使用 png 目录中的红灯、灰灯、绿灯，文件缺失时生成颜色占位灯。
+        /// 加载方案树状态图标。优先使用 png 目录中的灰、黄、绿、红灯，文件缺失时生成颜色占位灯。
         /// </summary>
         private void InitializeSchemeStatusImages()
         {
@@ -488,6 +627,7 @@ namespace ModelTest.MeterTest
                 TransparentColor = Color.Transparent
             };
             AddSchemeStatusImage(schemeStatusImageList, SchemeStatusPendingImageKey, "灰灯.png", Color.Gray);
+            AddSchemeStatusImage(schemeStatusImageList, SchemeStatusRunningImageKey, "黄灯.png", Color.Gold);
             AddSchemeStatusImage(schemeStatusImageList, SchemeStatusPassedImageKey, "绿灯.png", Color.LimeGreen);
             AddSchemeStatusImage(schemeStatusImageList, SchemeStatusFailedImageKey, "红灯.png", Color.Red);
             schemeTreeView.ImageList = schemeStatusImageList;
@@ -588,11 +728,20 @@ namespace ModelTest.MeterTest
                 return;
             }
 
-            List<int> eligibleStations = stationGrid.Rows
+            List<int> archivedEligibleStations = stationGrid.Rows
                 .Cast<DataGridViewRow>()
                 .Where(row => !row.IsNewRow && HasCompleteAssetForTest(row))
                 .Select(row => Convert.ToInt32(row.Cells[colStationNo.Index].Value))
                 .ToList();
+            // 方案执行后的状态灯只汇总本轮实际参与的工位。
+            // 否则已扫码但本轮未勾选的工位会使已完成节点一直保持灰色。
+            List<int> eligibleStations = lastExecutedStationNumbers.Count > 0
+                ? lastExecutedStationNumbers
+                    .Where(archivedEligibleStations.Contains)
+                    .Distinct()
+                    .OrderBy(stationNo => stationNo)
+                    .ToList()
+                : archivedEligibleStations;
 
             schemeTreeView.BeginUpdate();
             try
@@ -628,7 +777,7 @@ namespace ModelTest.MeterTest
         }
 
         /// <summary>
-        /// 计算一个测试小项的状态：任一不合格为红灯，全部合格为绿灯，其余为灰灯。
+        /// 计算一个测试小项的状态：测试中为黄灯，结束后任一不合格为红灯、全部合格为绿灯，其余为灰灯。
         /// </summary>
         private SchemeNodeStatus GetSubItemNodeStatus(
             string schemeName,
@@ -640,6 +789,8 @@ namespace ModelTest.MeterTest
                 return SchemeNodeStatus.Pending;
 
             bool allPassed = true;
+            bool anyRunning = false;
+            bool anyFailed = false;
             foreach (int stationNo in eligibleStations)
             {
                 StationResultKey key = new(schemeName, testItemName, testSubItemName, stationNo);
@@ -649,12 +800,29 @@ namespace ModelTest.MeterTest
                     continue;
                 }
 
+                if (state.Result.Equals("测试中", StringComparison.OrdinalIgnoreCase))
+                {
+                    anyRunning = true;
+                    allPassed = false;
+                    continue;
+                }
+
                 if (state.Result.Equals("不合格", StringComparison.OrdinalIgnoreCase))
-                    return SchemeNodeStatus.Failed;
+                {
+                    anyFailed = true;
+                    allPassed = false;
+                    continue;
+                }
 
                 if (!state.Result.Equals("合格", StringComparison.OrdinalIgnoreCase))
                     allPassed = false;
             }
+
+            if (anyRunning)
+                return SchemeNodeStatus.Running;
+
+            if (anyFailed)
+                return SchemeNodeStatus.Failed;
 
             return allPassed ? SchemeNodeStatus.Passed : SchemeNodeStatus.Pending;
         }
@@ -676,6 +844,9 @@ namespace ModelTest.MeterTest
             if (enabledChildren.Count == 0)
                 return SchemeNodeStatus.Pending;
 
+            if (enabledChildren.Any(node => GetSchemeNodeStatus(node) == SchemeNodeStatus.Running))
+                return SchemeNodeStatus.Running;
+
             if (enabledChildren.Any(node => GetSchemeNodeStatus(node) == SchemeNodeStatus.Failed))
                 return SchemeNodeStatus.Failed;
 
@@ -691,6 +862,7 @@ namespace ModelTest.MeterTest
         {
             string imageKey = status switch
             {
+                SchemeNodeStatus.Running => SchemeStatusRunningImageKey,
                 SchemeNodeStatus.Passed => SchemeStatusPassedImageKey,
                 SchemeNodeStatus.Failed => SchemeStatusFailedImageKey,
                 _ => SchemeStatusPendingImageKey
@@ -706,6 +878,7 @@ namespace ModelTest.MeterTest
         {
             return node.ImageKey switch
             {
+                SchemeStatusRunningImageKey => SchemeNodeStatus.Running,
                 SchemeStatusPassedImageKey => SchemeNodeStatus.Passed,
                 SchemeStatusFailedImageKey => SchemeNodeStatus.Failed,
                 _ => SchemeNodeStatus.Pending
@@ -718,6 +891,12 @@ namespace ModelTest.MeterTest
         /// </summary>
         private async Task StartSelectedTestAsync()
         {
+            if (isSourceShutdownInProgress)
+            {
+                MessageBox.Show("当前正在执行降源，请等待降源结束后再开始测试。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
             if (executionCts is not null)
             {
                 MessageBox.Show("当前有测试正在执行，请先停止或等待结束。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -731,19 +910,31 @@ namespace ModelTest.MeterTest
                 return;
             }
 
+            // 只有直接执行 Scheme 根节点才代表“整个方案”运行。
+            // 单独执行某个测试项或测试小项时保留当前结果，不触发自动保存询问。
+            bool isCompleteSchemeRun = selectedNode.Tag is MeterTestScheme;
+
             // 等待程序启动阶段的控制PCB连接任务结束；这里只等待，不会发起新的ConnectAsync。
             await controlPcbInitializationTask;
 
             executionCts = new CancellationTokenSource();
             currentRunId = Guid.NewGuid().ToString("N");
-            serialPortServerBaudFlowExecuted = false;
-            serialPortServerBaudFlowSucceeded = false;
-            serialPortServerBaudStationResults = new Dictionary<int, bool>();
-            serialPortServerStationTraces = new Dictionary<int, SerialPortServerStationTrace>();
-            dailyTimingFlowExecuted = false;
-            dailyTimingFlowSucceeded = false;
-            creepingActiveStations.Clear();
-            creepingPulseResults.Clear();
+            currentRunStartedAt = DateTime.Now;
+            lastExecutedContexts = new List<SelectedSubItemContext>();
+            lastExecutedStationNumbers = new List<int>();
+            lock (measurementSyncRoot)
+            {
+                currentRunMeasurements.Clear();
+            }
+            sourceControlService.BeginRun();
+            basicErrorService.BeginRun();
+            communicationTestService.BeginRun();
+            // 每轮测试分别建立去重后的64444管理会话和蓝牙工位会话；各测试步骤只复用，不重复建连。
+            communicationAddressService.BeginRun();
+            stationTcpSessionService.BeginRun();
+            bluetoothInterfaceService.BeginRun();
+            dailyTimingService.BeginRun();
+            creepingTestService.BeginRun();
             btnStartTest.Enabled = false;
             btnStopTest.Enabled = true;
 
@@ -764,6 +955,64 @@ namespace ModelTest.MeterTest
                     return;
                 }
 
+                testContexts = FilterAssetAwareBasicErrorContexts(testContexts, selectedStations);
+                if (testContexts.Count == 0)
+                {
+                    MessageBox.Show("当前选择的测试内容在所选工位资产类型下没有需要执行的测试点。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                // 前置业务链路由独立服务执行；窗体只展示子步骤结果并决定是否进入方案调度。
+                MeterTestRunPreparationResult preparationResult =
+                    await runPreparationService.ExecuteAsync(
+                        meterTestPlanConfig,
+                        selectedStations,
+                        message => AddProcessInfoLog(
+                            "系统/执行前准备",
+                            "硬件接口",
+                            "执行中",
+                            message),
+                        executionCts.Token);
+
+                if (preparationResult.BenchSwitchResult is not null)
+                {
+                    AddProcessLog(
+                        "系统",
+                        "执行前台体类型切换",
+                        preparationResult.BenchSwitchResult.Success,
+                        preparationResult.BenchSwitchResult.Message,
+                        preparationResult.ElapsedMilliseconds);
+                }
+
+                if (preparationResult.SourceInitializationResult is not null)
+                {
+                    AddProcessLog(
+                        "系统",
+                        "执行前源初始化",
+                        preparationResult.SourceInitializationResult.Success,
+                        preparationResult.SourceInitializationResult.Message,
+                        preparationResult.ElapsedMilliseconds);
+                }
+
+                if (!preparationResult.Success)
+                {
+                    AddProcessLog(
+                        "系统",
+                        "执行前准备",
+                        false,
+                        preparationResult.Message,
+                        preparationResult.ElapsedMilliseconds);
+                    return;
+                }
+
+                lastExecutedContexts = testContexts.ToList();
+                lastExecutedStationNumbers = selectedStations.Select(station => station.StationNo).ToList();
+
+                // 正式执行前按所有启用的 ControlPcbGroup 同步一次工位电源状态：
+                // 本次参与测试的工位上电压、通电流，其他映射工位断电流、下电压。
+                await SynchronizeEnabledControlPcbStationPowerAsync(
+                    selectedStations.Select(station => station.StationNo));
+
                 foreach (SelectedSubItemContext context in testContexts)
                 {
                     executionCts.Token.ThrowIfCancellationRequested();
@@ -774,6 +1023,12 @@ namespace ModelTest.MeterTest
                 // 父节点使用独立结果记录，不覆盖树下各个测试小项的明细结果。
                 SynchronizeParentTestConclusions(testContexts, selectedStations);
                 RestoreStationDisplayForSelectedNode();
+                if (isCompleteSchemeRun)
+                {
+                    PromptToSaveCompletedScheme(
+                        testContexts,
+                        selectedStations.Select(station => station.StationNo));
+                }
             }
             catch (OperationCanceledException) when (executionCts?.IsCancellationRequested == true)
             {
@@ -786,122 +1041,404 @@ namespace ModelTest.MeterTest
             }
             finally
             {
+                // 连接只在本轮测试内复用，结束或取消后统一关闭，下一轮重新建立干净会话。
+                communicationAddressService.EndRun();
+                stationTcpSessionService.EndRun();
+                bluetoothInterfaceService.EndRun();
                 executionCts.Dispose();
                 executionCts = null;
-                btnStartTest.Enabled = true;
-                btnStopTest.Enabled = false;
                 UpdateStartButtonText();
+                UpdateTestExecutionButtonState();
             }
         }
 
         /// <summary>
-        /// 取消当前测试流程。
+        /// 停止当前测试并立即执行降源。
+        /// 降源失败只写入界面日志和文件日志，避免测试过程中弹窗阻塞操作员。
         /// </summary>
-        private void CancelRunningTest()
+        private async Task StopRunningTestAndShutDownAsync()
         {
+            if (!btnStopTest.Enabled)
+                return;
+
+            btnStopTest.Enabled = false;
             executionCts?.Cancel();
+            AddProcessLog("系统", "停止测试", true, "已发送测试取消信号，开始执行安全降源。", 0);
+            await ExecuteSourceShutdownAsync("停止测试降源");
         }
 
         /// <summary>
-        /// 通信测试中的串口服务器波特率检查流程。
-        /// 按 IP 分组读取并核对端口参数，只对不一致端口发送解锁和设置报文。
-        /// 设置参数使用立即生效模式，不发送保存重启报文。
+        /// 整个 Scheme 执行完成后询问是否保存。
+        /// 保存成功后清除方案运行态结果，使方案树和工位结果恢复为灰色待测试状态。
         /// </summary>
-        private async Task<SerialPortServerBaudFlowResult> EnsureSerialServerBaudRatesAsync(
-            IReadOnlyList<StationCommunicationConfig> selectedStations,
-            CancellationToken cancellationToken)
+        private void PromptToSaveCompletedScheme(
+            IReadOnlyList<SelectedSubItemContext> contexts,
+            IEnumerable<int> stationNumbers)
         {
-            // 管理端口 64444 是按串口服务器 IP 连接的，同一 IP 下不论有多少工位都只能建立一次连接。
-            // 先规范化并物化分组，后续创建任务和映射结果都复用同一组列表，避免重复分组或顺序偏差。
-            List<IGrouping<string, StationCommunicationConfig>> serverGroups = selectedStations
-                .GroupBy(station => NormalizeSerialPortServerIp(station.Ip), StringComparer.OrdinalIgnoreCase)
-                .ToList();
-            List<Task<MeterTestSerialPortServerResult>> tasks = serverGroups
-                .Select(group => serialPortServerService.EnsureBaudRatesAsync(
-                    group.Key,
-                    group.Select(station => new MeterTestSerialPortBaudRequirement(
-                        station.StationNo,
-                        station.Port,
-                        station.BaudRate)).ToList(),
-                    cancellationToken))
-                .ToList();
-
-            MeterTestSerialPortServerResult[] results = await Task.WhenAll(tasks);
-            bool allSucceeded = true;
-            Dictionary<int, bool> stationResults = new();
-            Dictionary<int, SerialPortServerStationTrace> stationTraces = new();
-
-            AddProcessLog(
-                "串口服务器/64444",
-                "连接去重",
-                true,
-                $"选中 {selectedStations.Count} 个工位，按 IP 去重后建立 {serverGroups.Count} 个管理端连接。",
-                0);
-
-            for (int groupIndex = 0; groupIndex < serverGroups.Count; groupIndex++)
+            DialogResult choice = MessageBox.Show(
+                "当前方案的全部测试项已经执行结束，是否保存本次测试结果？\r\n\r\n"
+                + "选择“否”将保留界面结果，但不会写入测试结果任务表。",
+                "方案测试完成",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question,
+                MessageBoxDefaultButton.Button1);
+            if (choice != DialogResult.Yes)
             {
-                IGrouping<string, StationCommunicationConfig> group = serverGroups[groupIndex];
-                MeterTestSerialPortServerResult result = results[groupIndex];
-                string sharedConnectionMessage =
-                    $"同一IP的工位 {string.Join(",", group.Select(station => station.StationNo))} 共用一次 {group.Key}:{MeterTestSerialPortServerService.ManagementPort} 管理端连接。";
-                List<string> sharedDetails = new() { sharedConnectionMessage };
-                sharedDetails.AddRange(result.Details);
-                string details = sharedDetails.Count == 0
-                    ? result.Message
-                    : $"{result.Message}{Environment.NewLine}{string.Join(Environment.NewLine, sharedDetails)}";
+                AddProcessLog("系统", "方案结果保存", true, "用户选择不保存本次完整方案结果。", 0);
+                return;
+            }
 
-                AddProcessLog(
-                    $"串口服务器/{group.Key}:64444",
-                    "电表波特率检查",
-                    result.Success,
-                    details,
-                    0);
+            bool saved = SaveCurrentTestResultSnapshot(
+                contexts,
+                stationNumbers,
+                "Completed",
+                "方案完成确认保存",
+                showMessage: false);
+            if (!saved)
+                return;
 
-                foreach (StationCommunicationConfig station in group)
+            string schemeName = contexts.Count > 0 ? contexts[0].SchemeName : string.Empty;
+            ResetSchemeExecutionResults(schemeName);
+            MessageBox.Show(
+                "本次测试结果已保存，方案状态已恢复为待测试。",
+                "保存完成",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+        }
+
+        /// <summary>删除指定方案的运行态结论，并刷新方案树灰灯和工位待测试状态。</summary>
+        private void ResetSchemeExecutionResults(string schemeName)
+        {
+            if (string.IsNullOrWhiteSpace(schemeName))
+                return;
+
+            accessDatabaseService.ClearStationResultsForScheme(schemeName);
+            accessDatabaseService.ClearRuntimeMeasurementsForScheme(schemeName);
+            List<StationResultKey> keys = stationResultCache.Keys
+                .Where(key => key.SchemeName.Equals(schemeName, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            foreach (StationResultKey key in keys)
+            {
+                stationResultCache.Remove(key);
+            }
+
+            lock (measurementSyncRoot)
+            {
+                currentRunMeasurements.Clear();
+            }
+
+            lastExecutedContexts = new List<SelectedSubItemContext>();
+            lastExecutedStationNumbers = new List<int>();
+            ClearStationResultColumns();
+            RefreshSchemeTreeStatusIcons();
+            RestoreStationDisplayForSelectedNode();
+            AddProcessLog("系统", "方案状态重置", true, $"方案“{schemeName}”已恢复为待测试。", 0);
+        }
+
+        /// <summary>手动将当前方案快照保存到测试结果库。</summary>
+        private void SaveCurrentTestResultsManually()
+        {
+            List<SelectedSubItemContext> selectedContexts = lastExecutedContexts.Count > 0
+                ? lastExecutedContexts.ToList()
+                : schemeTreeView.SelectedNode is not null
+                    ? GetSelectedTestContexts(schemeTreeView.SelectedNode)
+                    : new List<SelectedSubItemContext>();
+            string schemeName = selectedContexts.FirstOrDefault()?.SchemeName ?? string.Empty;
+            // 手动保存的语义是“当前方案快照”，不是仅保存最后一次点击执行的 TestItem。
+            List<SelectedSubItemContext> contexts = string.IsNullOrWhiteSpace(schemeName)
+                ? selectedContexts
+                : GetEnabledSchemeContexts(schemeName);
+            List<int> stationNumbers = lastExecutedStationNumbers.Count > 0
+                ? lastExecutedStationNumbers.ToList()
+                : stationGrid.Rows
+                    .Cast<DataGridViewRow>()
+                    .Where(row => !row.IsNewRow && HasCompleteAssetForTest(row))
+                    .Select(row => Convert.ToInt32(row.Cells[colStationNo.Index].Value))
+                    .ToList();
+            SaveCurrentTestResultSnapshot(
+                contexts,
+                stationNumbers,
+                "ManualSaved",
+                "手动保存",
+                showMessage: true);
+        }
+
+        /// <summary>在MeterTest主界面切换到测试结果视图，不创建新窗体。</summary>
+        private void ShowTestResults()
+        {
+            currentGridViewMode = MeterTestGridViewMode.TestResults;
+            groupScheme.Visible = false;
+            groupProcess.Visible = false;
+            resultUserControl!.Visible = true;
+            resultUserControl.BringToFront();
+            resultUserControl.RefreshData();
+            UpdateTestExecutionButtonState();
+        }
+
+        /// <summary>创建内嵌测试结果控件并铺满中间区域，避免以独立窗口展示结果。</summary>
+        private void InitializeResultUserControl()
+        {
+            resultUserControl = new MeterTestResultUserControl(accessDatabaseService)
+            {
+                Dock = DockStyle.Fill,
+                Margin = new Padding(0),
+                Visible = false
+            };
+            middleArea.Controls.Add(resultUserControl, 0, 0);
+            middleArea.SetColumnSpan(resultUserControl, 2);
+        }
+
+        /// <summary>
+        /// 将当前 RunId 的小项结论、资产快照和数值结果合并保存。
+        /// 部分测试、通信失败或数值缺失时使用“未完成”占位，不抛空值异常。
+        /// </summary>
+        private bool SaveCurrentTestResultSnapshot(
+            IReadOnlyList<SelectedSubItemContext> contexts,
+            IEnumerable<int> stationNumbers,
+            string status,
+            string saveMode,
+            bool showMessage)
+        {
+            List<int> stations = stationNumbers.Where(number => number > 0).Distinct().OrderBy(number => number).ToList();
+            if (contexts.Count == 0 || stations.Count == 0)
+            {
+                const string emptyMessage = "当前没有可保存的测试方案或工位数据。";
+                AddProcessLog("系统", "测试结果保存", false, emptyMessage, 0);
+                if (showMessage)
                 {
-                    // 一个管理连接对应一个 IP 下的多个工位；当前服务返回的是该管理流程的整体结果，
-                    // 因此将同一组结果同步给该 IP 下的每个工位，保证四个波特率子节点都能回显结论。
-                    stationResults[station.StationNo] = result.Success;
-                    stationTraces[station.StationNo] = new SerialPortServerStationTrace(
-                        group.Key,
-                        result.Success,
-                        result.Message,
-                        sharedDetails);
+                    MessageBox.Show(emptyMessage, "数据保存", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 }
 
-                allSucceeded &= result.Success;
+                return false;
             }
 
-            return new SerialPortServerBaudFlowResult(allSucceeded, stationResults, stationTraces);
+            try
+            {
+                string schemeName = contexts[0].SchemeName;
+                bool aggregateWholeScheme = status.Equals("ManualSaved", StringComparison.OrdinalIgnoreCase);
+                IReadOnlyList<MeterTestStoredStationResultData> storedResults = aggregateWholeScheme
+                    ? accessDatabaseService.LoadAllStationResults()
+                        .Where(result => result.SchemeName.Equals(schemeName, StringComparison.OrdinalIgnoreCase))
+                        .ToList()
+                    : accessDatabaseService.LoadStationResultsByRunId(currentRunId);
+                if (storedResults.Count == 0)
+                {
+                    // 程序重启后手动保存时，允许使用该方案的最新结果缓存。
+                    storedResults = accessDatabaseService.LoadAllStationResults()
+                        .Where(result => result.SchemeName.Equals(schemeName, StringComparison.OrdinalIgnoreCase))
+                        .ToList();
+                }
+
+                IReadOnlyDictionary<int, MeterArchiveData> archives =
+                    accessDatabaseService.LoadOrCreateMeterArchives(MaxStationCount);
+                List<MeterTestMeasurementData> measurements;
+                lock (measurementSyncRoot)
+                {
+                    measurements = currentRunMeasurements.ToList();
+                }
+                IReadOnlyList<MeterTestMeasurementData> persistedMeasurements = aggregateWholeScheme
+                    ? accessDatabaseService.LoadRuntimeMeasurementsForScheme(schemeName)
+                    : accessDatabaseService.LoadRuntimeMeasurementsByRunId(currentRunId);
+                measurements.AddRange(persistedMeasurements);
+
+                MeterTestResultTaskSnapshot snapshot = MeterTestResultSnapshotBuilder.Build(
+                    currentRunId,
+                    schemeName,
+                    currentRunStartedAt,
+                    DateTime.Now,
+                    status,
+                    saveMode,
+                    stations,
+                    archives,
+                    storedResults,
+                    measurements,
+                    contexts.Select(context => (context.TestItemName, context.SubItem.Name)));
+                long taskId = accessDatabaseService.SaveTestResultTask(snapshot);
+                string successMessage = $"测试任务已保存，TaskId={taskId}，{snapshot.ResultSummary}。";
+                AddProcessLog("系统", "测试结果保存", true, successMessage, 0);
+                if (showMessage)
+                {
+                    MessageBox.Show(successMessage, "数据保存", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                string failureMessage = $"测试结果保存失败：{ex.Message}";
+                LogMessage.Error(failureMessage, ex);
+                AddProcessLog("系统", "测试结果保存", false, failureMessage, 0);
+                if (showMessage)
+                {
+                    MessageBox.Show(failureMessage, "数据保存", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+
+                return false;
+            }
         }
 
         /// <summary>
-        /// 规范化串口服务器 IP，确保带空格、大小写差异或等价 IP 文本不会产生重复的 64444 连接。
+        /// 记录一个可结构化查询的测量值。
+        /// 同工位、同测试项、同名称和同序号重复写入时以最新值为准。
         /// </summary>
-        private static string NormalizeSerialPortServerIp(string ipAddress)
+        private void RecordMeasurement(string schemeName, MeterTestMeasurementData measurement)
         {
-            string normalized = ipAddress.Trim();
-            return IPAddress.TryParse(normalized, out IPAddress? parsedAddress)
-                ? parsedAddress.ToString()
-                : normalized.ToUpperInvariant();
+            lock (measurementSyncRoot)
+            {
+                currentRunMeasurements.RemoveAll(existing =>
+                    existing.StationNo == measurement.StationNo &&
+                    existing.TestItemName.Equals(measurement.TestItemName, StringComparison.OrdinalIgnoreCase) &&
+                    existing.TestSubItemName.Equals(measurement.TestSubItemName, StringComparison.OrdinalIgnoreCase) &&
+                    existing.MeasurementName.Equals(measurement.MeasurementName, StringComparison.OrdinalIgnoreCase) &&
+                    existing.SequenceNo == measurement.SequenceNo);
+                currentRunMeasurements.Add(measurement);
+            }
+
+            // 同步落库，避免分别执行多个 TestItem 时，下一次点击执行清空上一项数值。
+            accessDatabaseService.SaveRuntimeMeasurement(currentRunId, schemeName, measurement);
+        }
+
+        /// <summary>
+        /// 手动降源入口。若测试正在执行，先取消测试，避免后续节点在降源后重新升源。
+        /// 具体厂家驱动由 SourceControlConfigs.protocol 路由，窗体不直接调用DLL。
+        /// </summary>
+        private async Task ShutDownSourceAsync()
+        {
+            if (!btnShutDownSource.Enabled)
+                return;
+
+            btnShutDownSource.Enabled = false;
+            string originalText = btnShutDownSource.Text;
+            btnShutDownSource.Text = "降源中...";
+            try
+            {
+                if (executionCts is not null)
+                {
+                    LogMessage.Debug("[源控制][手动降源] 检测到测试正在执行，先发送取消信号。");
+                    executionCts.Cancel();
+                }
+
+                await ExecuteSourceShutdownAsync("手动降源");
+            }
+            catch (OperationCanceledException) when (stationPowerControlCts.IsCancellationRequested)
+            {
+                // 窗口关闭时取消降源回调，不再访问已释放的UI。
+            }
+            catch (Exception ex)
+            {
+                string message = $"手动降源异常：{ex.Message}";
+                LogMessage.Error($"[源控制][手动降源] {message}", ex);
+                AddProcessLog("系统", "手动降源", false, message, 0);
+            }
+            finally
+            {
+                if (!IsDisposed && !Disposing)
+                {
+                    btnShutDownSource.Text = originalText;
+                    btnShutDownSource.Enabled = true;
+                }
+            }
+        }
+
+        /// <summary>
+        /// 统一的无弹窗降源入口。
+        /// 停止测试、手动降源和后续安全流程都通过该方法记录一致的结果日志。
+        /// </summary>
+        private async Task<bool> ExecuteSourceShutdownAsync(string operationName)
+        {
+            if (isSourceShutdownInProgress)
+            {
+                LogMessage.Debug($"[源控制][{operationName}] 已有降源任务正在执行，本次请求不重复调用驱动。");
+                return false;
+            }
+
+            isSourceShutdownInProgress = true;
+            btnStartTest.Enabled = false;
+            try
+            {
+                // 降源必须使用点击时最新的运行目录配置，现场修改sourcePort后无需重启程序。
+                MeterTestPlanConfig shutdownPlanConfig = configService.LoadOrCreate(configFilePath);
+                MeterTestStationConfig shutdownStationConfig = stationConfigService.LoadOrCreate(
+                    stationConfigFilePath,
+                    MaxStationCount,
+                    DefaultStationIp,
+                    DefaultStationStartPort,
+                    shutdownPlanConfig);
+                stationConfigService.ApplyRuntimeDeviceConfigs(shutdownPlanConfig, shutdownStationConfig);
+                string sourceConfigSummary = string.Join(
+                    "；",
+                    shutdownPlanConfig.SourceControlConfigs
+                        .Where(config => config.Enabled)
+                        .Select(config =>
+                            $"{config.Name}[protocol={config.Protocol},sourcePort={config.SourcePort},shutMode={config.ShutMode}]"));
+                LogMessage.Debug(
+                    $"[源控制][{operationName}] 重新加载降源配置：现场配置文件={Path.GetFullPath(stationConfigFilePath)}；"
+                    + $"启用配置={sourceConfigSummary}。");
+
+                MeterTestSourceControlService.MeterTestSourceControlResult result =
+                    await sourceControlService.ShutDownFromConfigurationAsync(
+                        shutdownPlanConfig,
+                        stationPowerControlCts.Token,
+                        message => LogMessage.Debug($"[源控制][{operationName}] {message}")).ConfigureAwait(true);
+                AddProcessLog("系统", operationName, result.Success, result.Message, 0);
+                if (!result.Success)
+                {
+                    LogMessage.Error($"[源控制][{operationName}] {result.Message}", null);
+                }
+
+                return result.Success;
+            }
+            catch (OperationCanceledException) when (stationPowerControlCts.IsCancellationRequested)
+            {
+                return false;
+            }
+            catch (Exception ex)
+            {
+                string message = $"{operationName}异常：{ex.Message}";
+                LogMessage.Error($"[源控制][{operationName}] {message}", ex);
+                AddProcessLog("系统", operationName, false, message, 0);
+                return false;
+            }
+            finally
+            {
+                isSourceShutdownInProgress = false;
+                if (!IsDisposed && !Disposing && executionCts is null)
+                {
+                    UpdateTestExecutionButtonState();
+                }
+            }
         }
 
         /// <summary>
         /// 执行一个测试上下文。
-        /// 配置源控制的小项先切换台体类型并等待0x82应答，再执行源控制和具体测试流程。
+        /// 台体类型和源Ini已在执行入口统一完成；此处只执行当前小项的源输出和具体测试流程。
         /// </summary>
         private async Task ExecuteTestContextAsync(
             SelectedSubItemContext context,
             List<StationCommunicationConfig> selectedStations,
             CancellationToken cancellationToken)
         {
-            if (UsesBasicErrorPointExecution(context.SubItem))
+            MeterTestWorkflowKind workflowKind = MeterTestWorkflowRouter.Resolve(context.SubItem);
+
+            if (workflowKind == MeterTestWorkflowKind.DeviceSelfCheck)
+            {
+                await ExecuteDeviceSelfCheckStepAsync(context, selectedStations, cancellationToken);
+                return;
+            }
+
+            if (workflowKind == MeterTestWorkflowKind.BasicErrorPoint)
             {
                 await ExecuteBasicErrorPointAsync(context, selectedStations, cancellationToken);
                 return;
             }
 
-            if (UsesBluetoothStationTcpExecution(context.SubItem))
+            if (workflowKind == MeterTestWorkflowKind.StartingErrorPoint)
+            {
+                await ExecuteStartingErrorPointAsync(context, selectedStations, cancellationToken);
+                return;
+            }
+
+            if (workflowKind == MeterTestWorkflowKind.BluetoothStationTcp)
             {
                 await ExecuteBluetoothInterfaceStepAsync(context, selectedStations, cancellationToken);
                 return;
@@ -909,17 +1446,26 @@ namespace ModelTest.MeterTest
 
             bool isCommunicationTest = IsCommunicationTestContext(context);
             bool sourceControlSucceeded = true;
-            if (!string.IsNullOrWhiteSpace(context.SubItem.SourceControlConfig) ||
-                UsesStartingSourceExecution(context.SubItem) ||
-                UsesCreepingSourceExecution(context.SubItem))
+            if (MeterTestWorkflowRouter.RequiresSourceControl(context.SubItem))
             {
-                // 台体类型是控源前置条件。0x82未收到正确应答时不允许打开源串口或升源。
-                bool benchTypeSwitchSucceeded = await TryExecuteBenchTypeSwitchAsync(
-                    context,
-                    selectedStations,
-                    cancellationToken);
-                sourceControlSucceeded = benchTypeSwitchSucceeded &&
-                    await TryExecuteSourceControlAsync(context, cancellationToken);
+                // 起动和潜动均由5个方案小项共同组成，此处只在第1步写入一次流程头。
+                string? fiveStepSourceTitle = MeterTestWorkflowRouter.GetFiveStepSourceTitle(context.SubItem);
+                if (fiveStepSourceTitle != null)
+                {
+                    foreach (StationCommunicationConfig station in selectedStations)
+                    {
+                        LogTestItemStationBlock(
+                            context.TestItemName,
+                            context.SubItem.Name,
+                            station.StationNo,
+                            "流程日志",
+                            StationLogSeparator,
+                            $"[流程开始] 测试项目：{context.TestItemName}",
+                            $"[步骤1/5 {fiveStepSourceTitle}] 开始。");
+                    }
+                }
+
+                sourceControlSucceeded = await TryExecuteSourceControlAsync(context, cancellationToken);
             }
 
             // 通信测试中的单个准备步骤失败后仍继续执行后续步骤，最后一定尝试地址读取。
@@ -930,13 +1476,14 @@ namespace ModelTest.MeterTest
 
             // StartingSource/CreepingSource 的完整结果就是“下发升源 + 20秒内标准表达标判断”，
             // 不再进入普通工位 TCP 一发一收，否则空请求会覆盖已经得到的升源结论。
-            if (UsesStartingSourceExecution(context.SubItem) ||
-                UsesCreepingSourceExecution(context.SubItem))
+            if (workflowKind is MeterTestWorkflowKind.SourceControl
+                or MeterTestWorkflowKind.ConstantImaxSource
+                or MeterTestWorkflowKind.ConstantVoltageSource)
             {
                 return;
             }
 
-            if (UsesPlannedTestExecution(context.SubItem))
+            if (workflowKind == MeterTestWorkflowKind.Planned)
             {
                 foreach (StationCommunicationConfig station in selectedStations)
                 {
@@ -957,63 +1504,99 @@ namespace ModelTest.MeterTest
                 return;
             }
 
-            if (UsesSerialPortServerBaudRateExecution(context.SubItem))
+            if (workflowKind == MeterTestWorkflowKind.SerialPortServerBaudRate)
             {
                 await ExecuteSerialPortServerBaudRateStepAsync(context, selectedStations, cancellationToken);
                 return;
             }
 
-            if (UsesControlPcbDailyTimingExecution(context.SubItem))
+            if (workflowKind == MeterTestWorkflowKind.ControlPcbDailyTiming)
             {
                 await ExecuteControlPcbDailyTimingStepAsync(context, selectedStations, cancellationToken);
                 return;
             }
 
-            if (UsesControlPcbCreepingStartExecution(context.SubItem))
+            if (workflowKind == MeterTestWorkflowKind.ControlPcbCreepingStart)
             {
                 await ExecuteControlPcbCreepingStartAsync(context, selectedStations, cancellationToken);
                 return;
             }
 
-            if (UsesCreepingWaitExecution(context.SubItem))
+            if (workflowKind == MeterTestWorkflowKind.CreepingWait)
             {
                 await ExecuteCreepingWaitAsync(context, selectedStations, cancellationToken);
                 return;
             }
 
-            if (UsesControlPcbCreepingReadExecution(context.SubItem))
+            if (workflowKind == MeterTestWorkflowKind.ControlPcbCreepingRead)
             {
                 await ExecuteControlPcbCreepingReadAsync(context, selectedStations, cancellationToken);
                 return;
             }
 
-            if (UsesCreepingPulseJudgeExecution(context.SubItem))
+            if (workflowKind == MeterTestWorkflowKind.CreepingPulseJudge)
             {
                 ExecuteCreepingPulseJudgeStep(context, selectedStations);
                 return;
             }
 
-            if (UsesControlPcbStartingErrorExecution(context.SubItem))
+            if (workflowKind == MeterTestWorkflowKind.ControlPcbStartingError)
             {
                 await ExecuteControlPcbStartingErrorStepAsync(context, selectedStations, cancellationToken);
                 return;
             }
 
-            if (UsesStartingTimeWaitExecution(context.SubItem))
+            if (workflowKind == MeterTestWorkflowKind.StartingTimeWait)
             {
                 await ExecuteStartingTimeWaitAsync(context, selectedStations, cancellationToken);
                 return;
             }
 
-            if (UsesControlPcbStartingErrorReadExecution(context.SubItem))
+            if (workflowKind == MeterTestWorkflowKind.ControlPcbStartingErrorRead)
             {
                 await ExecuteControlPcbStartingErrorReadStepAsync(context, selectedStations, cancellationToken);
                 return;
             }
 
-            if (UsesStartingErrorJudgeExecution(context.SubItem))
+            if (workflowKind == MeterTestWorkflowKind.StartingErrorJudge)
             {
                 ExecuteStartingErrorJudgeStep(context, selectedStations);
+                return;
+            }
+
+            if (workflowKind == MeterTestWorkflowKind.ConstantEnergyRead)
+            {
+                await ExecuteConstantEnergyReadAsync(context, selectedStations, cancellationToken);
+                return;
+            }
+
+            if (workflowKind == MeterTestWorkflowKind.ControlPcbWalkingStart)
+            {
+                await ExecuteControlPcbWalkingStartAsync(context, selectedStations, cancellationToken);
+                return;
+            }
+
+            if (workflowKind == MeterTestWorkflowKind.ConstantWait)
+            {
+                await ExecuteConstantWaitAsync(context, selectedStations, cancellationToken);
+                return;
+            }
+
+            if (workflowKind == MeterTestWorkflowKind.ControlPcbWalkingStop)
+            {
+                await ExecuteControlPcbWalkingStopAsync(context, selectedStations, cancellationToken);
+                return;
+            }
+
+            if (workflowKind == MeterTestWorkflowKind.ControlPcbWalkingRead)
+            {
+                await ExecuteControlPcbWalkingReadAsync(context, selectedStations, cancellationToken);
+                return;
+            }
+
+            if (workflowKind == MeterTestWorkflowKind.ConstantResultJudge)
+            {
+                ExecuteConstantResultJudgeStep(context, selectedStations);
                 return;
             }
 
@@ -1025,225 +1608,56 @@ namespace ModelTest.MeterTest
         }
 
         /// <summary>
-        /// 执行方案树中的一个波特率检查小项。
-        /// 完整串口服务器流程只发送一次，后续树节点用于展示流程阶段并继续向地址读取推进。
+        /// 调度通信测试中的串口服务器步骤。
+        /// 按 IP 去重、F3/F1 收发、参数核对和步骤日志分类全部由通信测试服务负责。
         /// </summary>
         private async Task ExecuteSerialPortServerBaudRateStepAsync(
             SelectedSubItemContext context,
             IReadOnlyList<StationCommunicationConfig> selectedStations,
             CancellationToken cancellationToken)
         {
-            long startTicks = Environment.TickCount64;
-            if (!serialPortServerBaudFlowExecuted)
-            {
-                serialPortServerBaudFlowExecuted = true;
-                SerialPortServerBaudFlowResult flowResult = await EnsureSerialServerBaudRatesAsync(
-                    selectedStations,
-                    cancellationToken);
-                serialPortServerBaudFlowSucceeded = flowResult.Succeeded;
-                serialPortServerBaudStationResults = flowResult.StationResults;
-                serialPortServerStationTraces = flowResult.StationTraces;
-
-                SaveStationConclusions(
+            MeterTestCommunicationBatchStepResult result =
+                await communicationTestService.ExecuteSerialPortServerStepAsync(
                     context,
                     selectedStations,
-                    serialPortServerBaudStationResults,
-                    "串口服务器波特率流程完成。请查看过程日志了解读取、校验和修改明细。");
-                WriteSerialPortServerStepLogs(context, selectedStations);
+                    (stationNo, lines) => LogTestItemStationBlock(
+                        context.TestItemName,
+                        context.SubItem.Name,
+                        stationNo,
+                        "串口服务器日志",
+                        lines),
+                    cancellationToken);
 
+            RunOnUiThread(() =>
+            {
+                foreach (StationCommunicationConfig station in selectedStations)
+                {
+                    MeterTestCommunicationStationResult stationResult =
+                        result.StationResults.TryGetValue(
+                            station.StationNo,
+                            out MeterTestCommunicationStationResult? resolved)
+                                ? resolved
+                                : new MeterTestCommunicationStationResult(
+                                    station.StationNo,
+                                    false,
+                                    string.Empty,
+                                    "串口服务器流程未返回当前工位结果。",
+                                    result.ElapsedMilliseconds);
+                    ApplyStationExecutionResult(
+                        station.StationNo,
+                        context,
+                        stationResult.Passed,
+                        stationResult.Message);
+                }
+
+                RestoreStationDisplayForSelectedNode();
                 AddProcessLog(
                     $"{context.SchemeName}/{context.TestItemName}",
                     context.SubItem.Name,
-                    serialPortServerBaudFlowSucceeded,
-                    serialPortServerBaudFlowSucceeded
-                        ? "串口服务器波特率检查流程完成，继续执行后续测试。"
-                        : "串口服务器波特率检查存在失败步骤，已继续执行后续测试。",
-                    Math.Max(0, Environment.TickCount64 - startTicks));
-                return;
-            }
-
-            SaveStationConclusions(
-                context,
-                selectedStations,
-                serialPortServerBaudStationResults,
-                serialPortServerBaudFlowSucceeded
-                    ? "该波特率步骤已由前置流程完成。"
-                    : "前置波特率流程存在失败，但当前步骤不阻断后续地址读取。");
-            WriteSerialPortServerStepLogs(context, selectedStations);
-
-            AddProcessLog(
-                $"{context.SchemeName}/{context.TestItemName}",
-                context.SubItem.Name,
-                serialPortServerBaudFlowSucceeded,
-                serialPortServerBaudFlowSucceeded
-                    ? "该步骤已由前置波特率流程完成，无需重复发送报文。"
-                    : "前置波特率流程存在失败，当前步骤不阻断后续地址读取。",
-                Math.Max(0, Environment.TickCount64 - startTicks));
-        }
-
-        /// <summary>
-        /// 将串口服务器完整跟踪信息按当前方案子项拆分，并逐工位写入右侧日志和通信日志文件。
-        /// 同一 IP 下的管理报文只实际发送一次，但每个工位都需要能够查看与自身相关的流程记录。
-        /// </summary>
-        private void WriteSerialPortServerStepLogs(
-            SelectedSubItemContext context,
-            IReadOnlyList<StationCommunicationConfig> stations)
-        {
-            foreach (StationCommunicationConfig station in stations)
-            {
-                if (!serialPortServerStationTraces.TryGetValue(station.StationNo, out SerialPortServerStationTrace? trace))
-                {
-                    continue;
-                }
-
-                List<string> stepDetails = trace.Details
-                    .Where(detail => IsSerialPortServerDetailForStation(detail, station))
-                    .Where(detail => IsSerialPortServerDetailForStep(detail, context.SubItem.SerialPortServerStep))
-                    .ToList();
-                if (stepDetails.Count == 0)
-                {
-                    stepDetails.Add(GetSerialPortServerStepFallback(context.SubItem.SerialPortServerStep, trace));
-                }
-
-                string resultText = trace.Success ? "合格" : "不合格";
-                string logBlock = string.Join(
-                    Environment.NewLine,
-                    new[]
-                    {
-                        StationLogSeparator,
-                        $"测试小项：{context.SubItem.Name}",
-                        $"串口服务器：{trace.IpAddress}:{MeterTestSerialPortServerService.ManagementPort}",
-                        $"工位配置：工位{station.StationNo}，端口={station.Port}，波特率={station.BaudRate}"
-                    }
-                    .Concat(stepDetails)
-                    .Concat(new[]
-                    {
-                        $"步骤结论：{resultText}",
-                        StationLogSeparator
-                    }));
-
-                LogMessage.MeterTestStationRawLog(context.TestItemName, station.StationNo, logBlock);
-                AppendTestLog(
-                    station.StationNo,
-                    $"{context.TestItemName}/工位{station.StationNo}/{context.SubItem.Name}",
-                    "串口服务器日志",
-                    logBlock);
-            }
-        }
-
-        /// <summary>
-        /// 排除同一 IP 组内其他工位的端口和结论明细，保留公共连接/报文日志。
-        /// </summary>
-        private static bool IsSerialPortServerDetailForStation(
-            string detail,
-            StationCommunicationConfig station)
-        {
-            int? detailStationNo = TryExtractSingleStationNo(detail);
-            if (detailStationNo.HasValue && detailStationNo.Value != station.StationNo)
-            {
-                return false;
-            }
-
-            if (detail.StartsWith("读取端口 ", StringComparison.OrdinalIgnoreCase))
-            {
-                return detail.Contains($"读取端口 {station.Port}（", StringComparison.OrdinalIgnoreCase);
-            }
-
-            return true;
-        }
-
-        /// <summary>
-        /// 将完整波特率同步日志按 Connect、ReadParameters、Compare、Apply 四个方案节点分类。
-        /// </summary>
-        private static bool IsSerialPortServerDetailForStep(string detail, string step)
-        {
-            return step.Trim().ToUpperInvariant() switch
-            {
-                "CONNECT" => detail.Contains("连接", StringComparison.OrdinalIgnoreCase)
-                    || detail.Contains("准备", StringComparison.OrdinalIgnoreCase),
-                "READPARAMETERS" => detail.Contains("读取", StringComparison.OrdinalIgnoreCase),
-                "COMPARE" => detail.Contains("待检查", StringComparison.OrdinalIgnoreCase)
-                    || detail.Contains("一致", StringComparison.OrdinalIgnoreCase)
-                    || detail.Contains("不一致", StringComparison.OrdinalIgnoreCase)
-                    || detail.Contains("匹配", StringComparison.OrdinalIgnoreCase),
-                "APPLY" => detail.Contains("解锁", StringComparison.OrdinalIgnoreCase)
-                    || detail.Contains("修改", StringComparison.OrdinalIgnoreCase)
-                    || detail.Contains("设置", StringComparison.OrdinalIgnoreCase),
-                _ => true
-            };
-        }
-
-        /// <summary>
-        /// 当前步骤没有独立报文时给出明确说明，避免日志区域看起来像没有执行。
-        /// </summary>
-        private static string GetSerialPortServerStepFallback(
-            string step,
-            SerialPortServerStationTrace trace)
-        {
-            return step.Trim().ToUpperInvariant() switch
-            {
-                "CONNECT" => trace.Message,
-                "READPARAMETERS" => $"未取得独立读取明细。完整流程结论：{trace.Message}",
-                "COMPARE" => $"未取得独立校验明细。完整流程结论：{trace.Message}",
-                "APPLY" when trace.Success => "所有目标端口参数一致，本步骤无需修改。",
-                "APPLY" => $"未完成参数修改。完整流程结论：{trace.Message}",
-                _ => trace.Message
-            };
-        }
-
-        /// <summary>
-        /// 根据当前选中工位的资产信息切换台体类型。
-        /// 具体的模式判定、0x82组帧、TCP收发和应答校验全部由独立服务处理。
-        /// </summary>
-        private async Task<bool> TryExecuteBenchTypeSwitchAsync(
-            SelectedSubItemContext context,
-            IReadOnlyList<StationCommunicationConfig> selectedStations,
-            CancellationToken cancellationToken)
-        {
-            IReadOnlyDictionary<int, MeterArchiveData> meterArchives =
-                accessDatabaseService.LoadOrCreateMeterArchives(MaxStationCount);
-            List<int> stationNumbers = selectedStations
-                .Select(station => station.StationNo)
-                .Distinct()
-                .OrderBy(stationNo => stationNo)
-                .ToList();
-
-            foreach (int stationNo in stationNumbers)
-            {
-                LogTestItemStationBlock(
-                    context.TestItemName,
-                    context.SubItem.Name,
-                    stationNo,
-                    "台体类型切换日志",
-                    $"开始执行测试小项前置台体类型切换：{context.SubItem.Name}。");
-            }
-
-            long startTicks = Environment.TickCount64;
-            MeterTestBenchTypeSwitchResult result = await benchTypeSwitchService.ExecuteAsync(
-                meterTestPlanConfig.BenchTypeSwitchConfig,
-                stationNumbers,
-                meterArchives,
-                controlPcbConnectionManager,
-                cancellationToken);
-
-            foreach (int stationNo in stationNumbers)
-            {
-                LogTestItemStationBlock(
-                    context.TestItemName,
-                    context.SubItem.Name,
-                    stationNo,
-                    "台体类型切换日志",
-                    $"台体类型切换结束：{result.Message}，结论={(result.Success ? "合格" : "不合格")}。");
-            }
-
-            RunOnUiThread(() => AddProcessLog(
-                $"{context.SchemeName}/{context.TestItemName}",
-                $"{context.SubItem.Name}-台体类型切换",
-                result.Success,
-                result.Message,
-                Math.Max(0, Environment.TickCount64 - startTicks)));
-
-            return result.Success;
+                    result.Passed,
+                    result.Message,
+                    result.ElapsedMilliseconds);
+            });
         }
 
         /// <summary>
@@ -1255,6 +1669,14 @@ namespace ModelTest.MeterTest
             CancellationToken cancellationToken)
         {
             List<StationCommunicationConfig> selectedStations = GetSelectedStations();
+            RunOnUiThread(() =>
+            {
+                foreach (StationCommunicationConfig station in selectedStations)
+                {
+                    UpdateStationRunningState(station.StationNo, context);
+                }
+            });
+
             IReadOnlyDictionary<int, MeterArchiveData> meterArchives = accessDatabaseService.LoadOrCreateMeterArchives(MaxStationCount);
             List<MeterTestStationCommunication> sourceStations = selectedStations
                 .Select(station => new MeterTestStationCommunication
@@ -1266,7 +1688,14 @@ namespace ModelTest.MeterTest
                 .ToList();
 
             long startTicks = Environment.TickCount64;
-            MeterTestSourceControlService.MeterTestSourceControlResult result = await sourceControlService.ExecuteAsync(
+            string? fiveStepPrefix = MeterTestWorkflowRouter.IsStartingSource(context.SubItem)
+                ? "[步骤1/5 升源（启动电流）]"
+                : MeterTestWorkflowRouter.IsCreepingSource(context.SubItem)
+                    ? "[步骤1/5 升源（潜动电压）]"
+                    : null;
+            string sourceBatchKey = $"{currentRunId}|{context.SchemeName}|{context.TestItemName}|{context.SubItem.Name}";
+            MeterTestSourceControlService.MeterTestSourceControlResult result = await sourceControlService.ExecuteBatchOnceAsync(
+                sourceBatchKey,
                 meterTestPlanConfig,
                 context.SubItem,
                 sourceStations,
@@ -1281,9 +1710,22 @@ namespace ModelTest.MeterTest
                             context.SubItem.Name,
                             station.StationNo,
                             "源控制日志",
-                            message);
+                            fiveStepPrefix == null ? message : $"{fiveStepPrefix} {message}");
                     }
                 });
+
+            if (fiveStepPrefix != null)
+            {
+                foreach (StationCommunicationConfig station in selectedStations)
+                {
+                    LogTestItemStationBlock(
+                        context.TestItemName,
+                        context.SubItem.Name,
+                        station.StationNo,
+                        "源控制日志",
+                        $"{fiveStepPrefix} 结论：{(result.Success ? "合格" : "不合格")}，{result.Message}");
+                }
+            }
 
             RunOnUiThread(() =>
             {
@@ -1292,8 +1734,10 @@ namespace ModelTest.MeterTest
                     UpdateHardwareMetricsFromStandValues(result.StandValues);
                 }
 
-                if (UsesStartingSourceExecution(context.SubItem) ||
-                    UsesCreepingSourceExecution(context.SubItem))
+                if (MeterTestWorkflowRouter.IsStartingSource(context.SubItem) ||
+                    MeterTestWorkflowRouter.IsCreepingSource(context.SubItem) ||
+                    MeterTestWorkflowRouter.Is(context.SubItem, MeterTestWorkflowKind.ConstantImaxSource) ||
+                    MeterTestWorkflowRouter.Is(context.SubItem, MeterTestWorkflowKind.ConstantVoltageSource))
                 {
                     Dictionary<int, bool> stationResults = selectedStations
                         .ToDictionary(station => station.StationNo, _ => result.Success);
@@ -1314,69 +1758,41 @@ namespace ModelTest.MeterTest
 
         /// <summary>
         /// 执行一个有功基本误差测试点。
-        /// 窗体仅负责台体切换、参数收集和结果回填，内部五步全部由独立服务完成。
+        /// 台体类型已在执行入口统一切换；窗体只负责参数收集和结果回填，内部五步由独立服务完成。
         /// </summary>
         private async Task ExecuteBasicErrorPointAsync(
             SelectedSubItemContext context,
             List<StationCommunicationConfig> selectedStations,
             CancellationToken cancellationToken)
         {
-            long startTicks = Environment.TickCount64;
             foreach (StationCommunicationConfig station in selectedStations)
             {
                 UpdateStationRunningState(station.StationNo, context);
-                LogBasicErrorStationBlock(
-                    context.TestItemName,
-                    context.SubItem.Name,
-                    station.StationNo,
-                    StationLogSeparator,
-                    $"开始基本误差测试小项：{context.SubItem.Name}。");
             }
 
-            bool benchTypeSwitchSucceeded = await TryExecuteBenchTypeSwitchAsync(
+            MeterTestBasicErrorWorkflowResult workflowResult = await basicErrorService.ExecutePointAsync(
+                currentRunId,
+                meterTestPlanConfig,
                 context,
                 selectedStations,
-                cancellationToken);
-            if (!benchTypeSwitchSucceeded)
-            {
-                const string message = "台体类型切换失败，基本误差测试点未执行。";
-                foreach (StationCommunicationConfig station in selectedStations)
-                {
-                    LogBasicErrorStationBlock(context.TestItemName, context.SubItem.Name, station.StationNo, message);
-                    ApplyStationExecutionResult(station.StationNo, context, false, message);
-                }
-
-                AddProcessLog(context.SchemeName, context.SubItem.Name, false, message, 0);
-                return;
-            }
-
-            IReadOnlyDictionary<int, MeterArchiveData> meterArchives =
-                accessDatabaseService.LoadOrCreateMeterArchives(MaxStationCount);
-            List<MeterTestStationCommunication> sourceStations = selectedStations
-                .Select(station => new MeterTestStationCommunication
-                {
-                    StationNo = station.StationNo,
-                    Ip = station.Ip,
-                    Port = station.Port
-                })
-                .ToList();
-            MeterTestBasicErrorExecutionResult result = await basicErrorService.ExecuteAsync(
-                meterTestPlanConfig,
-                context.SubItem,
-                sourceStations,
-                meterArchives,
                 (stationNo, message) => LogBasicErrorStationBlock(
                     context.TestItemName,
                     context.SubItem.Name,
                     stationNo,
                     message),
                 cancellationToken);
+            MeterTestBasicErrorExecutionResult result = workflowResult.ExecutionResult;
 
             RunOnUiThread(() =>
             {
                 if (result.StandValues is not null)
                 {
                     UpdateHardwareMetricsFromStandValues(result.StandValues);
+                }
+
+                foreach (MeterTestMeasurementData measurement in workflowResult.Measurements)
+                {
+                    RecordMeasurement(context.SchemeName, measurement);
                 }
 
                 foreach (StationCommunicationConfig station in selectedStations)
@@ -1399,13 +1815,38 @@ namespace ModelTest.MeterTest
                     context.SubItem.Name,
                     result.Success,
                     result.Message,
-                    Math.Max(0, Environment.TickCount64 - startTicks));
+                    workflowResult.ElapsedMilliseconds);
             });
         }
 
         /// <summary>
+        /// 执行一个起动误差测试点。
+        /// 方案树只展示“正有/反有-H-1.0-1U-Ist”，内部仍复用原有起动五步流程。
+        /// </summary>
+        private async Task ExecuteStartingErrorPointAsync(
+            SelectedSubItemContext context,
+            List<StationCommunicationConfig> selectedStations,
+            CancellationToken cancellationToken)
+        {
+            await startingErrorService.ExecutePointAsync(
+                context,
+                selectedStations,
+                TryExecuteSourceControlAsync,
+                (stationNo, runningContext) => RunOnUiThread(() => UpdateStationRunningState(stationNo, runningContext)),
+                (stationNo, lines) => LogStartingErrorStationBlock(context.TestItemName, stationNo, lines),
+                (group, target, lines) => LogControlPcbStationBlock(context.TestItemName, group, target, lines),
+                (stationNo, resultContext, passed, message) =>
+                    RunOnUiThread(() => ApplyStationExecutionResult(stationNo, resultContext, passed, message)),
+                (scope, name, passed, message, elapsed) => RunOnUiThread(() => AddProcessLog(scope, name, passed, message, elapsed)),
+                subItem => GetEnabledControlPcbGroups(subItem),
+                () => RunOnUiThread(RestoreStationDisplayForSelectedNode),
+                measurement => RecordMeasurement(context.SchemeName, measurement),
+                cancellationToken);
+        }
+
+        /// <summary>
         /// 执行一个国网智芯蓝牙接口检测小项。
-        /// 每个工位只使用BluetoothTcpChannels中的专用IP/Port新建TCP连接，各工位任务并发执行。
+        /// 每个工位只使用BluetoothTcpChannels中的专用IP/Port；同一轮的四个蓝牙步骤复用TCP连接。
         /// 资产信息中的IP/Port属于485通信，此流程不会回退使用。
         /// </summary>
         private async Task ExecuteBluetoothInterfaceStepAsync(
@@ -1414,27 +1855,23 @@ namespace ModelTest.MeterTest
             CancellationToken cancellationToken)
         {
             long startTicks = Environment.TickCount64;
-            List<MeterTestBluetoothStation> bluetoothStations = selectedStations
-                .Select(CreateBluetoothStation)
-                .ToList();
-            foreach (MeterTestBluetoothStation station in bluetoothStations)
+            foreach (StationCommunicationConfig station in selectedStations)
             {
                 UpdateStationRunningState(station.StationNo, context);
-                string endpoint = string.IsNullOrWhiteSpace(station.ConfigurationError)
-                    ? $"{station.Ip}:{station.Port}"
-                    : "未配置";
                 LogBluetoothStationBlock(
                     context.TestItemName,
                     context.SubItem.Name,
                     station.StationNo,
                     StationLogSeparator,
-                    $"开始蓝牙检测步骤：{context.SubItem.Name}，工位={station.StationNo}，蓝牙Endpoint={endpoint}。");
+                    $"开始蓝牙检测步骤：{context.SubItem.Name}，工位={station.StationNo}；"
+                    + "蓝牙专用端点由服务从 BluetoothTcpChannels 唯一映射解析。");
             }
 
             IReadOnlyDictionary<int, MeterTestBluetoothStationResult> results =
-                await bluetoothInterfaceService.ExecuteStepAsync(
+                await bluetoothInterfaceService.ExecuteConfiguredStepAsync(
+                    meterTestPlanConfig,
                     context.SubItem,
-                    bluetoothStations,
+                    selectedStations,
                     (stationNo, message) => LogBluetoothStationBlock(
                         context.TestItemName,
                         context.SubItem.Name,
@@ -1478,58 +1915,7 @@ namespace ModelTest.MeterTest
             });
         }
 
-        /// <summary>
-        /// 按工位号解析蓝牙专用TCP配置。
-        /// 缺失、重复、禁用或端点非法时把原因交给蓝牙服务判定失败，绝不使用资产485端点兜底。
-        /// </summary>
-        private MeterTestBluetoothStation CreateBluetoothStation(StationCommunicationConfig station)
-        {
-            List<MeterTestBluetoothTcpChannel> matches = meterTestPlanConfig.BluetoothTcpChannels
-                .Where(channel => channel.Station == station.StationNo)
-                .ToList();
-            if (matches.Count == 0)
-            {
-                return new MeterTestBluetoothStation(
-                    station.StationNo,
-                    string.Empty,
-                    0,
-                    station.MeterAddress,
-                    $"工位{station.StationNo}未配置蓝牙专用TCP通道，请维护BluetoothTcpChannels。");
-            }
-
-            if (matches.Count > 1)
-            {
-                return new MeterTestBluetoothStation(
-                    station.StationNo,
-                    string.Empty,
-                    0,
-                    station.MeterAddress,
-                    $"工位{station.StationNo}存在{matches.Count}条蓝牙TCP配置，请保留唯一映射。");
-            }
-
-            MeterTestBluetoothTcpChannel channel = matches[0];
-            if (!channel.Enabled)
-            {
-                return new MeterTestBluetoothStation(
-                    station.StationNo,
-                    channel.Ip.Trim(),
-                    channel.Port,
-                    station.MeterAddress,
-                    $"工位{station.StationNo}的蓝牙专用TCP通道未启用。");
-            }
-
-            string ip = channel.Ip.Trim();
-            string configurationError = string.IsNullOrWhiteSpace(ip) || channel.Port is < 1 or > 65535
-                ? $"工位{station.StationNo}的蓝牙专用TCP端点无效：{ip}:{channel.Port}。"
-                : string.Empty;
-            return new MeterTestBluetoothStation(
-                station.StationNo,
-                ip,
-                channel.Port,
-                station.MeterAddress,
-                configurationError);
-        }
-
+        /// <summary>返回去除首尾空格后的文本；输入为空时使用指定默认值。</summary>
         private static string DefaultIfEmpty(string value, string defaultValue)
         {
             return string.IsNullOrWhiteSpace(value) ? defaultValue : value.Trim();
@@ -1550,21 +1936,16 @@ namespace ModelTest.MeterTest
         }
 
         /// <summary>
-        /// 将执行结果追加到界面过程日志，并在需要时回写表位地址。
+        /// 根据当前视图和测试状态统一刷新“开始测试/停止测试”按钮。
+        /// 资产信息和测试结果视图只用于查看维护，不允许直接启动或停止测试。
         /// </summary>
-        private void AddExecutionResult(MeterTestExecutionResult result)
+        private void UpdateTestExecutionButtonState()
         {
-            AddProcessLog(
-                $"{result.SchemeName}/{result.TestItemName}",
-                result.TestSubItemName,
-                result.Passed,
-                $"{result.Message} 应答：{result.Response}",
-                result.ElapsedMilliseconds);
+            bool isTestPlanView = currentGridViewMode == MeterTestGridViewMode.TestPlan;
+            bool isRunning = executionCts is not null;
 
-            if (IsLegacyAddressTestName(result.TestSubItemName))
-            {
-                UpdateStationAddressResult(1, result.Response, result.Passed);
-            }
+            btnStartTest.Enabled = isTestPlanView && !isRunning && !isSourceShutdownInProgress;
+            btnStopTest.Enabled = isTestPlanView && isRunning;
         }
 
         /// <summary>
@@ -1624,6 +2005,109 @@ namespace ModelTest.MeterTest
         }
 
         /// <summary>
+        /// 向右侧日志追加不带合格结论的过程信息，不在底部结果表新增行。
+        /// 用于“连接中”等尚未形成最终判断的状态。
+        /// </summary>
+        private void AddProcessInfoLog(string scope, string testName, string status, string message)
+        {
+            if (IsDisposed || Disposing)
+                return;
+
+            if (InvokeRequired)
+            {
+                try
+                {
+                    BeginInvoke(new Action(() => AddProcessInfoLog(scope, testName, status, message)));
+                }
+                catch (ObjectDisposedException)
+                {
+                    // 窗体关闭时不再投递过程消息。
+                }
+                catch (InvalidOperationException)
+                {
+                    // 窗体句柄销毁后忽略后台状态回调。
+                }
+
+                return;
+            }
+
+            string timestamp = DateTime.Now.ToString("HH:mm:ss");
+            StoreTestLogEntry(
+                null,
+                $"[{timestamp}] [{status}] {scope} - {testName}"
+                + Environment.NewLine
+                + message
+                + Environment.NewLine
+                + StationLogSeparator
+                + Environment.NewLine);
+        }
+
+        /// <summary>
+        /// 从SQLite加载资产下拉候选项。Designer不再维护任何业务候选值。
+        /// </summary>
+        private void LoadAssetOptionDefinitions()
+        {
+            assetOptionCache.Clear();
+            foreach ((string category, string scope) in new[]
+                     {
+                         ("MeterType", ""),
+                         ("AccessMode", ""),
+                         ("Voltage", ""),
+                         ("BasicCurrent", ""),
+                         ("CurrentSpecification", "Direct"),
+                         ("CurrentSpecification", "Transformer"),
+                         ("ActiveClass", ""),
+                         ("ActiveConstant", ""),
+                         ("ReactiveClass", ""),
+                         ("ReactiveConstant", ""),
+                         ("BaudRate", "")
+                     })
+            {
+                assetOptionCache[CreateAssetOptionKey(category, scope)] =
+                    accessDatabaseService.LoadAssetOptions(category, scope);
+            }
+
+            SetComboColumnItems(colMeterType, GetAssetOptionValues("MeterType"));
+            SetComboColumnItems(colMeterAccessMode, GetAssetOptionValues("AccessMode"));
+            SetComboColumnItems(colMeterActiveClass, GetAssetOptionValues("ActiveClass"));
+            SetComboColumnItems(colMeterReactiveClass, GetAssetOptionValues("ReactiveClass"));
+            SetComboColumnItems(colMeterBaudRate, GetAssetOptionValues("BaudRate"));
+        }
+
+        /// <summary>从已加载的数据库资产选项缓存中取得指定类别和适用范围的候选值。</summary>
+        private IReadOnlyList<string> GetAssetOptionValues(string category, string scope = "")
+        {
+            return assetOptionCache.TryGetValue(CreateAssetOptionKey(category, scope), out IReadOnlyList<MeterTestAssetOptionData>? options)
+                ? options.Select(option => option.Value).ToList()
+                : Array.Empty<string>();
+        }
+
+        /// <summary>取得数据库标记的默认资产选项；没有显式默认值时返回第一项。</summary>
+        private string GetDefaultAssetOption(string category, string scope = "")
+        {
+            if (!assetOptionCache.TryGetValue(CreateAssetOptionKey(category, scope), out IReadOnlyList<MeterTestAssetOptionData>? options) ||
+                options.Count == 0)
+            {
+                return string.Empty;
+            }
+
+            return options.FirstOrDefault(option => option.IsDefault)?.Value ?? options[0].Value;
+        }
+
+        /// <summary>为资产选项类别和适用范围构造不会发生文本拼接冲突的缓存键。</summary>
+        private static string CreateAssetOptionKey(string category, string scope)
+        {
+            return $"{category}\u001f{scope}";
+        }
+
+        /// <summary>用数据库候选值重新绑定资产 DataGridView 下拉列。</summary>
+        private static void SetComboColumnItems(DataGridViewComboBoxColumn column, IReadOnlyList<string> values)
+        {
+            column.Items.Clear();
+            column.Items.AddRange(values.Cast<object>().ToArray());
+        }
+
+        /// <summary>
         /// 初始化工位表格。
         /// 默认补齐 1-48 工位，并预置通信参数和档案参数。
         /// </summary>
@@ -1633,14 +2117,17 @@ namespace ModelTest.MeterTest
             try
             {
                 stationGrid.Rows.Clear();
+                MeterTestPlanConfig fallbackPlanConfig = configService.LoadOrCreate(configFilePath);
                 MeterTestStationConfig config = stationConfigService.LoadOrCreate(
                     stationConfigFilePath,
                     MaxStationCount,
                     DefaultStationIp,
-                    DefaultStationStartPort);
+                    DefaultStationStartPort,
+                    fallbackPlanConfig);
 
                 foreach (MeterTestStationCommunication station in config.Stations)
                 {
+                    string accessMode = GetDefaultAssetOption("AccessMode");
                     stationGrid.Rows.Add(
                         false,
                         station.StationNo,
@@ -1648,16 +2135,17 @@ namespace ModelTest.MeterTest
                         station.Port <= 0 ? DefaultStationStartPort + station.StationNo - 1 : station.Port,
                         string.Empty,
                         ReadMeterAddressTestName,
-                        "单相",
-                        "直接式",
-                        "220V",
-                        "5A",
-                        "A",
-                        "1000",
-                        "2.0",
-                        "1000",
+                        GetDefaultAssetOption("MeterType"),
+                        accessMode,
+                        GetDefaultAssetOption("Voltage"),
+                        GetDefaultAssetOption("BasicCurrent"),
+                        GetDefaultAssetOption("CurrentSpecification", "Direct"),
+                        GetDefaultAssetOption("ActiveClass"),
+                        GetDefaultAssetOption("ActiveConstant"),
+                        GetDefaultAssetOption("ReactiveClass"),
+                        GetDefaultAssetOption("ReactiveConstant"),
                         string.Empty,
-                        "9600-8-E-1",
+                        GetDefaultAssetOption("BaudRate"),
                         "待测试",
                         string.Empty);
                 }
@@ -1707,6 +2195,8 @@ namespace ModelTest.MeterTest
         private void ApplyTestPlanView()
         {
             currentGridViewMode = MeterTestGridViewMode.TestPlan;
+            resultUserControl?.Hide();
+            groupProcess.Visible = true;
             groupProcess.Text = "测试过程区域";
             SetSchemeAreaVisibility(true);
             ApplyStationAssetVisibility(showAllStations: false);
@@ -1715,13 +2205,22 @@ namespace ModelTest.MeterTest
             rbSingleStation.Visible = true;
             btnSelectAllStations.Visible = true;
             btnClearStationSelection.Visible = true;
+            btnShutDownSource.Visible = true;
+            btnSaveTestResults.Visible = true;
             btnSaveAssetInfo.Visible = false;
             btnBatchApplyAssetInfo.Visible = false;
+            lblBarcodeRule.Visible = false;
+            cbxBarcodeRule.Visible = false;
             lblBarcodeStartIndex.Visible = false;
             tbxBarcodeStartIndex.Visible = false;
             lblBarcodeEndIndex.Visible = false;
             tbxBarcodeEndIndex.Visible = false;
+            lblBarcodeSecondStart.Visible = false;
+            tbxBarcodeSecondStart.Visible = false;
+            lblBarcodeSecondLength.Visible = false;
+            tbxBarcodeSecondLength.Visible = false;
             processGrid.Visible = true;
+            countdownPanel.Visible = true;
             SetProcessLogVisibility(true);
 
             SetProcessLayoutRows(66F, 72F, 28F);
@@ -1744,6 +2243,8 @@ namespace ModelTest.MeterTest
             SetStationColumnEditState(assetEditable: false);
             UpdateMeterAddressColumnHeader(false);
             RestoreStationDisplayForSelectedNode();
+            UpdateStartButtonText();
+            UpdateTestExecutionButtonState();
         }
 
         /// <summary>
@@ -1753,6 +2254,8 @@ namespace ModelTest.MeterTest
         private void ApplyAssetInfoView()
         {
             currentGridViewMode = MeterTestGridViewMode.AssetInfo;
+            resultUserControl?.Hide();
+            groupProcess.Visible = true;
             groupProcess.Text = "资产信息维护";
             SetSchemeAreaVisibility(false);
             ApplyStationAssetVisibility(showAllStations: true);
@@ -1761,13 +2264,15 @@ namespace ModelTest.MeterTest
             rbSingleStation.Visible = false;
             btnSelectAllStations.Visible = false;
             btnClearStationSelection.Visible = false;
+            btnShutDownSource.Visible = false;
+            btnSaveTestResults.Visible = false;
             btnSaveAssetInfo.Visible = true;
             btnBatchApplyAssetInfo.Visible = true;
-            lblBarcodeStartIndex.Visible = true;
-            tbxBarcodeStartIndex.Visible = true;
-            lblBarcodeEndIndex.Visible = true;
-            tbxBarcodeEndIndex.Visible = true;
+            lblBarcodeRule.Visible = true;
+            cbxBarcodeRule.Visible = true;
+            UpdateBarcodeRuleInputState();
             processGrid.Visible = false;
+            countdownPanel.Visible = false;
             SetProcessLogVisibility(false);
 
             SetProcessLayoutRows(66F, 100F, 0F);
@@ -1790,6 +2295,7 @@ namespace ModelTest.MeterTest
                 colMeterAccessMode,
                 colMeterVoltage,
                 colMeterCurrent,
+                colMeterCurrentSpecification,
                 colMeterActiveClass,
                 colMeterActiveConstant,
                 colMeterReactiveClass,
@@ -1797,6 +2303,8 @@ namespace ModelTest.MeterTest
             ApplyAssetInfoColumnWidths();
             SetStationColumnEditState(assetEditable: true);
             UpdateMeterAddressColumnHeader(true);
+            UpdateStartButtonText();
+            UpdateTestExecutionButtonState();
         }
 
         /// <summary>
@@ -1902,6 +2410,7 @@ namespace ModelTest.MeterTest
             colMeterAccessMode.Visible = showAsset;
             colMeterVoltage.Visible = showAsset;
             colMeterCurrent.Visible = showAsset;
+            colMeterCurrentSpecification.Visible = showAsset;
             colMeterActiveClass.Visible = showAsset;
             colMeterActiveConstant.Visible = showAsset;
             colMeterReactiveClass.Visible = showAsset;
@@ -1940,6 +2449,7 @@ namespace ModelTest.MeterTest
             SetFixedColumnWidth(colMeterAccessMode, 150);
             SetFixedColumnWidth(colMeterVoltage, 150);
             SetFixedColumnWidth(colMeterCurrent, 150);
+            SetFixedColumnWidth(colMeterCurrentSpecification, 220);
             SetFixedColumnWidth(colMeterActiveClass, 150);
             SetFixedColumnWidth(colMeterActiveConstant, 150);
             SetFixedColumnWidth(colMeterReactiveClass, 150);
@@ -1983,6 +2493,7 @@ namespace ModelTest.MeterTest
             colMeterAccessMode.ReadOnly = !assetEditable;
             colMeterVoltage.ReadOnly = !assetEditable;
             colMeterCurrent.ReadOnly = !assetEditable;
+            colMeterCurrentSpecification.ReadOnly = !assetEditable;
             colMeterActiveClass.ReadOnly = !assetEditable;
             colMeterActiveConstant.ReadOnly = !assetEditable;
             colMeterReactiveClass.ReadOnly = !assetEditable;
@@ -2048,6 +2559,10 @@ namespace ModelTest.MeterTest
                     CopyCellValue(sourceRow, row, colMeterAccessMode);
                     CopyCellValue(sourceRow, row, colMeterVoltage);
                     CopyCellValue(sourceRow, row, colMeterCurrent);
+                    ConfigureCurrentSpecificationCell(
+                        row,
+                        GetCellText(sourceRow, colMeterAccessMode, GetDefaultAssetOption("AccessMode")),
+                        GetCellText(sourceRow, colMeterCurrentSpecification, GetDefaultAssetOption("CurrentSpecification", "Direct")));
                     CopyCellValue(sourceRow, row, colMeterActiveClass);
                     CopyCellValue(sourceRow, row, colMeterActiveConstant);
                     CopyCellValue(sourceRow, row, colMeterReactiveClass);
@@ -2079,20 +2594,24 @@ namespace ModelTest.MeterTest
         /// </summary>
         private void ApplyMeterArchiveToRow(DataGridViewRow row, MeterArchiveData archive)
         {
-            SetComboCellValue(row, colMeterType, archive.MeterType, "单相");
-            SetComboCellValue(row, colMeterAccessMode, archive.AccessMode, "直接式");
-            row.Cells[colMeterVoltage.Index].Value = DefaultIfEmpty(archive.Voltage, "220V");
-            row.Cells[colMeterCurrent.Index].Value = DefaultIfEmpty(archive.Current, "5A");
-            SetComboCellValue(row, colMeterActiveClass, archive.ActiveClass, "A");
-            row.Cells[colMeterActiveConstant.Index].Value = DefaultIfEmpty(archive.ActiveConstant, "1000");
-            SetComboCellValue(row, colMeterReactiveClass, archive.ReactiveClass, "2.0");
-            row.Cells[colMeterReactiveConstant.Index].Value = DefaultIfEmpty(archive.ReactiveConstant, "1000");
+            SetComboCellValue(row, colMeterType, archive.MeterType, GetDefaultAssetOption("MeterType"));
+            SetComboCellValue(row, colMeterAccessMode, archive.AccessMode, GetDefaultAssetOption("AccessMode"));
+            row.Cells[colMeterVoltage.Index].Value = DefaultIfEmpty(archive.Voltage, GetDefaultAssetOption("Voltage"));
+            row.Cells[colMeterCurrent.Index].Value = DefaultIfEmpty(archive.Current, GetDefaultAssetOption("BasicCurrent"));
+            ConfigureCurrentSpecificationCell(
+                row,
+                archive.AccessMode,
+                archive.CurrentSpecification);
+            SetComboCellValue(row, colMeterActiveClass, archive.ActiveClass, GetDefaultAssetOption("ActiveClass"));
+            row.Cells[colMeterActiveConstant.Index].Value = DefaultIfEmpty(archive.ActiveConstant, GetDefaultAssetOption("ActiveConstant"));
+            SetComboCellValue(row, colMeterReactiveClass, archive.ReactiveClass, GetDefaultAssetOption("ReactiveClass"));
+            row.Cells[colMeterReactiveConstant.Index].Value = DefaultIfEmpty(archive.ReactiveConstant, GetDefaultAssetOption("ReactiveConstant"));
             row.Cells[colStationBarcode.Index].Value = archive.Barcode;
             row.Cells[colStationMeterAddress.Index].Value =
                 DefaultIfEmpty(
                     archive.MeterAddress,
                     TryExtractMeterAddressFromBarcode(archive.Barcode, out string extractedAddress) ? extractedAddress : string.Empty);
-            SetComboCellValue(row, colMeterBaudRate, archive.BaudRate, "9600-8-E-1");
+            SetComboCellValue(row, colMeterBaudRate, archive.BaudRate, GetDefaultAssetOption("BaudRate"));
         }
 
         /// <summary>
@@ -2106,17 +2625,18 @@ namespace ModelTest.MeterTest
             int stationNo = Convert.ToInt32(row.Cells[colStationNo.Index].Value);
             accessDatabaseService.SaveMeterArchive(new MeterArchiveData(
                 stationNo,
-                GetCellText(row, colMeterType, "单相"),
-                GetCellText(row, colMeterAccessMode, "直接式"),
-                GetCellText(row, colMeterVoltage, "220V"),
-                GetCellText(row, colMeterCurrent, "5A"),
-                GetCellText(row, colMeterActiveClass, "A"),
-                GetCellText(row, colMeterActiveConstant, "1000"),
-                GetCellText(row, colMeterReactiveClass, "2.0"),
-                GetCellText(row, colMeterReactiveConstant, "1000"),
+                GetCellText(row, colMeterType, GetDefaultAssetOption("MeterType")),
+                GetCellText(row, colMeterAccessMode, GetDefaultAssetOption("AccessMode")),
+                GetCellText(row, colMeterVoltage, GetDefaultAssetOption("Voltage")),
+                GetCellText(row, colMeterCurrent, GetDefaultAssetOption("BasicCurrent")),
+                GetCellText(row, colMeterCurrentSpecification, GetDefaultAssetOption("CurrentSpecification", "Direct")),
+                GetCellText(row, colMeterActiveClass, GetDefaultAssetOption("ActiveClass")),
+                GetCellText(row, colMeterActiveConstant, GetDefaultAssetOption("ActiveConstant")),
+                GetCellText(row, colMeterReactiveClass, GetDefaultAssetOption("ReactiveClass")),
+                GetCellText(row, colMeterReactiveConstant, GetDefaultAssetOption("ReactiveConstant")),
                 GetCellText(row, colStationBarcode, string.Empty),
                 GetCellText(row, colStationMeterAddress, string.Empty),
-                GetCellText(row, colMeterBaudRate, "9600-8-E-1")));
+                GetCellText(row, colMeterBaudRate, GetDefaultAssetOption("BaudRate"))));
         }
 
         /// <summary>
@@ -2128,6 +2648,7 @@ namespace ModelTest.MeterTest
                    columnIndex == colMeterAccessMode.Index ||
                    columnIndex == colMeterVoltage.Index ||
                    columnIndex == colMeterCurrent.Index ||
+                   columnIndex == colMeterCurrentSpecification.Index ||
                    columnIndex == colMeterActiveClass.Index ||
                    columnIndex == colMeterActiveConstant.Index ||
                    columnIndex == colMeterReactiveClass.Index ||
@@ -2140,9 +2661,22 @@ namespace ModelTest.MeterTest
         /// <summary>
         /// 创建默认电表档案。
         /// </summary>
-        private static MeterArchiveData CreateDefaultMeterArchive(int stationNo)
+        private MeterArchiveData CreateDefaultMeterArchive(int stationNo)
         {
-            return new MeterArchiveData(stationNo, "单相", "直接式", "220V", "5A", "A", "1000", "2.0", "1000", string.Empty, string.Empty, "9600-8-E-1");
+            return new MeterArchiveData(
+                stationNo,
+                GetDefaultAssetOption("MeterType"),
+                GetDefaultAssetOption("AccessMode"),
+                GetDefaultAssetOption("Voltage"),
+                GetDefaultAssetOption("BasicCurrent"),
+                GetDefaultAssetOption("CurrentSpecification", "Direct"),
+                GetDefaultAssetOption("ActiveClass"),
+                GetDefaultAssetOption("ActiveConstant"),
+                GetDefaultAssetOption("ReactiveClass"),
+                GetDefaultAssetOption("ReactiveConstant"),
+                string.Empty,
+                string.Empty,
+                GetDefaultAssetOption("BaudRate"));
         }
 
         /// <summary>
@@ -2156,8 +2690,19 @@ namespace ModelTest.MeterTest
                 MeterTestAssetBarcodeSettingData setting = accessDatabaseService.LoadOrCreateAssetBarcodeSetting();
                 assetBarcodeStartIndex = setting.BarcodeStartIndex;
                 assetBarcodeEndIndex = setting.BarcodeEndIndex;
-                tbxBarcodeStartIndex.Text = assetBarcodeStartIndex.ToString();
-                tbxBarcodeEndIndex.Text = assetBarcodeEndIndex.ToString();
+                assetBarcodeRuleType = string.Equals(
+                    setting.RuleType,
+                    MeterTestBarcodeExtractor.Rule2Composite,
+                    StringComparison.OrdinalIgnoreCase)
+                        ? MeterTestBarcodeExtractor.Rule2Composite
+                        : MeterTestBarcodeExtractor.Rule1Range;
+                assetBarcodeRule2FirstStart = setting.Rule2FirstStart;
+                assetBarcodeRule2FirstLength = setting.Rule2FirstLength;
+                assetBarcodeRule2SecondStart = setting.Rule2SecondStart;
+                assetBarcodeRule2SecondLength = setting.Rule2SecondLength;
+                cbxBarcodeRule.SelectedIndex = assetBarcodeRuleType == MeterTestBarcodeExtractor.Rule2Composite ? 1 : 0;
+                PopulateBarcodeRuleInputs();
+                UpdateBarcodeRuleInputState();
             }
             finally
             {
@@ -2173,12 +2718,39 @@ namespace ModelTest.MeterTest
             if (isLoadingBarcodeSetting)
                 return;
 
-            if (!TryReadBarcodeRangeFromInputs(out int startIndex, out int endIndex))
+            string selectedRule = cbxBarcodeRule.SelectedIndex == 1
+                ? MeterTestBarcodeExtractor.Rule2Composite
+                : MeterTestBarcodeExtractor.Rule1Range;
+            int startIndex = assetBarcodeStartIndex;
+            int endIndex = assetBarcodeEndIndex;
+            int firstStart = assetBarcodeRule2FirstStart;
+            int firstLength = assetBarcodeRule2FirstLength;
+            int secondStart = assetBarcodeRule2SecondStart;
+            int secondLength = assetBarcodeRule2SecondLength;
+            bool inputsValid = selectedRule == MeterTestBarcodeExtractor.Rule1Range
+                ? TryReadBarcodeRangeFromInputs(out startIndex, out endIndex)
+                : TryReadBarcodeCompositeFromInputs(out firstStart, out firstLength, out secondStart, out secondLength);
+            if (!inputsValid)
+            {
                 return;
+            }
 
             assetBarcodeStartIndex = startIndex;
             assetBarcodeEndIndex = endIndex;
-            accessDatabaseService.SaveAssetBarcodeSetting(startIndex, endIndex);
+            assetBarcodeRule2FirstStart = firstStart;
+            assetBarcodeRule2FirstLength = firstLength;
+            assetBarcodeRule2SecondStart = secondStart;
+            assetBarcodeRule2SecondLength = secondLength;
+            assetBarcodeRuleType = selectedRule;
+            UpdateBarcodeRuleInputState();
+            accessDatabaseService.SaveAssetBarcodeSetting(
+                startIndex,
+                endIndex,
+                selectedRule,
+                firstStart,
+                firstLength,
+                secondStart,
+                secondLength);
 
             foreach (DataGridViewRow row in stationGrid.Rows)
             {
@@ -2212,28 +2784,89 @@ namespace ModelTest.MeterTest
             return startIndex >= 0 && endIndex >= startIndex;
         }
 
+        /// <summary>读取规则2的两段起始位置和长度，并验证所有索引均可用于条码截取。</summary>
+        private bool TryReadBarcodeCompositeFromInputs(
+            out int firstStart,
+            out int firstLength,
+            out int secondStart,
+            out int secondLength)
+        {
+            firstStart = assetBarcodeRule2FirstStart;
+            firstLength = assetBarcodeRule2FirstLength;
+            secondStart = assetBarcodeRule2SecondStart;
+            secondLength = assetBarcodeRule2SecondLength;
+            bool parsed = int.TryParse(tbxBarcodeStartIndex.Text.Trim(), out firstStart);
+            parsed &= int.TryParse(tbxBarcodeEndIndex.Text.Trim(), out firstLength);
+            parsed &= int.TryParse(tbxBarcodeSecondStart.Text.Trim(), out secondStart);
+            parsed &= int.TryParse(tbxBarcodeSecondLength.Text.Trim(), out secondLength);
+            return parsed && firstStart >= 0 && firstLength > 0 && secondStart >= 0 && secondLength > 0;
+        }
+
         /// <summary>
         /// 根据条形码和当前截取区间提取电表地址。
         /// </summary>
         private bool TryExtractMeterAddressFromBarcode(string barcode, out string meterAddress)
         {
-            meterAddress = string.Empty;
-            barcode = barcode.Trim();
-            if (string.IsNullOrWhiteSpace(barcode))
-                return false;
+            return MeterTestBarcodeExtractor.TryExtract(
+                barcode,
+                assetBarcodeRuleType,
+                assetBarcodeStartIndex,
+                assetBarcodeEndIndex,
+                assetBarcodeRule2FirstStart,
+                assetBarcodeRule2FirstLength,
+                assetBarcodeRule2SecondStart,
+                assetBarcodeRule2SecondLength,
+                out meterAddress);
+        }
 
-            if (assetBarcodeStartIndex < 0 || assetBarcodeEndIndex < assetBarcodeStartIndex)
-                return false;
+        /// <summary>处理条码规则切换，刷新输入框含义并立即持久化当前规则配置。</summary>
+        private void BarcodeRuleSelectionChanged()
+        {
+            if (isLoadingBarcodeSetting)
+                return;
 
-            if (barcode.Length <= assetBarcodeEndIndex)
-                return false;
+            assetBarcodeRuleType = cbxBarcodeRule.SelectedIndex == 1
+                ? MeterTestBarcodeExtractor.Rule2Composite
+                : MeterTestBarcodeExtractor.Rule1Range;
+            isLoadingBarcodeSetting = true;
+            try
+            {
+                PopulateBarcodeRuleInputs();
+                UpdateBarcodeRuleInputState();
+            }
+            finally
+            {
+                isLoadingBarcodeSetting = false;
+            }
 
-            int length = assetBarcodeEndIndex - assetBarcodeStartIndex + 1;
-            if (length <= 0 || assetBarcodeStartIndex + length > barcode.Length)
-                return false;
+            SaveBarcodeSettingFromInputs();
+        }
 
-            meterAddress = barcode.Substring(assetBarcodeStartIndex, length);
-            return !string.IsNullOrWhiteSpace(meterAddress);
+        /// <summary>将当前规则1或规则2的截取参数回填到资产信息输入框。</summary>
+        private void PopulateBarcodeRuleInputs()
+        {
+            bool composite = assetBarcodeRuleType == MeterTestBarcodeExtractor.Rule2Composite;
+            tbxBarcodeStartIndex.Text = (composite ? assetBarcodeRule2FirstStart : assetBarcodeStartIndex).ToString();
+            tbxBarcodeEndIndex.Text = (composite ? assetBarcodeRule2FirstLength : assetBarcodeEndIndex).ToString();
+            tbxBarcodeSecondStart.Text = assetBarcodeRule2SecondStart.ToString();
+            tbxBarcodeSecondLength.Text = assetBarcodeRule2SecondLength.ToString();
+        }
+
+        /// <summary>根据规则显示单区间或双区间输入，规则2的两个片段均由用户配置。</summary>
+        private void UpdateBarcodeRuleInputState()
+        {
+            bool assetView = currentGridViewMode == MeterTestGridViewMode.AssetInfo;
+            bool composite = assetBarcodeRuleType == MeterTestBarcodeExtractor.Rule2Composite;
+            lblBarcodeStartIndex.Text = composite ? "段1起始" : "条码起始位";
+            lblBarcodeEndIndex.Text = composite ? "段1长度" : "条码结束位";
+            lblBarcodeStartIndex.Visible = assetView;
+            tbxBarcodeStartIndex.Visible = assetView;
+            lblBarcodeEndIndex.Visible = assetView;
+            tbxBarcodeEndIndex.Visible = assetView;
+            lblBarcodeSecondStart.Visible = assetView && composite;
+            tbxBarcodeSecondStart.Visible = assetView && composite;
+            lblBarcodeSecondLength.Visible = assetView && composite;
+            tbxBarcodeSecondLength.Visible = assetView && composite;
         }
 
         /// <summary>
@@ -2323,435 +2956,160 @@ namespace ModelTest.MeterTest
         }
 
         /// <summary>
-        /// 串口或串口服务器收到指定工位返回后，统一调用这里刷新 20 工位表格。
+        /// 根据接入方式绑定当前工位的电流规格候选项。
+        /// 切换接入方式时，不再适用的旧值会回退到新规格的第一项。
         /// </summary>
-        public void UpdateStationAddressResult(int stationNo, string responseHex, bool? passed = null)
+        private void ConfigureCurrentSpecificationCell(
+            DataGridViewRow row,
+            string accessMode,
+            string? preferredValue)
         {
-            if (stationNo < 1 || stationNo > MaxStationCount)
-                return;
+            string scope = accessMode.Contains("互感", StringComparison.OrdinalIgnoreCase)
+                ? "Transformer"
+                : "Direct";
+            IReadOnlyList<string> candidates = GetAssetOptionValues("CurrentSpecification", scope);
+            if (candidates.Count == 0)
+            {
+                throw new InvalidOperationException($"数据库缺少 {scope} 电流规格候选项。");
+            }
+            DataGridViewComboBoxCell cell = (DataGridViewComboBoxCell)row.Cells[colMeterCurrentSpecification.Index];
+            cell.Items.Clear();
+            cell.Items.AddRange(candidates.Cast<object>().ToArray());
 
-            DataGridViewRow row = stationGrid.Rows[stationNo - 1];
-            string normalizedResponse = NormalizeHex(responseHex);
-            Sgcc698BroadcastAddressParseResult parseResult = SGCCTools.ParseBroadcastAddressResponse(normalizedResponse);
-            string meterAddress = parseResult.IsValid
-                ? parseResult.MeterAddress
-                : string.Empty;
-            bool isPassed = passed ?? !string.IsNullOrWhiteSpace(meterAddress);
-
-            row.Cells[colStationTestContent.Index].Value = ReadMeterAddressTestName;
-            row.Cells[colStationMeterAddress.Index].Value = meterAddress;
-            row.Cells[colStationResult.Index].Value = isPassed ? "合格" : "不合格";
-            row.Cells[colStationTime.Index].Value = DateTime.Now.ToString("HH:mm:ss");
-            row.Cells[colStationResult.Index].Style.ForeColor = isPassed ? Color.FromArgb(22, 101, 52) : Color.Red;
-            SaveMeterArchiveFromRow(row);
+            string normalized = preferredValue?.Trim() ?? string.Empty;
+            cell.Value = candidates.Contains(normalized, StringComparer.OrdinalIgnoreCase)
+                ? normalized
+                : GetDefaultAssetOption("CurrentSpecification", scope);
         }
 
+        /// <summary>
+        /// 调度单个工位通信小项，并将服务返回的响应、结论和耗时更新到 UI 状态缓存。
+        /// </summary>
         private async Task ExecuteStationSubItemAsync(
             StationCommunicationConfig station,
             SelectedSubItemContext context,
             CancellationToken cancellationToken)
         {
-            DateTime startedAt = DateTime.Now;
-            long startTicks = Environment.TickCount64;
-            string response = string.Empty;
-            bool passed = false;
-            string message;
-
             RunOnUiThread(() => UpdateStationRunningState(station.StationNo, context));
+            MeterTestCommunicationStationResult result =
+                await communicationTestService.ExecuteStationStepAsync(
+                    station,
+                    context,
+                    (stationNo, lines) => LogStationCommunicationBlock(
+                        context.TestItemName,
+                        station,
+                        lines),
+                    cancellationToken);
 
-            try
-            {
-                response = await SendStationRequestAsync(station, context, cancellationToken);
-                if (UsesSgcc698BroadcastAddressParser(context.SubItem))
-                {
-                    string actualAddress = NormalizeMeterAddressForComparison(station.MeterAddress);
-                    if (string.IsNullOrWhiteSpace(response))
-                    {
-                        passed = false;
-                        message = "电表无响应";
-                        LogStationCommunicationBlock(
-                            context.TestItemName,
-                            station,
-                            message,
-                            $"实际地址：{actualAddress}；返回地址：空；结论：不合格",
-                            StationLogSeparator);
-                    }
-                    else
-                    {
-                        Sgcc698BroadcastAddressParseResult parseResult = ParseSgcc698BroadcastAddressResponse(context.SubItem, response);
-                        string returnedAddress = parseResult.IsValid
-                            ? NormalizeMeterAddressForComparison(parseResult.MeterAddress)
-                            : string.Empty;
-                        passed = parseResult.IsValid &&
-                                 actualAddress.Equals(returnedAddress, StringComparison.OrdinalIgnoreCase);
-                        message = !parseResult.IsValid
-                            ? $"电表响应异常：{parseResult.Message}"
-                            : passed
-                                ? "电表响应正常"
-                                : "电表响应地址不一致";
-                        LogStationCommunicationBlock(
-                            context.TestItemName,
-                            station,
-                            message,
-                            $"实际地址：{actualAddress}；返回地址：{(string.IsNullOrWhiteSpace(returnedAddress) ? "解析失败" : returnedAddress)}；结论：{(passed ? "合格" : "不合格")}",
-                            StationLogSeparator);
-                    }
-                }
-                else
-                {
-                    passed = IsResponseMatched(context.SubItem, response);
-                    message = passed ? "应答匹配，测试通过。" : $"应答不匹配，期望：{context.SubItem.ExpectedResponse}，实际：{response}";
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                passed = false;
-                message = cancellationToken.IsCancellationRequested
-                    ? "测试被取消，当前工位未收到完整应答。"
-                    : UsesSgcc698BroadcastAddressParser(context.SubItem)
-                        ? "电表无响应"
-                        : $"等待超时，超时时间 {context.SubItem.TimeoutMs} ms。";
-                LogStationCommunicationBlock(context.TestItemName, station, message, StationLogSeparator);
-            }
-            catch (StationConnectionException ex)
-            {
-                passed = false;
-                message = ex.Message;
-            }
-            catch (Exception ex)
-            {
-                message = $"执行异常：{ex.Message}";
-                LogStationCommunicationBlock(context.TestItemName, station, message, StationLogSeparator);
-            }
-
-            long elapsed = Math.Max(0, Environment.TickCount64 - startTicks);
-            RunOnUiThread(() => ApplyStationExecutionResult(station, context, response, passed));
             RunOnUiThread(() =>
+            {
+                ApplyStationExecutionResult(
+                    station,
+                    context,
+                    result.ResponseHex,
+                    result.Passed);
                 AddProcessLog(
                     $"{context.SchemeName}/{context.TestItemName}/工位{station.StationNo}",
                     context.SubItem.Name,
-                    passed,
-                    message,
-                    elapsed));
-        }
-
-        private async Task ExecuteStationTestsAsync(
-            StationCommunicationConfig station,
-            List<SelectedSubItemContext> testContexts,
-            CancellationToken cancellationToken)
-        {
-            foreach (SelectedSubItemContext context in testContexts)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                await ExecuteStationSubItemAsync(station, context, cancellationToken);
-            }
+                    result.Passed,
+                    result.Message,
+                    result.ElapsedMilliseconds);
+            });
         }
 
         /// <summary>
         /// 执行方案树中的一个日计时小项。
-        /// 第一次进入日计时时执行完整三轮流程，后续八个节点只展示阶段状态，不重复发送整套报文。
+        /// 第一次进入日计时时执行完整三轮流程，流程内在每个 Start/Wait/Read 完成时立即回填对应节点。
+        /// 后续八个方案节点只读取已保存的阶段结果，不重复发送报文。
         /// </summary>
         private async Task ExecuteControlPcbDailyTimingStepAsync(
             SelectedSubItemContext context,
             List<StationCommunicationConfig> selectedStations,
             CancellationToken cancellationToken)
         {
-            long startTicks = Environment.TickCount64;
-            if (!dailyTimingFlowExecuted)
-            {
-                dailyTimingFlowExecuted = true;
-                dailyTimingFlowSucceeded = await ExecuteControlPcbDailyTimingFlowAsync(
-                    context,
-                    selectedStations,
-                    cancellationToken);
-
-                // 完整日计时流程只在第一次进入时发送一次；将最终三轮平均结果同步到当前“开始”节点，
-                // 这样用户点击任意日计时步骤时，都能看到已经完成的工位结论。
-                SynchronizeDailyTimingStepResults(
-                    context,
-                    selectedStations,
-                    dailyTimingFlowSucceeded
-                        ? "三轮日计时流程完成。"
-                        : "三轮日计时流程存在失败工位或结果不足。");
-
-                AddProcessLog(
-                    $"{context.SchemeName}/{context.TestItemName}",
-                    context.SubItem.Name,
-                    dailyTimingFlowSucceeded,
-                    dailyTimingFlowSucceeded
-                        ? "三轮日计时流程完成，平均误差已计算。"
-                        : "三轮日计时流程存在失败工位或结果不足，已完成流程。",
-                    Math.Max(0, Environment.TickCount64 - startTicks));
-                return;
-            }
-
-            SynchronizeDailyTimingStepResults(
+            MeterTestFlowStepResult result = await dailyTimingService.ExecuteStepAsync(
+                meterTestPlanConfig,
                 context,
                 selectedStations,
-                dailyTimingFlowSucceeded
-                    ? "该日计时步骤已由前置完整流程完成。"
-                    : "前置三轮日计时流程存在失败，当前步骤不阻断后续测试。");
-
+                (stationNo, lines) => LogTestItemStationBlock(
+                    context.TestItemName,
+                    context.SubItem.Name,
+                    stationNo,
+                    "日计时日志",
+                    lines),
+                (stationNo, stepContext) => RunOnUiThread(
+                    () => UpdateStationRunningState(stationNo, stepContext)),
+                (stationNo, stepContext, passed, message) => RunOnUiThread(
+                    () => ApplyStationExecutionResult(stationNo, stepContext, passed, message)),
+                measurement => RecordMeasurement(context.SchemeName, measurement),
+                cancellationToken);
             AddProcessLog(
                 $"{context.SchemeName}/{context.TestItemName}",
                 context.SubItem.Name,
-                dailyTimingFlowSucceeded,
-                dailyTimingFlowSucceeded
-                    ? $"该步骤已在第一个日计时小项中完成，本节点仅展示流程阶段：{context.SubItem.DailyTimingStep}。"
-                    : "前置三轮日计时流程存在失败，当前节点不阻断方案后续执行。",
-                Math.Max(0, Environment.TickCount64 - startTicks));
+                result.Success,
+                result.Message,
+                result.ElapsedMilliseconds);
         }
 
         /// <summary>
-        /// 执行完整三轮日计时流程，并汇总所有控制 PCB 组的最终结论。
-        /// </summary>
-        private async Task<bool> ExecuteControlPcbDailyTimingFlowAsync(
-            SelectedSubItemContext context,
-            List<StationCommunicationConfig> selectedStations,
-            CancellationToken cancellationToken)
-        {
-            if (!TryGetDailyTimingConfig(context.SubItem, out byte testTime, out byte testCount, out int packetIntervalMs))
-            {
-                AddProcessLog(context.SchemeName, context.SubItem.Name, false, "日计时配置不正确。", 0);
-                return false;
-            }
-
-            List<Task<bool>> groupTasks = GetEnabledControlPcbGroups(context.SubItem)
-                .Select(group => ExecuteControlPcbDailyTimingGroupAsync(
-                    group,
-                    selectedStations,
-                    context,
-                    testTime,
-                    testCount,
-                    packetIntervalMs,
-                    cancellationToken))
-                .ToList();
-
-            if (groupTasks.Count == 0)
-            {
-                AddProcessLog(context.SchemeName, context.SubItem.Name, false, "未找到可用控制PCB分组，请检查 ControlPcbGroups。", 0);
-                return false;
-            }
-
-            bool[] groupResults = await Task.WhenAll(groupTasks);
-            return groupResults.Length > 0 && groupResults.All(result => result);
-        }
-
-        /// <summary>
-        /// 执行潜动走字试验启动节点。各控制PCB分组并发连接，组内按100ms间隔逐表位下发0x35启动报文。
-        /// 只有完整回显操作码、脉冲数和手动配置时间的工位，才会记录为后续等待/读取的有效工位。
+        /// 执行潜动试验启动节点。各控制PCB分组并发，组内按配置间隔逐表位下发0x25+01。
+        /// 只有收到数据项严格为01的启动应答，才会记录为后续等待/读取的有效工位。
         /// </summary>
         private async Task ExecuteControlPcbCreepingStartAsync(
             SelectedSubItemContext context,
             List<StationCommunicationConfig> selectedStations,
             CancellationToken cancellationToken)
         {
-            long startTicks = Environment.TickCount64;
-            if (!TryGetCreepingTestConfig(
-                    context.SubItem,
-                    out byte pulseCount,
-                    out uint timeSeconds,
-                    out int packetIntervalMs))
-            {
-                const string message = "潜动走字配置无效：脉冲数必须为1-255，时间必须大于0秒。";
-                foreach (StationCommunicationConfig station in selectedStations)
-                {
-                    ApplyStationExecutionResult(station.StationNo, context, false, message);
-                }
+            MeterTestCreepingStepResult result = await creepingTestService.StartAsync(
+                context,
+                selectedStations,
+                GetEnabledControlPcbGroups(context.SubItem),
+                Math.Max(0, context.SubItem.PacketIntervalMs),
+                (stationNo, lines) => LogCreepingStationBlock(context.TestItemName, stationNo, lines),
+                (targets, passed, message) => RunOnUiThread(() => ApplyControlPcbGroupResult(targets, context, passed, message, string.Empty)),
+                stationNo => RunOnUiThread(() => UpdateStationRunningState(stationNo, context)),
+                (stationNo, passed, message) => RunOnUiThread(() => ApplyStationExecutionResult(stationNo, context, passed, message)),
+                cancellationToken);
 
-                AddProcessLog(context.SchemeName, context.SubItem.Name, false, message, 0);
-                return;
-            }
-
-            foreach (StationCommunicationConfig station in selectedStations)
-            {
-                creepingActiveStations.TryRemove(station.StationNo, out _);
-            }
-
-            List<Task<bool>> groupTasks = GetEnabledControlPcbGroups(context.SubItem)
-                .Select(group => ExecuteControlPcbCreepingStartGroupAsync(
-                    group,
-                    selectedStations,
-                    context,
-                    pulseCount,
-                    timeSeconds,
-                    packetIntervalMs,
-                    cancellationToken))
-                .ToList();
-
-            if (groupTasks.Count == 0)
-            {
-                const string message = "未找到可用控制PCB分组，请检查 ControlPcbGroups。";
-                foreach (StationCommunicationConfig station in selectedStations)
-                {
-                    ApplyStationExecutionResult(station.StationNo, context, false, message);
-                }
-
-                AddProcessLog(context.SchemeName, context.SubItem.Name, false, message, 0);
-                return;
-            }
-
-            bool[] groupResults = await Task.WhenAll(groupTasks);
-            bool passed = groupResults.All(result => result);
             AddProcessLog(
                 $"{context.SchemeName}/{context.TestItemName}",
                 context.SubItem.Name,
-                passed,
-                passed
-                    ? $"全部选中工位已收到0x35启动应答，手动等待时间={timeSeconds}s。"
-                    : "潜动走字启动完成，但存在未连接或未收到正确应答的工位；成功工位继续后续流程。",
-                Math.Max(0, Environment.TickCount64 - startTicks));
+                result.Passed,
+                result.Message,
+                result.ElapsedMilliseconds);
         }
 
-        /// <summary>执行一个控制PCB分组的潜动走字启动命令，不因单个工位失败而中断同组其它工位。</summary>
-        private async Task<bool> ExecuteControlPcbCreepingStartGroupAsync(
-            MeterTestControlPcbGroup group,
-            List<StationCommunicationConfig> selectedStations,
-            SelectedSubItemContext context,
-            byte pulseCount,
-            uint timeSeconds,
-            int packetIntervalMs,
-            CancellationToken cancellationToken)
-        {
-            List<ControlPcbStationTarget> targets = GetControlPcbStationTargets(group, selectedStations);
-            if (targets.Count == 0)
-                return true;
-
-            if (!IsControlPcbV2(group.ProtocolVersion))
-            {
-                string message = $"控制PCB组 {group.Name} 使用 {group.ProtocolVersion}，0x35潜动走字只支持V2协议。";
-                LogControlPcbGroupBlock(context.TestItemName, group, targets, message, StationLogSeparator);
-                RunOnUiThread(() => ApplyControlPcbGroupResult(targets, context, false, message, string.Empty));
-                return false;
-            }
-
-            foreach (ControlPcbStationTarget target in targets)
-            {
-                RunOnUiThread(() => UpdateStationRunningState(target.StationNo, context));
-            }
-
-            if (!controlPcbConnectionManager.TryGetConnectedConnection(
-                    group,
-                    out MeterTestControlPcbConnection connection,
-                    out string connectionError))
-            {
-                LogControlPcbGroupBlock(context.TestItemName, group, targets, connectionError, StationLogSeparator);
-                RunOnUiThread(() => ApplyControlPcbGroupResult(targets, context, false, connectionError, string.Empty));
-                return false;
-            }
-
-            LogControlPcbGroupBlock(context.TestItemName, group, targets, $" 复用控制PCB长连接：{connection.DisplayName}", StationLogSeparator);
-            Dictionary<byte, byte[]> responses = await SendControlPcbPacketsAndCollectResponsesAsync(
-                context.TestItemName,
-                connection,
-                group,
-                targets,
-                target => ElectricEnergyMeterControlV2.BuildCreepingTestStartPacket(
-                    target.MeterAddress,
-                    pulseCount,
-                    timeSeconds),
-                target => $"0x35开启潜动走字试验[工位={target.StationNo}, 表位={target.MeterAddress:X2}, 脉冲数={pulseCount}, 时间={timeSeconds}s]",
-                frame => ResolveCreepingTestStartResponse(frame, pulseCount, timeSeconds),
-                TimeSpan.FromMilliseconds(Math.Max(100, context.SubItem.TimeoutMs)),
-                TimeSpan.FromMilliseconds(packetIntervalMs),
-                cancellationToken);
-
-            bool groupPassed = true;
-            foreach (ControlPcbStationTarget target in targets)
-            {
-                bool stationPassed = responses.ContainsKey(target.MeterAddress);
-                groupPassed &= stationPassed;
-                if (stationPassed)
-                {
-                    creepingActiveStations[target.StationNo] = target.MeterAddress;
-                }
-                else
-                {
-                    creepingActiveStations.TryRemove(target.StationNo, out _);
-                }
-
-                string message = stationPassed
-                    ? $"0x35启动应答正常，脉冲数={pulseCount}，手动等待时间={timeSeconds}s。"
-                    : "0x35启动未收到正确应答，当前工位不进入后续潜动等待。";
-                LogControlPcbStationBlock(
-                    context.TestItemName,
-                    group,
-                    target,
-                    $"结论：{(stationPassed ? "合格" : "不合格")}，{message}",
-                    StationLogSeparator);
-                RunOnUiThread(() => ApplyStationExecutionResult(target.StationNo, context, stationPassed, message));
-            }
-
-            return groupPassed;
-        }
-
-        /// <summary>执行XML手动配置的潜动等待时间，只输出开始和结束两条倒计时日志。</summary>
+        /// <summary>
+        /// 调度潜动试验步骤 3。资产参数读取、时间计算、统一倒计时和逐工位结论均由潜动服务负责。
+        /// </summary>
         private async Task ExecuteCreepingWaitAsync(
             SelectedSubItemContext context,
             IReadOnlyList<StationCommunicationConfig> selectedStations,
             CancellationToken cancellationToken)
         {
-            long startTicks = Environment.TickCount64;
-            int waitSeconds = context.SubItem.CreepingTimeSeconds;
-            if (waitSeconds <= 0)
-            {
-                const string message = "潜动等待时间必须在XML中配置为大于0的整数秒。";
-                foreach (StationCommunicationConfig station in selectedStations)
-                {
-                    ApplyStationExecutionResult(station.StationNo, context, false, message);
-                }
-
-                AddProcessLog(context.SchemeName, context.SubItem.Name, false, message, 0);
-                return;
-            }
-
-            List<StationCommunicationConfig> activeStations = selectedStations
-                .Where(station => creepingActiveStations.ContainsKey(station.StationNo))
-                .ToList();
-            if (activeStations.Count == 0)
-            {
-                const string message = "没有工位收到潜动启动应答，跳过潜动等待。";
-                foreach (StationCommunicationConfig station in selectedStations)
-                {
-                    ApplyStationExecutionResult(station.StationNo, context, false, message);
-                }
-
-                AddProcessLog(context.SchemeName, context.SubItem.Name, false, message, 0);
-                return;
-            }
-
-            await DelayTestWithCountdownAsync(
-                waitSeconds,
-                $"开始潜动倒计时：{waitSeconds}s",
-                "潜动倒计时结束",
-                message =>
-                {
-                    foreach (StationCommunicationConfig station in activeStations)
-                    {
-                        LogCreepingStationBlock(context.TestItemName, station.StationNo, message);
-                    }
-                },
+            MeterTestCreepingStepResult result = await creepingTestService.WaitAsync(
+                context,
+                selectedStations,
+                (stationNo, lines) => LogCreepingStationBlock(context.TestItemName, stationNo, lines),
+                stationNo => RunOnUiThread(() => UpdateStationRunningState(stationNo, context)),
+                (stationNo, passed, message) =>
+                    RunOnUiThread(() => ApplyStationExecutionResult(stationNo, context, passed, message)),
                 cancellationToken);
 
-            foreach (StationCommunicationConfig station in selectedStations)
+            RunOnUiThread(() =>
             {
-                bool passed = creepingActiveStations.ContainsKey(station.StationNo);
-                string message = passed
-                    ? $"已完成手动配置的{waitSeconds}s潜动等待。"
-                    : "潜动启动未成功，未进入等待。";
-                ApplyStationExecutionResult(station.StationNo, context, passed, message);
-            }
-
-            AddProcessLog(
-                $"{context.SchemeName}/{context.TestItemName}",
-                context.SubItem.Name,
-                activeStations.Count == selectedStations.Count,
-                $"潜动等待结束，有效工位={string.Join(",", activeStations.Select(station => station.StationNo))}，等待={waitSeconds}s。",
-                Math.Max(0, Environment.TickCount64 - startTicks));
+                RestoreStationDisplayForSelectedNode();
+                AddProcessLog(
+                    $"{context.SchemeName}/{context.TestItemName}",
+                    context.SubItem.Name,
+                    result.Passed,
+                    result.Message,
+                    result.ElapsedMilliseconds);
+            });
         }
 
         /// <summary>
-        /// 执行潜动脉冲读取节点。仅向已收到0x35启动应答的工位发送0x35+AA，
+        /// 执行潜动脉冲读取节点。仅向已收到0x25启动应答的工位发送0x25+AA，
         /// 单个工位无应答或解析失败不会阻止同组及其他控制PCB组继续读取。
         /// </summary>
         private async Task ExecuteControlPcbCreepingReadAsync(
@@ -2759,159 +3117,24 @@ namespace ModelTest.MeterTest
             List<StationCommunicationConfig> selectedStations,
             CancellationToken cancellationToken)
         {
-            long startTicks = Environment.TickCount64;
-            foreach (StationCommunicationConfig station in selectedStations)
-            {
-                creepingPulseResults.TryRemove(station.StationNo, out _);
-            }
-
-            List<MeterTestControlPcbGroup> groups = GetEnabledControlPcbGroups(context.SubItem);
-            if (groups.Count == 0)
-            {
-                const string message = "未找到可用控制PCB分组，请检查 ControlPcbGroups。";
-                foreach (StationCommunicationConfig station in selectedStations)
-                {
-                    ApplyStationExecutionResult(station.StationNo, context, false, message);
-                }
-
-                AddProcessLog(context.SchemeName, context.SubItem.Name, false, message, 0);
-                return;
-            }
-
-            HashSet<int> mappedStationNumbers = groups
-                .SelectMany(group => GetControlPcbStationTargets(group, selectedStations))
-                .Select(target => target.StationNo)
-                .ToHashSet();
-            foreach (StationCommunicationConfig station in selectedStations.Where(
-                         station => !mappedStationNumbers.Contains(station.StationNo)))
-            {
-                const string message = "当前工位未映射到可用控制PCB分组，未发送0x35+AA读取报文。";
-                LogCreepingStationBlock(context.TestItemName, station.StationNo, message);
-                ApplyStationExecutionResult(station.StationNo, context, false, message);
-            }
-
-            int packetIntervalMs = Math.Max(0, context.SubItem.PacketIntervalMs);
-            List<Task<bool>> groupTasks = groups
-                .Select(group => ExecuteControlPcbCreepingReadGroupAsync(
-                    group,
-                    selectedStations,
-                    context,
-                    packetIntervalMs,
-                    cancellationToken))
-                .ToList();
-            bool[] groupResults = await Task.WhenAll(groupTasks);
-            bool passed = mappedStationNumbers.Count == selectedStations.Count &&
-                groupResults.Length > 0 &&
-                groupResults.All(result => result);
-            int resultCount = selectedStations.Count(station => creepingPulseResults.ContainsKey(station.StationNo));
+            MeterTestCreepingStepResult result = await creepingTestService.ReadAsync(
+                context,
+                selectedStations,
+                GetEnabledControlPcbGroups(context.SubItem),
+                Math.Max(0, context.SubItem.PacketIntervalMs),
+                (stationNo, lines) => LogCreepingStationBlock(context.TestItemName, stationNo, lines),
+                (targets, passed, message) => RunOnUiThread(() => ApplyControlPcbGroupResult(targets, context, passed, message, string.Empty)),
+                stationNo => RunOnUiThread(() => UpdateStationRunningState(stationNo, context)),
+                (stationNo, passed, message) => RunOnUiThread(() => ApplyStationExecutionResult(stationNo, context, passed, message)),
+                cancellationToken);
 
             RestoreStationDisplayForSelectedNode();
             AddProcessLog(
                 $"{context.SchemeName}/{context.TestItemName}",
                 context.SubItem.Name,
-                passed,
-                $"潜动脉冲读取完成，成功读取={resultCount}/{selectedStations.Count}个工位；失败工位不影响其他工位读取。",
-                Math.Max(0, Environment.TickCount64 - startTicks));
-        }
-
-        /// <summary>复用指定控制PCB长连接，逐工位发送0x35+AA并解析累计脉冲数和累计时间。</summary>
-        private async Task<bool> ExecuteControlPcbCreepingReadGroupAsync(
-            MeterTestControlPcbGroup group,
-            List<StationCommunicationConfig> selectedStations,
-            SelectedSubItemContext context,
-            int packetIntervalMs,
-            CancellationToken cancellationToken)
-        {
-            List<ControlPcbStationTarget> targets = GetControlPcbStationTargets(group, selectedStations);
-            if (targets.Count == 0)
-                return true;
-
-            if (!IsControlPcbV2(group.ProtocolVersion))
-            {
-                string message = $"控制PCB组 {group.Name} 使用 {group.ProtocolVersion}，0x35潜动读取只支持V2协议。";
-                LogControlPcbGroupBlock(context.TestItemName, group, targets, message, StationLogSeparator);
-                RunOnUiThread(() => ApplyControlPcbGroupResult(targets, context, false, message, string.Empty));
-                return false;
-            }
-
-            List<ControlPcbStationTarget> activeTargets = targets
-                .Where(target => creepingActiveStations.ContainsKey(target.StationNo))
-                .ToList();
-            foreach (ControlPcbStationTarget target in targets.Where(
-                         target => !creepingActiveStations.ContainsKey(target.StationNo)))
-            {
-                const string message = "潜动启动未成功，未发送0x35+AA结果读取报文。";
-                LogControlPcbStationBlock(context.TestItemName, group, target, message, StationLogSeparator);
-                RunOnUiThread(() => ApplyStationExecutionResult(target.StationNo, context, false, message));
-            }
-
-            if (activeTargets.Count == 0)
-                return false;
-
-            foreach (ControlPcbStationTarget target in activeTargets)
-            {
-                RunOnUiThread(() => UpdateStationRunningState(target.StationNo, context));
-            }
-
-            if (!controlPcbConnectionManager.TryGetConnectedConnection(
-                    group,
-                    out MeterTestControlPcbConnection connection,
-                    out string connectionError))
-            {
-                LogControlPcbGroupBlock(context.TestItemName, group, activeTargets, connectionError, StationLogSeparator);
-                RunOnUiThread(() => ApplyControlPcbGroupResult(activeTargets, context, false, connectionError, string.Empty));
-                return false;
-            }
-
-            LogControlPcbGroupBlock(
-                context.TestItemName,
-                group,
-                activeTargets,
-                $" 复用控制PCB长连接：{connection.DisplayName}",
-                StationLogSeparator);
-            Dictionary<byte, byte[]> responses = await SendControlPcbPacketsAndCollectResponsesAsync(
-                context.TestItemName,
-                connection,
-                group,
-                activeTargets,
-                target => ElectricEnergyMeterControlV2.BuildCreepingTestResultPacket(target.MeterAddress),
-                target => $"0x35读取潜动脉冲[工位={target.StationNo}, 表位={target.MeterAddress:X2}]",
-                ResolveCreepingTestResultResponse,
-                TimeSpan.FromMilliseconds(Math.Max(100, context.SubItem.TimeoutMs)),
-                TimeSpan.FromMilliseconds(packetIntervalMs),
-                cancellationToken);
-
-            bool groupPassed = activeTargets.Count == targets.Count;
-            foreach (ControlPcbStationTarget target in activeTargets)
-            {
-                bool hasResponse = responses.TryGetValue(target.MeterAddress, out byte[]? response);
-                byte pulseCount = 0;
-                uint timeSeconds = 0;
-                bool parsed = hasResponse && ElectricEnergyMeterControlV2.TryParseCreepingTestResponse(
-                    response!,
-                    target.MeterAddress,
-                    ElectricEnergyMeterControlV2.CreepingTestResultOperation,
-                    out pulseCount,
-                    out timeSeconds);
-                if (parsed)
-                {
-                    creepingPulseResults[target.StationNo] = new CreepingPulseMeasurement(pulseCount, timeSeconds);
-                    string message = $"潜动结果读取成功，当前脉冲个数：{pulseCount}，累计时间：{timeSeconds}s。";
-                    LogControlPcbStationBlock(context.TestItemName, group, target, message, StationLogSeparator);
-                    RunOnUiThread(() => ApplyStationExecutionResult(target.StationNo, context, true, message));
-                }
-                else
-                {
-                    groupPassed = false;
-                    string message = hasResponse
-                        ? "收到0x35结果应答，但脉冲数或累计时间解析失败。"
-                        : "未收到0x35+AA潜动结果应答。";
-                    LogControlPcbStationBlock(context.TestItemName, group, target, message, StationLogSeparator);
-                    RunOnUiThread(() => ApplyStationExecutionResult(target.StationNo, context, false, message));
-                }
-            }
-
-            return groupPassed;
+                result.Passed,
+                result.Message,
+                result.ElapsedMilliseconds);
         }
 
         /// <summary>按累计脉冲数小于等于1判定潜动结果；0个或1个均为合格。</summary>
@@ -2920,19 +3143,15 @@ namespace ModelTest.MeterTest
             IReadOnlyList<StationCommunicationConfig> selectedStations)
         {
             long startTicks = Environment.TickCount64;
-            bool allPassed = true;
-            foreach (StationCommunicationConfig station in selectedStations)
-            {
-                bool hasResult = creepingPulseResults.TryGetValue(
-                    station.StationNo,
-                    out CreepingPulseMeasurement? measurement);
-                bool passed = hasResult && measurement!.PulseCount <= 1;
-                allPassed &= passed;
-                string pulseText = hasResult ? measurement!.PulseCount.ToString(CultureInfo.InvariantCulture) : "未读取";
-                string message = $"当前脉冲个数：{pulseText}，标准脉冲个数≦1个，结论：{(passed ? "合格" : "不合格")}";
-                LogCreepingStationBlock(context.TestItemName, station.StationNo, message);
-                ApplyStationExecutionResult(station.StationNo, context, passed, message);
-            }
+            bool allPassed = creepingTestService.JudgeResults(
+                context,
+                selectedStations,
+                (stationNo, lines) => LogCreepingStationBlock(
+                    context.TestItemName,
+                    stationNo,
+                    lines.Concat(new[] { StationLogSeparator }).ToArray()),
+                measurement => RecordMeasurement(context.SchemeName, measurement),
+                (stationNo, passed, message) => ApplyStationExecutionResult(stationNo, context, passed, message));
 
             RestoreStationDisplayForSelectedNode();
             AddProcessLog(
@@ -2946,1078 +3165,113 @@ namespace ModelTest.MeterTest
         }
 
         /// <summary>
-        /// 执行单个控制 PCB 组的三轮日计时：开始、倒计时、读取结果。
-        /// 每轮结果按工位保存，最后按工位计算三轮平均误差。
+        /// 调度起动试验步骤 2。控制 PCB 报文构造、发送、应答解析和逐工位容错均由起动服务负责。
         /// </summary>
-        private async Task<bool> ExecuteControlPcbDailyTimingGroupAsync(
-            MeterTestControlPcbGroup group,
-            List<StationCommunicationConfig> selectedStations,
-            SelectedSubItemContext context,
-            byte testTime,
-            byte testCount,
-            int packetIntervalMs,
-            CancellationToken cancellationToken)
-        {
-            List<ControlPcbStationTarget> targets = GetControlPcbStationTargets(group, selectedStations);
-            if (targets.Count == 0)
-                return true;
-
-            long startTicks = Environment.TickCount64;
-            Dictionary<int, List<float>> stationRoundAverages = targets.ToDictionary(
-                target => target.StationNo,
-                _ => new List<float>());
-
-            foreach (ControlPcbStationTarget target in targets)
-            {
-                RunOnUiThread(() => UpdateStationRunningState(target.StationNo, context));
-            }
-
-            if (!controlPcbConnectionManager.TryGetConnectedConnection(
-                    group,
-                    out MeterTestControlPcbConnection connection,
-                    out string connectionError))
-            {
-                LogControlPcbGroupBlock(context.TestItemName, group, targets, connectionError, StationLogSeparator);
-                RunOnUiThread(() => ApplyControlPcbGroupResult(targets, context, false, connectionError, string.Empty));
-                RunOnUiThread(() => AddProcessLog($"{context.SchemeName}/{context.TestItemName}/{group.Name}", context.SubItem.Name, false, connectionError, 0));
-                return false;
-            }
-
-            LogControlPcbGroupBlock(context.TestItemName, group, targets, $" 复用控制PCB长连接：{connection.DisplayName}", StationLogSeparator);
-            // 日计时等待按试验总时长增加10%余量并向上取整：60s × 1次 = 66s。
-            int waitSeconds = (int)Math.Ceiling(testTime * testCount * 1.1m);
-
-            for (int round = 1; round <= 3; round++)
-            {
-                LogControlPcbGroupBlock(
-                    context.TestItemName,
-                    group,
-                    targets,
-                    $"第{round}轮：开始日计时实验");
-
-                Dictionary<byte, byte[]> startResponses = await SendControlPcbPacketsAndCollectResponsesAsync(
-                    context.TestItemName,
-                    connection,
-                    group,
-                    targets,
-                    target => BuildDailyTimingPacket(group.ProtocolVersion, target.MeterAddress, DailyTimingStartDataItem, testTime, testCount),
-                    target => $"第{round}轮日计时开始[工位={target.StationNo}, 表位={target.MeterAddress:X2}, 时间={testTime}s, 次数={testCount}]",
-                    rawData => TryGetDailyTimingResponse(rawData, group.ProtocolVersion, DailyTimingStartDataItem, testTime, testCount, out byte meterAddress) ? meterAddress : null,
-                    TimeSpan.FromMilliseconds(Math.Max(100, context.SubItem.TimeoutMs)),
-                    TimeSpan.FromMilliseconds(packetIntervalMs),
-                    cancellationToken);
-
-                List<ControlPcbStationTarget> activeTargets = targets
-                    .Where(target => startResponses.ContainsKey(target.MeterAddress))
-                    .ToList();
-
-                foreach (ControlPcbStationTarget target in targets.Except(activeTargets))
-                {
-                    LogControlPcbStationBlock(
-                        context.TestItemName,
-                        group,
-                        target,
-                        $"第{round}轮表位 {target.MeterAddress:X2} 开始日计时未收到正确应答");
-                }
-
-                if (activeTargets.Count == 0)
-                {
-                    LogControlPcbGroupBlock(
-                        context.TestItemName,
-                        group,
-                        targets,
-                        $"第{round}轮没有表位收到开始应答，继续下一轮");
-                    continue;
-                }
-
-                LogControlPcbGroupBlock(
-                    context.TestItemName,
-                    group,
-                    activeTargets,
-                    $"第{round}轮开始应答正常");
-                await DelayTestWithCountdownAsync(
-                    waitSeconds,
-                    $"第{round}轮开始倒计时：{waitSeconds}s",
-                    $"第{round}轮倒计时结束",
-                    message => LogControlPcbGroupBlock(context.TestItemName, group, activeTargets, message),
-                    cancellationToken);
-
-                Dictionary<byte, byte[]> resultResponses = await SendControlPcbPacketsAndCollectResponsesAsync(
-                    context.TestItemName,
-                    connection,
-                    group,
-                    activeTargets,
-                    target => BuildDailyTimingPacket(group.ProtocolVersion, target.MeterAddress, DailyTimingResultDataItem, testTime, testCount),
-                    target => $"第{round}轮读取日计时结果[工位={target.StationNo}, 表位={target.MeterAddress:X2}, 时间={testTime}s, 次数={testCount}]",
-                    rawData => TryGetDailyTimingResponse(rawData, group.ProtocolVersion, DailyTimingResultDataItem, testTime, testCount, out byte meterAddress) ? meterAddress : null,
-                    TimeSpan.FromMilliseconds(Math.Max(100, context.SubItem.TimeoutMs)),
-                    TimeSpan.FromMilliseconds(packetIntervalMs),
-                    cancellationToken);
-
-                foreach (ControlPcbStationTarget target in activeTargets)
-                {
-                    IReadOnlyList<float> values = Array.Empty<float>();
-                    string parseMessage = string.Empty;
-                    bool hasResponse = resultResponses.TryGetValue(target.MeterAddress, out byte[]? rawResponse);
-                    bool parsed = hasResponse && TryParseDailyTimingResults(
-                        rawResponse!,
-                        group.ProtocolVersion,
-                        testTime,
-                        testCount,
-                        out values,
-                        out parseMessage);
-                    if (!parsed)
-                    {
-                        LogControlPcbStationBlock(
-                            context.TestItemName,
-                            group,
-                            target,
-                            $"第{round}轮日计时结果解析失败：{parseMessage}");
-                        continue;
-                    }
-
-                    float roundAverage = values.Average();
-                    stationRoundAverages[target.StationNo].Add(roundAverage);
-                    string valuesText = string.Join(", ", values.Select(value => value.ToString("0.####", CultureInfo.InvariantCulture)));
-                    LogControlPcbStationBlock(
-                        context.TestItemName,
-                        group,
-                        target,
-                        $"第{round}轮日计时结果获取正常",
-                        $"误差值：{valuesText}",
-                        $"本轮平均误差：{roundAverage.ToString("0.####", CultureInfo.InvariantCulture)}");
-                }
-            }
-
-            bool groupPassed = true;
-            SelectedSubItemContext resultContext = GetFinalDailyTimingResultContext(context);
-            foreach (ControlPcbStationTarget target in targets)
-            {
-                List<float> roundAverages = stationRoundAverages[target.StationNo];
-                bool hasThreeResults = roundAverages.Count == 3;
-                double finalAverage = hasThreeResults ? roundAverages.Average() : double.NaN;
-                bool passed = hasThreeResults && Math.Abs(finalAverage) < 0.5;
-                groupPassed &= passed;
-
-                string resultText = hasThreeResults
-                    ? $"三轮平均误差={finalAverage.ToString("0.####", CultureInfo.InvariantCulture)}，判定={(passed ? "合格" : "不合格")}（阈值：绝对值<0.5）"
-                    : $"仅获取到 {roundAverages.Count}/3 轮有效结果，判定不合格";
-                LogControlPcbStationBlock(context.TestItemName, group, target, resultText, StationLogSeparator);
-                RunOnUiThread(() => ApplyStationExecutionResult(
-                    target.StationNo,
-                    resultContext,
-                    passed,
-                    resultText));
-            }
-
-            RunOnUiThread(() =>
-                AddProcessLog(
-                    $"{context.SchemeName}/{context.TestItemName}/{group.Name}",
-                    resultContext.SubItem.Name,
-                    groupPassed,
-                    groupPassed
-                        ? "控制PCB三轮日计时全部完成，所有工位平均误差合格。"
-                        : "控制PCB三轮日计时完成，但存在结果不足或平均误差不合格工位。",
-                    Math.Max(0, Environment.TickCount64 - startTicks)));
-            return groupPassed;
-        }
-
-        /// <summary>
-        /// 执行起动误差试验启动节点：读取标准表脉冲常数，然后通过控制PCB下发A2、A0和0x38。
-        /// 标准表常数只读取一次；不同控制PCB组并行执行，同组内失败工位不会阻断其他工位。
-        /// </summary>
-        private async Task ExecuteControlPcbStartingErrorStepAsync(
+        private Task ExecuteControlPcbStartingErrorStepAsync(
             SelectedSubItemContext context,
             List<StationCommunicationConfig> selectedStations,
             CancellationToken cancellationToken)
         {
-            long startTicks = Environment.TickCount64;
-            if (!TryGetStartingErrorConfig(
-                    context.SubItem,
-                    out byte pulseCount,
-                    out byte testCount,
-                    out byte pulseType,
-                    out int packetIntervalMs,
-                    out string? configError))
-            {
-                RunOnUiThread(() =>
-                {
-                    SaveStationConclusions(
-                        context,
-                        selectedStations,
-                        selectedStations.ToDictionary(station => station.StationNo, _ => false),
-                        configError ?? "起动误差试验配置错误。");
-                    AddProcessLog(context.SchemeName, context.SubItem.Name, false, configError ?? "起动误差试验配置错误。", 0);
-                });
-                return;
-            }
-
-            (bool constantRead, ulong standardConstant, string constantMessage) =
-                await ReadStandardActiveConstantAsync(cancellationToken);
-            LogMessage.Debug($"[起动试验] {constantMessage}");
-            if (!constantRead)
-            {
-                RunOnUiThread(() =>
-                {
-                    SaveStationConclusions(
-                        context,
-                        selectedStations,
-                        selectedStations.ToDictionary(station => station.StationNo, _ => false),
-                        constantMessage);
-                    RestoreStationDisplayForSelectedNode();
-                    AddProcessLog(
-                        context.SchemeName,
-                        context.SubItem.Name,
-                        false,
-                        constantMessage,
-                        Math.Max(0, Environment.TickCount64 - startTicks));
-                });
-                return;
-            }
-
-            IReadOnlyDictionary<int, MeterArchiveData> meterArchives =
-                accessDatabaseService.LoadOrCreateMeterArchives(MaxStationCount);
-            List<Task<bool>> groupTasks = GetEnabledControlPcbGroups(context.SubItem)
-                .Select(group => ExecuteControlPcbStartingErrorGroupAsync(
-                    group,
-                    selectedStations,
-                    meterArchives,
-                    context,
-                    standardConstant,
-                    pulseCount,
-                    testCount,
-                    pulseType,
-                    packetIntervalMs,
-                    cancellationToken))
-                .ToList();
-
-            if (groupTasks.Count == 0)
-            {
-                const string message = "未找到可用控制PCB分组，请检查 ControlPcbGroups。";
-                RunOnUiThread(() =>
-                {
-                    SaveStationConclusions(
-                        context,
-                        selectedStations,
-                        selectedStations.ToDictionary(station => station.StationNo, _ => false),
-                        message);
-                    AddProcessLog(context.SchemeName, context.SubItem.Name, false, message, 0);
-                });
-                return;
-            }
-
-            bool[] groupResults = await Task.WhenAll(groupTasks);
-            bool passed = groupResults.Length > 0 && groupResults.All(result => result);
-            RunOnUiThread(() =>
-            {
-                RestoreStationDisplayForSelectedNode();
-                AddProcessLog(
-                    $"{context.SchemeName}/{context.TestItemName}",
-                    context.SubItem.Name,
-                    passed,
-                    passed
-                        ? $"A2、A0和0x38启动命令全部完成，标准表常数={standardConstant}。"
-                        : $"起动误差启动流程存在失败工位，标准表常数={standardConstant}，请查看工位日志。",
-                    Math.Max(0, Environment.TickCount64 - startTicks));
-            });
-        }
-
-        /// <summary>通过XYCtr读取标准表有功脉冲常数并解析为无符号整数。</summary>
-        private static async Task<(bool Success, ulong Constant, string Message)> ReadStandardActiveConstantAsync(
-            CancellationToken cancellationToken)
-        {
-            if (!XYCtr.IsSourcePortOpen)
-            {
-                return (false, 0, "源串口尚未打开，无法读取标准表脉冲常数；请先执行升源（启动电流）。");
-            }
-
-            using XYCtr xyCtr = new();
-            byte[] constantBuffer = new byte[1024];
-            cancellationToken.ThrowIfCancellationRequested();
-            (bool success, int result) = await xyCtr
-                .CallReadStandConstAsync(constantBuffer, TimeSpan.FromSeconds(5))
-                .ConfigureAwait(false);
-            cancellationToken.ThrowIfCancellationRequested();
-            if (!success)
-            {
-                return (false, 0, $"读取标准表脉冲常数失败，XYCtr返回值={result}。");
-            }
-
-            string rawValue = Encoding.Default.GetString(constantBuffer).TrimEnd('\0', '\r', '\n', ' ');
-            if (!TryParseUnsignedConstant(rawValue, out ulong standardConstant) || standardConstant == 0)
-            {
-                return (false, 0, $"标准表脉冲常数解析失败，原始返回={rawValue}。");
-            }
-
-            return (true, standardConstant, $"读取标准表脉冲常数成功：{standardConstant}，原始返回={rawValue}。");
-        }
-
-        /// <summary>
-        /// 执行单个控制PCB组的A2、A0和0x38启动流程。
-        /// A2或A0未正确应答的工位会从后续步骤移除，其他工位继续执行。
-        /// </summary>
-        private async Task<bool> ExecuteControlPcbStartingErrorGroupAsync(
-            MeterTestControlPcbGroup group,
-            List<StationCommunicationConfig> selectedStations,
-            IReadOnlyDictionary<int, MeterArchiveData> meterArchives,
-            SelectedSubItemContext context,
-            ulong standardConstant,
-            byte pulseCount,
-            byte testCount,
-            byte pulseType,
-            int packetIntervalMs,
-            CancellationToken cancellationToken)
-        {
-            List<ControlPcbStationTarget> targets = GetControlPcbStationTargets(group, selectedStations);
-            if (targets.Count == 0)
-                return true;
-
-            Dictionary<int, string> failureReasons = new();
-            if (!IsControlPcbV2(group.ProtocolVersion))
-            {
-                string message = $"控制PCB组 {group.Name} 使用 {group.ProtocolVersion}，起动误差A2/A0/0x38流程只支持V2协议。";
-                RunOnUiThread(() => ApplyControlPcbGroupResult(targets, context, false, message, string.Empty));
-                LogControlPcbGroupBlock(context.TestItemName, group, targets, message, StationLogSeparator);
-                return false;
-            }
-
-            Dictionary<byte, uint> meterConstants = new();
-            foreach (ControlPcbStationTarget target in targets)
-            {
-                if (!meterArchives.TryGetValue(target.StationNo, out MeterArchiveData? archive) ||
-                    !TryParseUnsignedConstant(archive.ActiveConstant, out ulong activeConstant) ||
-                    activeConstant is 0 or > uint.MaxValue)
-                {
-                    failureReasons[target.StationNo] = $"资产信息有功常数无效：{archive?.ActiveConstant ?? "空"}";
-                    continue;
-                }
-
-                meterConstants[target.MeterAddress] = (uint)activeConstant;
-                RunOnUiThread(() => UpdateStationRunningState(target.StationNo, context));
-            }
-
-            List<ControlPcbStationTarget> activeTargets = targets
-                .Where(target => meterConstants.ContainsKey(target.MeterAddress))
-                .ToList();
-            if (activeTargets.Count == 0)
-            {
-                ApplyStartingErrorGroupResults(group, targets, context, failureReasons, Array.Empty<byte>());
-                return false;
-            }
-
-            if (!controlPcbConnectionManager.TryGetConnectedConnection(
-                    group,
-                    out MeterTestControlPcbConnection connection,
-                    out string connectionError))
-            {
-                string message = connectionError;
-                foreach (ControlPcbStationTarget target in activeTargets)
-                {
-                    failureReasons[target.StationNo] = message;
-                }
-
-                LogControlPcbGroupBlock(context.TestItemName, group, targets, message, StationLogSeparator);
-                ApplyStartingErrorGroupResults(group, targets, context, failureReasons, Array.Empty<byte>());
-                return false;
-            }
-
-            LogControlPcbGroupBlock(context.TestItemName, group, targets, $" 复用控制PCB长连接：{connection.DisplayName}", StationLogSeparator);
-            TimeSpan responseTimeout = TimeSpan.FromMilliseconds(Math.Max(100, context.SubItem.TimeoutMs));
-            TimeSpan packetInterval = TimeSpan.FromMilliseconds(packetIntervalMs);
-
-            byte[] standardPayload = ToLittleEndianBytes(standardConstant);
-            Dictionary<byte, byte[]> a2ExpectedPayloads = activeTargets.ToDictionary(
-                target => target.MeterAddress,
-                _ => standardPayload);
-            Dictionary<byte, byte[]> a2Responses = await SendControlPcbPacketsAndCollectResponsesAsync(
-                context.TestItemName,
-                connection,
-                group,
-                activeTargets,
-                target => BuildV2MeterPacket(target.MeterAddress, MeterStandardActiveConstantCommand, standardPayload),
-                target => $"A2设置标准表有功常数[工位={target.StationNo}, 表位={target.MeterAddress:X2}, 常数={standardConstant}]",
-                frame => ResolveExpectedControlPcbResponse(frame, group.ProtocolVersion, MeterStandardActiveConstantCommand, a2ExpectedPayloads),
-                responseTimeout,
-                packetInterval,
+            return startingErrorService.StartControlPcbAsync(
+                context,
+                selectedStations,
+                GetEnabledControlPcbGroups(context.SubItem),
+                (stationNo, lines) => LogStartingErrorStationBlock(context.TestItemName, stationNo, lines),
+                (group, target, lines) => LogControlPcbStationBlock(context.TestItemName, group, target, lines),
+                (stationNo, runningContext) => RunOnUiThread(() => UpdateStationRunningState(stationNo, runningContext)),
+                (stationNo, passed, message) =>
+                    RunOnUiThread(() => ApplyStationExecutionResult(stationNo, context, passed, message)),
+                (scope, name, passed, message, elapsed) =>
+                    RunOnUiThread(() => AddProcessLog(scope, name, passed, message, elapsed)),
+                () => RunOnUiThread(RestoreStationDisplayForSelectedNode),
                 cancellationToken);
-            activeTargets = KeepRespondedStartingErrorTargets(
-                activeTargets,
-                a2Responses,
-                failureReasons,
-                "A2设置标准表常数未收到正确应答");
-
-            if (activeTargets.Count > 0)
-            {
-                Dictionary<byte, byte[]> a0ExpectedPayloads = activeTargets.ToDictionary(
-                    target => target.MeterAddress,
-                    target => ToLittleEndianBytes(meterConstants[target.MeterAddress]));
-                Dictionary<byte, byte[]> a0Responses = await SendControlPcbPacketsAndCollectResponsesAsync(
-                    context.TestItemName,
-                    connection,
-                    group,
-                    activeTargets,
-                    target => BuildV2MeterPacket(target.MeterAddress, MeterActiveConstantCommand, a0ExpectedPayloads[target.MeterAddress]),
-                    target => $"A0设置电能表有功常数[工位={target.StationNo}, 表位={target.MeterAddress:X2}, 常数={meterConstants[target.MeterAddress]}]",
-                    frame => ResolveExpectedControlPcbResponse(frame, group.ProtocolVersion, MeterActiveConstantCommand, a0ExpectedPayloads),
-                    responseTimeout,
-                    packetInterval,
-                    cancellationToken);
-                activeTargets = KeepRespondedStartingErrorTargets(
-                    activeTargets,
-                    a0Responses,
-                    failureReasons,
-                    "A0设置电能表常数未收到正确应答");
-            }
-
-            if (activeTargets.Count > 0)
-            {
-                byte[] startPayload = { BasicErrorStartOperation, pulseCount, testCount, pulseType };
-                Dictionary<byte, byte[]> startExpectedPayloads = activeTargets.ToDictionary(
-                    target => target.MeterAddress,
-                    _ => startPayload);
-                Dictionary<byte, byte[]> startResponses = await SendControlPcbPacketsAndCollectResponsesAsync(
-                    context.TestItemName,
-                    connection,
-                    group,
-                    activeTargets,
-                    target => BuildV2MeterPacket(target.MeterAddress, MeterBasicErrorCommand38, startPayload),
-                    target => $"0x38开启起动试验[工位={target.StationNo}, 表位={target.MeterAddress:X2}, 脉冲数={pulseCount}, 次数={testCount}, 类型={(pulseType == ActivePulseType ? "有功" : "无功")}]",
-                    frame => ResolveExpectedControlPcbResponse(frame, group.ProtocolVersion, MeterBasicErrorCommand38, startExpectedPayloads),
-                    responseTimeout,
-                    packetInterval,
-                    cancellationToken);
-                activeTargets = KeepRespondedStartingErrorTargets(
-                    activeTargets,
-                    startResponses,
-                    failureReasons,
-                    "0x38开启起动试验未收到正确应答");
-            }
-
-            HashSet<byte> successfulAddresses = activeTargets
-                .Select(target => target.MeterAddress)
-                .ToHashSet();
-            ApplyStartingErrorGroupResults(group, targets, context, failureReasons, successfulAddresses);
-            bool groupPassed = targets.All(target => successfulAddresses.Contains(target.MeterAddress));
-            LogControlPcbGroupBlock(
-                context.TestItemName,
-                group,
-                targets,
-                groupPassed ? "A2、A0和0x38启动命令全部应答正常" : "起动误差启动流程存在失败工位",
-                StationLogSeparator);
-            return groupPassed;
-        }
-
-        /// <summary>保留正确应答的工位，并为未应答工位记录失败原因。</summary>
-        private static List<ControlPcbStationTarget> KeepRespondedStartingErrorTargets(
-            IEnumerable<ControlPcbStationTarget> targets,
-            IReadOnlyDictionary<byte, byte[]> responses,
-            IDictionary<int, string> failureReasons,
-            string failureReason)
-        {
-            List<ControlPcbStationTarget> respondedTargets = new();
-            foreach (ControlPcbStationTarget target in targets)
-            {
-                if (responses.ContainsKey(target.MeterAddress))
-                {
-                    respondedTargets.Add(target);
-                }
-                else
-                {
-                    failureReasons[target.StationNo] = failureReason;
-                }
-            }
-
-            return respondedTargets;
-        }
-
-        /// <summary>把起动误差启动流程的逐工位结论写入界面、缓存和数据库。</summary>
-        private void ApplyStartingErrorGroupResults(
-            MeterTestControlPcbGroup group,
-            IEnumerable<ControlPcbStationTarget> targets,
-            SelectedSubItemContext context,
-            IReadOnlyDictionary<int, string> failureReasons,
-            IEnumerable<byte> successfulAddresses)
-        {
-            HashSet<byte> successSet = successfulAddresses.ToHashSet();
-            foreach (ControlPcbStationTarget target in targets)
-            {
-                bool passed = successSet.Contains(target.MeterAddress);
-                string message = passed
-                    ? "A2标准表常数、A0电能表常数和0x38起动误差启动命令应答正常。"
-                    : failureReasons.TryGetValue(target.StationNo, out string? reason)
-                        ? reason
-                        : "起动误差启动流程未完成。";
-                LogControlPcbStationBlock(context.TestItemName, group, target, $"结论：{(passed ? "合格" : "不合格")}，{message}");
-                RunOnUiThread(() => ApplyStationExecutionResult(target.StationNo, context, passed, message));
-            }
-        }
-
-        /// <summary>校验控制PCB应答命令和数据项，并返回应答所属表位地址。</summary>
-        private static byte? ResolveExpectedControlPcbResponse(
-            byte[] frame,
-            string protocolVersion,
-            byte command,
-            IReadOnlyDictionary<byte, byte[]> expectedPayloads)
-        {
-            if (!TryGetControlPcbPacketDataItems(frame, protocolVersion, command, out byte meterAddress, out byte[] dataItems) ||
-                !expectedPayloads.TryGetValue(meterAddress, out byte[]? expectedPayload) ||
-                !dataItems.SequenceEqual(expectedPayload))
-            {
-                return null;
-            }
-
-            return meterAddress;
-        }
-
-        /// <summary>读取并校验起动误差试验的XML参数。</summary>
-        private static bool TryGetStartingErrorConfig(
-            MeterTestSubItem subItem,
-            out byte pulseCount,
-            out byte testCount,
-            out byte pulseType,
-            out int packetIntervalMs,
-            out string? errorMessage)
-        {
-            pulseCount = 0;
-            testCount = 0;
-            pulseType = 0;
-            packetIntervalMs = Math.Max(0, subItem.PacketIntervalMs);
-            errorMessage = null;
-
-            if (subItem.BasicErrorPulseCount is < 1 or > 99)
-            {
-                errorMessage = "0x38脉冲数必须在1-99之间。";
-                return false;
-            }
-
-            if (subItem.BasicErrorTestCount is < 1 or > 10)
-            {
-                errorMessage = "0x38试验次数必须在1-10之间。";
-                return false;
-            }
-
-            if (subItem.BasicErrorPulseType is < 0 or > 1)
-            {
-                errorMessage = "0x38脉冲类型只支持0（有功）或1（无功）。";
-                return false;
-            }
-
-            pulseCount = (byte)subItem.BasicErrorPulseCount;
-            testCount = (byte)subItem.BasicErrorTestCount;
-            pulseType = (byte)subItem.BasicErrorPulseType;
-            return true;
-        }
-
-        /// <summary>从纯数字或带说明文本中提取第一个无符号整数常数。</summary>
-        private static bool TryParseUnsignedConstant(string? value, out ulong constant)
-        {
-            constant = 0;
-            string normalized = value?.Trim() ?? string.Empty;
-            if (ulong.TryParse(normalized, NumberStyles.Integer, CultureInfo.InvariantCulture, out constant))
-                return true;
-
-            Match match = Regex.Match(normalized, @"\d+");
-            return match.Success &&
-                   ulong.TryParse(match.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out constant);
-        }
-
-        /// <summary>把ulong按控制PCB协议要求编码成8字节小端数据。</summary>
-        private static byte[] ToLittleEndianBytes(ulong value)
-        {
-            byte[] bytes = new byte[sizeof(ulong)];
-            BinaryPrimitives.WriteUInt64LittleEndian(bytes, value);
-            return bytes;
-        }
-
-        /// <summary>把uint按控制PCB协议要求编码成4字节小端数据。</summary>
-        private static byte[] ToLittleEndianBytes(uint value)
-        {
-            byte[] bytes = new byte[sizeof(uint)];
-            BinaryPrimitives.WriteUInt32LittleEndian(bytes, value);
-            return bytes;
         }
 
         /// <summary>
-        /// 按资产信息逐工位计算Tst上限，并以最大Tst向上取整作为统一等待时间。
-        /// 选中工位的起动试验已经同时启动，因此等待最大值可以覆盖所有有效工位。
+        /// 调度起动试验步骤 3。Tst 参数计算、统一倒计时和完整过程日志均由起动服务负责。
         /// </summary>
-        private async Task ExecuteStartingTimeWaitAsync(
+        private Task ExecuteStartingTimeWaitAsync(
             SelectedSubItemContext context,
             IReadOnlyList<StationCommunicationConfig> selectedStations,
             CancellationToken cancellationToken)
         {
-            long startTicks = Environment.TickCount64;
-            IReadOnlyDictionary<int, MeterArchiveData> meterArchives =
-                accessDatabaseService.LoadOrCreateMeterArchives(MaxStationCount);
-            List<MeterTestStartingTimeResult> calculations = new();
-            bool allParametersValid = true;
-
-            foreach (StationCommunicationConfig station in selectedStations)
-            {
-                MeterTestStartingTimeResult? calculation = null;
-                string? calculationError;
-                if (!meterArchives.TryGetValue(station.StationNo, out MeterArchiveData? archive))
-                {
-                    calculationError = "缺少资产信息";
-                }
-                else if (!MeterTestStartingTestCalculator.TryCalculateStartingTime(
-                             archive,
-                             out calculation,
-                             out calculationError))
-                {
-                    // calculationError 由计算器返回具体的无效资产字段。
-                }
-
-                if (calculation is null)
-                {
-                    allParametersValid = false;
-                    string errorMessage = $"起动时间计算失败：{calculationError ?? "未知参数错误"}";
-                    LogStartingTimeStationBlock(context.TestItemName, station.StationNo, errorMessage);
-                    RunOnUiThread(() => ApplyStationExecutionResult(station.StationNo, context, false, errorMessage));
-                    continue;
-                }
-
-                calculations.Add(calculation);
-                string calculationMessage = FormatStartingTimeCalculation(calculation);
-                LogMessage.Debug($"[起动试验] 工位{station.StationNo}{calculationMessage}");
-                LogStartingTimeStationBlock(context.TestItemName, station.StationNo, calculationMessage);
-                RunOnUiThread(() => UpdateStationRunningState(station.StationNo, context));
-            }
-
-            if (calculations.Count == 0)
-            {
-                RunOnUiThread(() => AddProcessLog(
-                    $"{context.SchemeName}/{context.TestItemName}",
-                    context.SubItem.Name,
-                    false,
-                    "所有选中工位的起动时间参数均无效，未执行等待。",
-                    Math.Max(0, Environment.TickCount64 - startTicks)));
-                return;
-            }
-
-            int waitSeconds = calculations.Max(calculation => calculation.WaitSeconds);
-            string limitingStations = string.Join(",", calculations
-                .Where(calculation => calculation.WaitSeconds == waitSeconds)
-                .Select(calculation => calculation.StationNo));
-            await DelayTestWithCountdownAsync(
-                waitSeconds,
-                $"开始起动时间倒计时：{waitSeconds}s，按最大Tst工位={limitingStations}",
-                $"起动时间倒计时结束：{waitSeconds}s",
-                message =>
-                {
-                    LogMessage.Debug($"[起动试验] {message}");
-                    foreach (MeterTestStartingTimeResult calculation in calculations)
-                    {
-                        LogStartingTimeStationBlock(context.TestItemName, calculation.StationNo, message);
-                    }
-                },
+            return startingErrorService.ExecuteWaitAsync(
+                context,
+                selectedStations,
+                (stationNo, lines) => LogStartingErrorStationBlock(context.TestItemName, stationNo, lines),
+                (stationNo, runningContext) =>
+                    RunOnUiThread(() => UpdateStationRunningState(stationNo, runningContext)),
+                (stationNo, passed, message) =>
+                    RunOnUiThread(() => ApplyStationExecutionResult(stationNo, context, passed, message)),
+                (scope, name, passed, message, elapsed) =>
+                    RunOnUiThread(() => AddProcessLog(scope, name, passed, message, elapsed)),
+                () => RunOnUiThread(RestoreStationDisplayForSelectedNode),
                 cancellationToken);
-
-            foreach (MeterTestStartingTimeResult calculation in calculations)
-            {
-                string resultMessage = $"已按最大Tst统一等待{waitSeconds}s；本工位Tst上限={calculation.UpperSeconds:0.####}s。";
-                RunOnUiThread(() => ApplyStationExecutionResult(calculation.StationNo, context, true, resultMessage));
-            }
-
-            bool passed = allParametersValid && calculations.Count == selectedStations.Count;
-            RunOnUiThread(() =>
-            {
-                RestoreStationDisplayForSelectedNode();
-                AddProcessLog(
-                    $"{context.SchemeName}/{context.TestItemName}",
-                    context.SubItem.Name,
-                    passed,
-                    passed
-                        ? $"起动时间计算完成，按最大Tst向上取整等待{waitSeconds}s。"
-                        : $"有效工位已等待{waitSeconds}s，但存在资产参数无效工位。",
-                    Math.Max(0, Environment.TickCount64 - startTicks));
-            });
-        }
-
-        /// <summary>格式化单个工位的Tst计算过程，便于现场复核参数来源。</summary>
-        private static string FormatStartingTimeCalculation(MeterTestStartingTimeResult result)
-        {
-            return $"起动时间参数：等级={result.ActiveClass}，Est={result.EstPercent:0.###}%={result.EstRatio:0.#####}，"
-                + $"C={result.MeterConstant:0.###}imp/kWh，U={result.Voltage:0.###}V，"
-                + $"Ist={result.StartingCurrent:0.#########}A，d={result.UnitFactor:0}，"
-                + $"Pst=U×Ist×d={result.StartingPower:0.######}W，Ki=1，Ku=1，"
-                + $"Tst下限={result.LowerSeconds:0.####}s，Tst上限={result.UpperSeconds:0.####}s，"
-                + $"等待={result.WaitSeconds}s；{result.CalculationNote}。";
-        }
-
-        /// <summary>写入起动时间工位日志文件和右侧过程日志区域。</summary>
-        private void LogStartingTimeStationBlock(string testItemName, int stationNo, params string[] lines)
-        {
-            string message = string.Join(Environment.NewLine, lines);
-            LogMessage.MeterTestStationRawLog(testItemName, stationNo, message);
-            AppendTestLog(
-                stationNo,
-                $"{testItemName}/工位{stationNo}",
-                "起动时间日志",
-                message);
         }
 
         /// <summary>
-        /// 通过控制PCB向各工位发送0x38+AA读取起动误差，并缓存解析出的float结果。
+        /// 调度起动试验步骤 4。0x38+AA 查询、float 解析及工位结果缓存均由起动服务负责。
         /// </summary>
-        private async Task ExecuteControlPcbStartingErrorReadStepAsync(
+        private Task ExecuteControlPcbStartingErrorReadStepAsync(
             SelectedSubItemContext context,
             List<StationCommunicationConfig> selectedStations,
             CancellationToken cancellationToken)
         {
-            long startTicks = Environment.TickCount64;
-            if (!TryGetStartingErrorReadConfig(
-                    context.SubItem,
-                    out byte pulseCount,
-                    out byte testCount,
-                    out int packetIntervalMs,
-                    out string? configError))
-            {
-                RunOnUiThread(() =>
-                {
-                    SaveStationConclusions(
-                        context,
-                        selectedStations,
-                        selectedStations.ToDictionary(station => station.StationNo, _ => false),
-                        configError ?? "读取起动误差配置错误。");
-                    AddProcessLog(context.SchemeName, context.SubItem.Name, false, configError ?? "读取起动误差配置错误。", 0);
-                });
-                return;
-            }
-
-            foreach (StationCommunicationConfig station in selectedStations)
-            {
-                startingErrorResults.TryRemove(station.StationNo, out _);
-            }
-
-            List<Task<bool>> groupTasks = GetEnabledControlPcbGroups(context.SubItem)
-                .Select(group => ExecuteControlPcbStartingErrorReadGroupAsync(
-                    group,
-                    selectedStations,
-                    context,
-                    pulseCount,
-                    testCount,
-                    packetIntervalMs,
-                    cancellationToken))
-                .ToList();
-            if (groupTasks.Count == 0)
-            {
-                const string message = "未找到可用控制PCB分组，请检查 ControlPcbGroups。";
-                RunOnUiThread(() => AddProcessLog(context.SchemeName, context.SubItem.Name, false, message, 0));
-                return;
-            }
-
-            bool[] groupResults = await Task.WhenAll(groupTasks);
-            bool passed = groupResults.Length > 0 && groupResults.All(result => result);
-            RunOnUiThread(() =>
-            {
-                RestoreStationDisplayForSelectedNode();
-                AddProcessLog(
-                    $"{context.SchemeName}/{context.TestItemName}",
-                    context.SubItem.Name,
-                    passed,
-                    passed ? "所有选中工位均已读取并解析起动误差结果。" : "存在未读取到有效起动误差结果的工位。",
-                    Math.Max(0, Environment.TickCount64 - startTicks));
-            });
-        }
-
-        /// <summary>执行单个控制PCB组的0x38起动误差读取。</summary>
-        private async Task<bool> ExecuteControlPcbStartingErrorReadGroupAsync(
-            MeterTestControlPcbGroup group,
-            List<StationCommunicationConfig> selectedStations,
-            SelectedSubItemContext context,
-            byte pulseCount,
-            byte testCount,
-            int packetIntervalMs,
-            CancellationToken cancellationToken)
-        {
-            List<ControlPcbStationTarget> targets = GetControlPcbStationTargets(group, selectedStations);
-            if (targets.Count == 0)
-                return true;
-
-            if (!IsControlPcbV2(group.ProtocolVersion))
-            {
-                string message = $"控制PCB组 {group.Name} 使用 {group.ProtocolVersion}，0x38误差读取只支持V2协议。";
-                LogControlPcbGroupBlock(context.TestItemName, group, targets, message, StationLogSeparator);
-                RunOnUiThread(() => ApplyControlPcbGroupResult(targets, context, false, message, string.Empty));
-                return false;
-            }
-
-            foreach (ControlPcbStationTarget target in targets)
-            {
-                RunOnUiThread(() => UpdateStationRunningState(target.StationNo, context));
-            }
-
-            if (!controlPcbConnectionManager.TryGetConnectedConnection(
-                    group,
-                    out MeterTestControlPcbConnection connection,
-                    out string connectionError))
-            {
-                LogControlPcbGroupBlock(context.TestItemName, group, targets, connectionError, StationLogSeparator);
-                RunOnUiThread(() => ApplyControlPcbGroupResult(targets, context, false, connectionError, string.Empty));
-                return false;
-            }
-
-            LogControlPcbGroupBlock(context.TestItemName, group, targets, $" 复用控制PCB长连接：{connection.DisplayName}", StationLogSeparator);
-            byte[] resultPayload = { BasicErrorResultOperation, pulseCount, testCount };
-            Dictionary<byte, byte[]> responses = await SendControlPcbPacketsAndCollectResponsesAsync(
-                context.TestItemName,
-                connection,
-                group,
-                targets,
-                target => BuildV2MeterPacket(target.MeterAddress, MeterBasicErrorCommand38, resultPayload),
-                target => $"0x38读取起动误差[工位={target.StationNo}, 表位={target.MeterAddress:X2}, 脉冲数={pulseCount}, 次数={testCount}]",
-                frame => ResolveStartingErrorResultResponse(frame, group.ProtocolVersion, pulseCount, testCount),
-                TimeSpan.FromMilliseconds(Math.Max(100, context.SubItem.TimeoutMs)),
-                TimeSpan.FromMilliseconds(packetIntervalMs),
+            return startingErrorService.ReadControlPcbAsync(
+                context,
+                selectedStations,
+                GetEnabledControlPcbGroups(context.SubItem),
+                (stationNo, lines) => LogStartingErrorStationBlock(context.TestItemName, stationNo, lines),
+                (group, target, lines) => LogControlPcbStationBlock(context.TestItemName, group, target, lines),
+                (stationNo, runningContext) => RunOnUiThread(() => UpdateStationRunningState(stationNo, runningContext)),
+                (stationNo, passed, message) =>
+                    RunOnUiThread(() => ApplyStationExecutionResult(stationNo, context, passed, message)),
+                (scope, name, passed, message, elapsed) =>
+                    RunOnUiThread(() => AddProcessLog(scope, name, passed, message, elapsed)),
+                () => RunOnUiThread(RestoreStationDisplayForSelectedNode),
                 cancellationToken);
-
-            bool groupPassed = true;
-            foreach (ControlPcbStationTarget target in targets)
-            {
-                bool hasResponse = responses.TryGetValue(target.MeterAddress, out byte[]? response);
-                float errorValue = 0;
-                string parseMessage = "未收到0x38误差结果应答。";
-                bool parsed = hasResponse && TryParseStartingErrorResult(
-                    response!,
-                    group.ProtocolVersion,
-                    pulseCount,
-                    testCount,
-                    out _,
-                    out errorValue,
-                    out parseMessage);
-                if (parsed)
-                {
-                    startingErrorResults[target.StationNo] = errorValue;
-                    string message = $"误差结果读取成功，误差值：{errorValue.ToString("0.######", CultureInfo.InvariantCulture)}；{parseMessage}";
-                    LogControlPcbStationBlock(context.TestItemName, group, target, message, StationLogSeparator);
-                    RunOnUiThread(() => ApplyStationExecutionResult(target.StationNo, context, true, message));
-                }
-                else
-                {
-                    groupPassed = false;
-                    string message = hasResponse
-                        ? $"误差结果解析失败：{parseMessage}"
-                        : "未收到0x38误差结果应答。";
-                    LogControlPcbStationBlock(context.TestItemName, group, target, message, StationLogSeparator);
-                    RunOnUiThread(() => ApplyStationExecutionResult(target.StationNo, context, false, message));
-                }
-            }
-
-            return groupPassed;
         }
 
-        /// <summary>按配置阈值判断已读取的起动误差结果。</summary>
+        /// <summary>
+        /// 调度起动试验步骤 5。规程限值计算、60% 区间判定和测量值保存均由起动服务负责。
+        /// </summary>
         private void ExecuteStartingErrorJudgeStep(
             SelectedSubItemContext context,
             IReadOnlyList<StationCommunicationConfig> selectedStations)
         {
-            long startTicks = Environment.TickCount64;
-            decimal standardValue = context.SubItem.BasicErrorLimit > 0
-                ? context.SubItem.BasicErrorLimit
-                : 1.5m;
-            bool allPassed = true;
-
-            foreach (StationCommunicationConfig station in selectedStations)
-            {
-                bool hasResult = startingErrorResults.TryGetValue(station.StationNo, out float errorValue);
-                bool passed = hasResult && Math.Abs((decimal)errorValue) < standardValue;
-                allPassed &= passed;
-                string errorText = hasResult
-                    ? errorValue.ToString("0.######", CultureInfo.InvariantCulture)
-                    : "未读取";
-                string message = $"标准值：{standardValue.ToString("0.######", CultureInfo.InvariantCulture)}，误差值：{errorText}，结论：{(passed ? "合格" : "不合格")}";
-                LogStartingErrorStationBlock(context.TestItemName, station.StationNo, message);
-                ApplyStationExecutionResult(station.StationNo, context, passed, message);
-            }
-
-            RestoreStationDisplayForSelectedNode();
-            AddProcessLog(
-                $"{context.SchemeName}/{context.TestItemName}",
-                context.SubItem.Name,
-                allPassed,
-                allPassed
-                    ? $"所有工位误差绝对值均小于{standardValue:0.######}。"
-                    : $"存在误差绝对值不小于{standardValue:0.######}或未读取结果的工位。",
-                Math.Max(0, Environment.TickCount64 - startTicks));
-        }
-
-        /// <summary>校验0x38结果应答并返回表位地址。</summary>
-        private static byte? ResolveStartingErrorResultResponse(
-            byte[] frame,
-            string protocolVersion,
-            byte pulseCount,
-            byte testCount)
-        {
-            return TryParseStartingErrorResult(
-                frame,
-                protocolVersion,
-                pulseCount,
-                testCount,
-                out byte meterAddress,
-                out _,
-                out _)
-                ? meterAddress
-                : null;
-        }
-
-        /// <summary>校验0x35潜动启动应答，并返回应答所属表位地址。</summary>
-        private static byte? ResolveCreepingTestStartResponse(
-            byte[] frame,
-            byte expectedPulseCount,
-            uint expectedTimeSeconds)
-        {
-            if (frame == null || frame.Length < 11)
-                return null;
-
-            byte meterAddress = frame[5];
-            return ElectricEnergyMeterControlV2.TryParseCreepingTestResponse(
-                       frame,
-                       meterAddress,
-                       ElectricEnergyMeterControlV2.CreepingTestStartOperation,
-                       out byte pulseCount,
-                       out uint timeSeconds) &&
-                   pulseCount == expectedPulseCount &&
-                   timeSeconds == expectedTimeSeconds
-                ? meterAddress
-                : null;
-        }
-
-        /// <summary>校验0x35+AA潜动结果应答，并返回应答所属表位地址。</summary>
-        private static byte? ResolveCreepingTestResultResponse(byte[] frame)
-        {
-            if (frame == null || frame.Length < 11)
-                return null;
-
-            byte meterAddress = frame[5];
-            return ElectricEnergyMeterControlV2.TryParseCreepingTestResponse(
-                frame,
-                meterAddress,
-                ElectricEnergyMeterControlV2.CreepingTestResultOperation,
-                out _,
-                out _)
-                ? meterAddress
-                : null;
-        }
-
-        /// <summary>解析0x38+AA应答中的小端float结果，多个结果时返回平均值。</summary>
-        private static bool TryParseStartingErrorResult(
-            byte[] frame,
-            string protocolVersion,
-            byte pulseCount,
-            byte testCount,
-            out byte meterAddress,
-            out float errorValue,
-            out string message)
-        {
-            meterAddress = 0;
-            errorValue = 0;
-            message = string.Empty;
-            if (!TryGetControlPcbPacketDataItems(
-                    frame,
-                    protocolVersion,
-                    MeterBasicErrorCommand38,
-                    out meterAddress,
-                    out byte[] dataItems))
-            {
-                message = "报文帧格式、方向、协议类型、命令码或校验和错误。";
-                return false;
-            }
-
-            if (dataItems.Length < 3 ||
-                dataItems[0] != BasicErrorResultOperation ||
-                dataItems[1] != pulseCount ||
-                dataItems[2] != testCount)
-            {
-                message = $"结果头不匹配，期望AA {pulseCount:X2} {testCount:X2}。";
-                return false;
-            }
-
-            int resultDataLength = dataItems.Length - 3;
-            if (resultDataLength < 4 || resultDataLength % 4 != 0)
-            {
-                message = $"误差数据长度{resultDataLength}不是有效float长度。";
-                return false;
-            }
-
-            int resultCount = resultDataLength / 4;
-            if (resultCount > testCount)
-            {
-                message = $"返回结果数量{resultCount}超过配置试验次数{testCount}。";
-                return false;
-            }
-
-            List<float> results = new(resultCount);
-            for (int index = 3; index < dataItems.Length; index += 4)
-            {
-                int bits = BinaryPrimitives.ReadInt32LittleEndian(dataItems.AsSpan(index, 4));
-                float value = BitConverter.Int32BitsToSingle(bits);
-                if (float.IsNaN(value) || float.IsInfinity(value))
-                {
-                    message = $"第{results.Count + 1}个误差结果不是有效float。";
-                    return false;
-                }
-
-                results.Add(value);
-            }
-
-            errorValue = results.Average();
-            message = resultCount == 1
-                ? "成功解析1个误差结果。"
-                : $"成功解析{resultCount}个误差结果，使用平均值。";
-            return true;
-        }
-
-        /// <summary>读取并校验0x38误差结果查询参数。</summary>
-        private static bool TryGetStartingErrorReadConfig(
-            MeterTestSubItem subItem,
-            out byte pulseCount,
-            out byte testCount,
-            out int packetIntervalMs,
-            out string? errorMessage)
-        {
-            pulseCount = 0;
-            testCount = 0;
-            packetIntervalMs = Math.Max(0, subItem.PacketIntervalMs);
-            errorMessage = null;
-            if (subItem.BasicErrorPulseCount is < 1 or > 99)
-            {
-                errorMessage = "0x38结果查询脉冲数必须在1-99之间。";
-                return false;
-            }
-
-            if (subItem.BasicErrorTestCount is < 1 or > 10)
-            {
-                errorMessage = "0x38结果查询试验次数必须在1-10之间。";
-                return false;
-            }
-
-            pulseCount = (byte)subItem.BasicErrorPulseCount;
-            testCount = (byte)subItem.BasicErrorTestCount;
-            return true;
+            startingErrorService.JudgeResults(
+                context,
+                selectedStations,
+                (stationNo, lines) => LogStartingErrorStationBlock(context.TestItemName, stationNo, lines),
+                (stationNo, passed, message) =>
+                    RunOnUiThread(() => ApplyStationExecutionResult(stationNo, context, passed, message)),
+                (scope, name, passed, message, elapsed) =>
+                    RunOnUiThread(() => AddProcessLog(scope, name, passed, message, elapsed)),
+                () => RunOnUiThread(RestoreStationDisplayForSelectedNode),
+                measurement => RecordMeasurement(context.SchemeName, measurement));
         }
 
         /// <summary>写入起动误差工位日志文件和右侧过程日志区域。</summary>
         private void LogStartingErrorStationBlock(string testItemName, int stationNo, params string[] lines)
         {
-            string message = string.Join(Environment.NewLine, lines);
+            string message = AddTimestampToFiveStepFlowMessage(string.Join(Environment.NewLine, lines));
             LogMessage.MeterTestStationRawLog(testItemName, stationNo, message);
             AppendTestLog(
                 stationNo,
                 $"{testItemName}/工位{stationNo}",
-                "起动误差日志",
+                "起动试验日志",
                 message);
         }
 
-        /// <summary>写入潜动走字工位日志文件和右侧过程日志区域。</summary>
+        /// <summary>写入潜动试验工位日志文件和右侧过程日志区域。</summary>
         private void LogCreepingStationBlock(string testItemName, int stationNo, params string[] lines)
         {
-            string message = string.Join(Environment.NewLine, lines);
+            string message = AddTimestampToFiveStepFlowMessage(string.Join(Environment.NewLine, lines));
             LogMessage.MeterTestStationRawLog(testItemName, stationNo, message);
             AppendTestLog(
                 stationNo,
                 $"{testItemName}/工位{stationNo}",
-                "潜动走字日志",
+                "潜动试验日志",
                 message);
         }
 
@@ -4068,28 +3322,17 @@ namespace ModelTest.MeterTest
             params string[] lines)
         {
             string message = string.Join(Environment.NewLine, lines);
+            if (UsesTimestampedFiveStepFlow(testItemName))
+            {
+                message = AddTimestampToFiveStepFlowMessage(message);
+            }
+
             LogMessage.MeterTestStationRawLog(testItemName, stationNo, message);
             AppendTestLog(
                 stationNo,
                 $"{testItemName}/工位{stationNo}/{testSubItemName}",
                 logType,
                 message);
-        }
-
-        /// <summary>
-        /// 执行通用测试倒计时。
-        /// 日计时和起动试验共用该方法，只记录开始和结束，不逐秒刷日志。
-        /// </summary>
-        private static async Task DelayTestWithCountdownAsync(
-            int waitSeconds,
-            string startMessage,
-            string completedMessage,
-            Action<string> logAction,
-            CancellationToken cancellationToken)
-        {
-            logAction(startMessage);
-            await Task.Delay(TimeSpan.FromSeconds(waitSeconds), cancellationToken);
-            logAction(completedMessage);
         }
 
         /// <summary>
@@ -4110,171 +3353,276 @@ namespace ModelTest.MeterTest
         }
 
         /// <summary>
-        /// 向单个工位发送测试报文并等待响应。
-        /// 适用于 StationTcp 模式下的一发一收通信测试。
+        /// 在UI线程执行需要返回布尔值的交互操作。
+        /// 设备自检服务通过该桥接显示安全确认框，服务本身不依赖WinForms。
         /// </summary>
-        private async Task<string> SendStationRequestAsync(
-            StationCommunicationConfig station,
+        private bool RunOnUiThreadWithResult(Func<bool> action)
+        {
+            if (IsDisposed || Disposing)
+                return false;
+
+            return InvokeRequired
+                ? (bool)Invoke(action)
+                : action();
+        }
+
+        /// <summary>
+        /// 执行方案树中的一个设备自检小项。
+        /// 短路检测先自动降源并复核无压，再由用户通过红色安全弹窗手动确认。
+        /// </summary>
+        private async Task ExecuteDeviceSelfCheckStepAsync(
             SelectedSubItemContext context,
+            List<StationCommunicationConfig> selectedStations,
             CancellationToken cancellationToken)
         {
-            MeterTestSubItem subItem = context.SubItem;
-            string requestHex = BuildStationRequestHex(station, context);
-            byte[] requestBytes = ParseHexBytes(requestHex);
-            if (requestBytes.Length == 0)
-            {
-                throw new InvalidOperationException("请求报文为空或不是合法 HEX。");
-            }
-
-            LogStationCommunicationBlock(
-                context.TestItemName,
-                station,
-                StationLogSeparator,
-                $" 准备连接：{station.Ip}:{station.Port}，测试内容={subItem.Name}",
-                StationLogSeparator);
-
-            using TcpClient client = new();
-            using CancellationTokenSource timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            timeoutCts.CancelAfter(Math.Max(100, subItem.TimeoutMs));
-
-            try
-            {
-                await client.ConnectAsync(station.Ip, station.Port, timeoutCts.Token);
-            }
-            catch (Exception ex)
-            {
-                LogStationCommunicationBlock(
+            MeterTestFlowStepResult result = await deviceSelfCheckService.ExecuteAsync(
+                meterTestPlanConfig,
+                context,
+                selectedStations,
+                () => RunOnUiThreadWithResult(ShowShortCircuitSafetyConfirmation),
+                (stationNo, lines) => LogTestItemStationBlock(
                     context.TestItemName,
-                    station,
-                    $"连接失败：{station.Ip}:{station.Port}",
-                    StationLogSeparator);
-                throw new StationConnectionException($"连接失败：{station.Ip}:{station.Port}", ex);
-            }
-
-            LogStationCommunicationBlock(
-                context.TestItemName,
-                station,
-                $" 连接成功：{station.Ip}:{station.Port}",
-                StationLogSeparator);
-
-            await using NetworkStream stream = client.GetStream();
-            LogStationCommunicationBlock(context.TestItemName, station, $"{FormatStationLogTimestamp()} - 发送报文：{NormalizeHex(requestHex)}");
-            await stream.WriteAsync(requestBytes, timeoutCts.Token);
-            await stream.FlushAsync(timeoutCts.Token);
-
-            byte[] buffer = new byte[4096];
-            int length;
-            try
-            {
-                length = await stream.ReadAsync(buffer, timeoutCts.Token);
-            }
-            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-            {
-                LogStationCommunicationBlock(context.TestItemName, station, $"{FormatStationLogTimestamp()} - 接受报文：");
-                return string.Empty;
-            }
-
-            if (length <= 0)
-            {
-                LogStationCommunicationBlock(context.TestItemName, station, $"{FormatStationLogTimestamp()} - 接受报文：");
-                return string.Empty;
-            }
-
-            byte[] responseBytes = new byte[length];
-            Array.Copy(buffer, responseBytes, length);
-            string responseHex = BitConverter.ToString(responseBytes).Replace("-", " ");
-            LogStationCommunicationBlock(context.TestItemName, station, $"{FormatStationLogTimestamp()} - 接受报文：{responseHex}");
-            return responseHex;
+                    context.SubItem.Name,
+                    stationNo,
+                    "设备自检日志",
+                    lines),
+                (stationNo, stepContext) => RunOnUiThread(
+                    () => UpdateStationRunningState(stationNo, stepContext)),
+                (stationNo, stepContext, passed, message) => RunOnUiThread(
+                    () => ApplyStationExecutionResult(stationNo, stepContext, passed, message)),
+                measurement => RecordMeasurement(context.SchemeName, measurement),
+                cancellationToken);
+            AddProcessLog(
+                $"{context.SchemeName}/{context.TestItemName}",
+                context.SubItem.Name,
+                result.Success,
+                result.Message,
+                result.ElapsedMilliseconds);
+            RestoreStationDisplayForSelectedNode();
         }
 
-        /// <summary>
-        /// 根据测试小项生成工位实际发送的请求报文。
-        /// 698 地址读取使用每个工位自己的电表地址，其他测试仍使用 XML 中配置的报文。
-        /// </summary>
-        private static string BuildStationRequestHex(
-            StationCommunicationConfig station,
-            SelectedSubItemContext context)
+        /// <summary>显示红色短路检测安全确认框，默认焦点保持在取消按钮。</summary>
+        private bool ShowShortCircuitSafetyConfirmation()
         {
-            if (UsesSgcc698BroadcastAddressParser(context.SubItem))
+            using Form dialog = new()
             {
-                if (string.IsNullOrWhiteSpace(station.MeterAddress))
-                {
-                    throw new InvalidOperationException($"工位{station.StationNo} 未配置电表地址，无法生成定址 698 读地址报文。");
-                }
-
-                return SGCCTools.BuildMeterAddressReadRequest(station.MeterAddress);
-            }
-
-            return context.SubItem.RequestHex;
+                Text = "短路检测安全确认",
+                FormBorderStyle = FormBorderStyle.FixedDialog,
+                StartPosition = FormStartPosition.CenterParent,
+                ClientSize = new Size(560, 230),
+                MaximizeBox = false,
+                MinimizeBox = false,
+                ShowInTaskbar = false
+            };
+            Label warningLabel = new()
+            {
+                Dock = DockStyle.Fill,
+                Padding = new Padding(24, 20, 24, 12),
+                ForeColor = Color.Red,
+                Font = new Font(Font.FontFamily, 12F, FontStyle.Bold),
+                TextAlign = ContentAlignment.MiddleLeft,
+                Text = "危险操作：即将执行检测单元短路检测。\r\n\r\n"
+                    + "确保线路无电压，确保单、三相电压已降。\r\n"
+                    + "升源后严禁执行此流程。确认无压后点击“确认执行”，否则点击“取消”。"
+            };
+            FlowLayoutPanel buttons = new()
+            {
+                Dock = DockStyle.Bottom,
+                Height = 58,
+                FlowDirection = FlowDirection.RightToLeft,
+                Padding = new Padding(10)
+            };
+            Button cancelButton = new() { Text = "取消", Width = 110, Height = 36, DialogResult = DialogResult.Cancel };
+            Button confirmButton = new()
+            {
+                Text = "确认执行",
+                Width = 120,
+                Height = 36,
+                DialogResult = DialogResult.OK,
+                BackColor = Color.FromArgb(190, 30, 45),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat
+            };
+            buttons.Controls.Add(cancelButton);
+            buttons.Controls.Add(confirmButton);
+            dialog.Controls.Add(warningLabel);
+            dialog.Controls.Add(buttons);
+            dialog.AcceptButton = cancelButton;
+            dialog.CancelButton = cancelButton;
+            return dialog.ShowDialog(this) == DialogResult.OK;
         }
 
         /// <summary>
-        /// 向控制 PCB 发送多工位报文，并按表位地址收集每个工位的响应。
+        /// 执行常数试验中的电能量读取步骤，使用MeterTestStationConfig中的工位485 TCP通道。
+        /// 同一个IP:Port在本窗体生命周期内复用连接，避免每个步骤重复连接。
         /// </summary>
-        private async Task<Dictionary<byte, byte[]>> SendControlPcbPacketsAndCollectResponsesAsync(
-            string testItemName,
-            MeterTestControlPcbConnection connection,
-            MeterTestControlPcbGroup group,
-            List<ControlPcbStationTarget> targets,
-            Func<ControlPcbStationTarget, byte[]> packetFactory,
-            Func<ControlPcbStationTarget, string> packetNameFactory,
-            Func<byte[], byte?> responseAddressResolver,
-            TimeSpan timeout,
-            TimeSpan packetInterval,
+        private async Task ExecuteConstantEnergyReadAsync(
+            SelectedSubItemContext context,
+            List<StationCommunicationConfig> selectedStations,
             CancellationToken cancellationToken)
         {
-            Dictionary<byte, TaskCompletionSource<byte[]>> pending = targets.ToDictionary(
-                target => target.MeterAddress,
-                _ => new TaskCompletionSource<byte[]>(TaskCreationOptions.RunContinuationsAsynchronously));
+            bool isStartRead = context.SubItem.ExecutionMode.Equals(
+                MeterTestExecutionMode.ConstantEnergyReadStart.ToString(),
+                StringComparison.OrdinalIgnoreCase);
+            MeterTestFlowStepResult result = await constantTestService.ExecuteEnergyReadAsync(
+                context,
+                selectedStations,
+                isStartRead,
+                (stationNo, lines) => LogTestItemStationBlock(
+                    context.TestItemName,
+                    context.SubItem.Name,
+                    stationNo,
+                    "常数试验日志",
+                    lines),
+                (stationNo, stepContext) => RunOnUiThread(
+                    () => UpdateStationRunningState(stationNo, stepContext)),
+                (stationNo, stepContext, passed, message) => RunOnUiThread(
+                    () => ApplyStationExecutionResult(stationNo, stepContext, passed, message)),
+                measurement => RecordMeasurement(context.SchemeName, measurement),
+                cancellationToken);
+            AddProcessLog(
+                $"{context.SchemeName}/{context.TestItemName}",
+                context.SubItem.Name,
+                result.Success,
+                result.Message,
+                result.ElapsedMilliseconds);
+        }
 
-            using IDisposable subscription = connection.Subscribe(frame =>
-            {
-                byte? meterAddress = responseAddressResolver(frame);
-                if (meterAddress.HasValue && pending.TryGetValue(meterAddress.Value, out TaskCompletionSource<byte[]>? completionSource))
-                {
-                    completionSource.TrySetResult(frame);
-                }
-            });
+        /// <summary>执行0x37+00走字试验启动步骤。</summary>
+        private async Task ExecuteControlPcbWalkingStartAsync(
+            SelectedSubItemContext context,
+            List<StationCommunicationConfig> selectedStations,
+            CancellationToken cancellationToken)
+        {
+            MeterTestFlowStepResult result = await ExecuteConstantWalkingOperationAsync(
+                context,
+                selectedStations,
+                MeterTestWalkingOperation.Start,
+                cancellationToken);
+            AddProcessLog(
+                $"{context.SchemeName}/{context.TestItemName}",
+                context.SubItem.Name,
+                result.Success,
+                result.Message,
+                result.ElapsedMilliseconds);
+        }
 
-            byte[][] packets = targets.Select(packetFactory).ToArray();
-            await connection.SendSequenceAsync(
-                    packets,
-                    packetInterval,
-                    (index, packet) =>
-                    {
-                        ControlPcbStationTarget target = targets[index];
-                        string packetHex = BitConverter.ToString(packet).Replace("-", " ");
-                        LogControlPcbStationBlock(
-                            testItemName,
-                            group,
-                            target,
-                            $"{FormatStationLogTimestamp()} - 发送报文：{packetHex}，{packetNameFactory(target)}");
-                    },
-                    cancellationToken);
+        /// <summary>执行常数试验固定等待步骤。</summary>
+        private async Task ExecuteConstantWaitAsync(
+            SelectedSubItemContext context,
+            List<StationCommunicationConfig> selectedStations,
+            CancellationToken cancellationToken)
+        {
+            MeterTestFlowStepResult result = await constantTestService.ExecuteWaitAsync(
+                context,
+                selectedStations,
+                (stationNo, lines) => LogTestItemStationBlock(
+                    context.TestItemName,
+                    context.SubItem.Name,
+                    stationNo,
+                    "常数试验日志",
+                    lines),
+                (stationNo, stepContext, passed, message) => RunOnUiThread(
+                    () => ApplyStationExecutionResult(stationNo, stepContext, passed, message)),
+                cancellationToken);
+            AddProcessLog(
+                $"{context.SchemeName}/{context.TestItemName}",
+                context.SubItem.Name,
+                result.Success,
+                result.Message,
+                result.ElapsedMilliseconds);
+        }
 
-            Task allResponsesTask = Task.WhenAll(pending.Values.Select(source => source.Task));
-            Task completedTask = await Task.WhenAny(allResponsesTask, Task.Delay(timeout, cancellationToken));
-            if (completedTask != allResponsesTask)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-            }
+        /// <summary>执行0x37+AA走字试验结果读取步骤。</summary>
+        private async Task ExecuteControlPcbWalkingStopAsync(
+            SelectedSubItemContext context,
+            List<StationCommunicationConfig> selectedStations,
+            CancellationToken cancellationToken)
+        {
+            MeterTestFlowStepResult result = await ExecuteConstantWalkingOperationAsync(
+                context,
+                selectedStations,
+                MeterTestWalkingOperation.Stop,
+                cancellationToken);
+            AddProcessLog(
+                $"{context.SchemeName}/{context.TestItemName}",
+                context.SubItem.Name,
+                result.Success,
+                result.Message,
+                result.ElapsedMilliseconds);
+        }
 
-            Dictionary<byte, byte[]> responses = new();
-            foreach ((byte meterAddress, TaskCompletionSource<byte[]> completionSource) in pending)
-            {
-                if (!completionSource.Task.IsCompletedSuccessfully)
-                    continue;
+        /// <summary>执行0x37+AA走字试验结果读取步骤。</summary>
+        private async Task ExecuteControlPcbWalkingReadAsync(
+            SelectedSubItemContext context,
+            List<StationCommunicationConfig> selectedStations,
+            CancellationToken cancellationToken)
+        {
+            MeterTestFlowStepResult result = await ExecuteConstantWalkingOperationAsync(
+                context,
+                selectedStations,
+                MeterTestWalkingOperation.ReadResult,
+                cancellationToken);
+            AddProcessLog(
+                $"{context.SchemeName}/{context.TestItemName}",
+                context.SubItem.Name,
+                result.Success,
+                result.Message,
+                result.ElapsedMilliseconds);
+        }
 
-                responses[meterAddress] = completionSource.Task.Result;
-                ControlPcbStationTarget? target = targets.FirstOrDefault(item => item.MeterAddress == meterAddress);
-                if (target != null)
-                {
-                    string responseHex = BitConverter.ToString(completionSource.Task.Result).Replace("-", " ");
-                    LogControlPcbStationBlock(testItemName, group, target, $"{FormatStationLogTimestamp()} - 接受报文：{responseHex}");
-                }
-            }
+        /// <summary>
+        /// 将常数试验0x37步骤转交给流程服务，并提供日志、状态及测量值的UI回调。
+        /// 窗体不参与报文构造、发送、等待或解析。
+        /// </summary>
+        private Task<MeterTestFlowStepResult> ExecuteConstantWalkingOperationAsync(
+            SelectedSubItemContext context,
+            IReadOnlyList<StationCommunicationConfig> selectedStations,
+            MeterTestWalkingOperation operation,
+            CancellationToken cancellationToken)
+        {
+            return constantTestService.ExecuteWalkingOperationAsync(
+                meterTestPlanConfig,
+                context,
+                selectedStations,
+                operation,
+                (stationNo, lines) => LogTestItemStationBlock(
+                    context.TestItemName,
+                    context.SubItem.Name,
+                    stationNo,
+                    "常数试验日志",
+                    lines),
+                (stationNo, stepContext) => RunOnUiThread(
+                    () => UpdateStationRunningState(stationNo, stepContext)),
+                (stationNo, stepContext, passed, message) => RunOnUiThread(
+                    () => ApplyStationExecutionResult(stationNo, stepContext, passed, message)),
+                measurement => RecordMeasurement(context.SchemeName, measurement),
+                cancellationToken);
+        }
 
-            return responses;
+        /// <summary>常数试验最后一步：按 ek = 1000 * (n / k - e) / e 计算实际误差并与允许区间比对。</summary>
+        private void ExecuteConstantResultJudgeStep(
+            SelectedSubItemContext context,
+            List<StationCommunicationConfig> selectedStations)
+        {
+            MeterTestFlowStepResult result = constantTestService.JudgeResults(
+                context,
+                selectedStations,
+                (stationNo, lines) => LogTestItemStationBlock(
+                    context.TestItemName,
+                    context.SubItem.Name,
+                    stationNo,
+                    "常数试验日志",
+                    lines.Concat(new[] { StationLogSeparator }).ToArray()),
+                measurement => RecordMeasurement(context.SchemeName, measurement),
+                (stationNo, stepContext, passed, message) => RunOnUiThread(
+                    () => ApplyStationExecutionResult(stationNo, stepContext, passed, message)));
+            AddProcessLog(
+                $"{context.SchemeName}/{context.TestItemName}",
+                context.SubItem.Name,
+                result.Success,
+                result.Message,
+                result.ElapsedMilliseconds);
         }
 
         /// <summary>
@@ -4337,6 +3685,11 @@ namespace ModelTest.MeterTest
         private void LogControlPcbStationBlock(string testItemName, MeterTestControlPcbGroup group, ControlPcbStationTarget target, params string[] lines)
         {
             string message = string.Join(Environment.NewLine, lines);
+            if (UsesTimestampedFiveStepFlow(testItemName))
+            {
+                message = AddTimestampToFiveStepFlowMessage(message);
+            }
+
             LogMessage.MeterTestStationRawLog(testItemName, target.StationNo, message);
             AppendTestLog(
                 target.StationNo,
@@ -4541,6 +3894,41 @@ namespace ModelTest.MeterTest
         }
 
         /// <summary>
+        /// 起动和潜动均是跨多个 TestSubItem 执行的五步流程，其工位日志每一行都需要保留实际发生时间。
+        /// </summary>
+        private static bool UsesTimestampedFiveStepFlow(string testItemName)
+        {
+            return testItemName.Equals("起动试验", StringComparison.OrdinalIgnoreCase) ||
+                   testItemName.Equals("潜动试验", StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// 给五步流程日志每一行添加毫秒时间。已带时间的报文行、空行和分隔线保持原样。
+        /// </summary>
+        private static string AddTimestampToFiveStepFlowMessage(string message)
+        {
+            string timestamp = FormatStationLogTimestamp();
+            string normalized = message.Replace("\r\n", "\n", StringComparison.Ordinal);
+            return string.Join(
+                Environment.NewLine,
+                normalized.Split('\n').Select(line =>
+                    string.IsNullOrWhiteSpace(line) ||
+                    line == StationLogSeparator ||
+                    HasStationLogTimestamp(line)
+                        ? line
+                        : $"{timestamp} - {line}"));
+        }
+
+        /// <summary>判断日志行是否已经以完整日期时间开头，防止报文收发日志重复加时间。</summary>
+        private static bool HasStationLogTimestamp(string line)
+        {
+            return line.Length >= 26 &&
+                   line[0] == '[' &&
+                   char.IsDigit(line[1]) &&
+                   line.IndexOf("] - ", StringComparison.Ordinal) > 0;
+        }
+
+        /// <summary>
         /// 把指定工位的状态切换为“测试中”。
         /// </summary>
         private void UpdateStationRunningState(int stationNo, SelectedSubItemContext context)
@@ -4566,8 +3954,8 @@ namespace ModelTest.MeterTest
         {
             DataGridViewRow row = stationGrid.Rows[station.StationNo - 1];
             MeterTestSubItem subItem = context.SubItem;
-            string meterAddress = UsesSgcc698BroadcastAddressParser(subItem)
-                ? NormalizeMeterAddressForComparison(station.MeterAddress)
+            string meterAddress = MeterTestWorkflowRouter.UsesSgcc698BroadcastAddressParser(subItem)
+                ? station.MeterAddress.Trim()
                 : string.Empty;
             string result = passed ? "合格" : "不合格";
             string now = DateTime.Now.ToString("HH:mm:ss");
@@ -4664,6 +4052,152 @@ namespace ModelTest.MeterTest
         }
 
         /// <summary>
+        /// 按资产类型过滤基本误差分相测试点。
+        /// 单相只保留 H 点；三相三线没有 B 相电流回路，跳过 B 相；三相四线保留 H/A/B/C。
+        /// </summary>
+        private List<SelectedSubItemContext> FilterAssetAwareBasicErrorContexts(
+            List<SelectedSubItemContext> contexts,
+            IReadOnlyList<StationCommunicationConfig> selectedStations)
+        {
+            if (contexts.Count == 0 || selectedStations.Count == 0)
+                return contexts;
+
+            IReadOnlyDictionary<int, MeterArchiveData> meterArchives =
+                accessDatabaseService.LoadOrCreateMeterArchives(MaxStationCount);
+            List<MeterArchiveData> selectedArchives = selectedStations
+                .Select(station => meterArchives.TryGetValue(station.StationNo, out MeterArchiveData? archive) ? archive : null)
+                .Where(archive => archive is not null)
+                .Cast<MeterArchiveData>()
+                .ToList();
+            if (selectedArchives.Count == 0)
+                return contexts;
+
+            List<SelectedSubItemContext> filteredContexts = contexts;
+            string skipMessage;
+            if (selectedArchives.All(archive => IsSinglePhaseMeter(archive.MeterType)))
+            {
+                filteredContexts = contexts
+                    .Where(context => !IsSplitPhaseBasicErrorContext(context))
+                    .ToList();
+                skipMessage = "所选工位均为单相电表，已跳过 {0} 个 A/B/C 分相基本误差测试点。";
+            }
+            else if (selectedArchives.All(archive => IsThreePhaseThreeWireMeter(archive.MeterType)))
+            {
+                filteredContexts = contexts
+                    .Where(context => !IsBPhaseBasicErrorContext(context))
+                    .ToList();
+                skipMessage = "所选工位均为三相三线电表，已跳过 {0} 个有功 B 相基本误差测试点。";
+            }
+            else
+            {
+                return contexts;
+            }
+
+            int skippedCount = contexts.Count - filteredContexts.Count;
+            if (skippedCount > 0)
+            {
+                AddProcessInfoLog(
+                    "系统/方案过滤",
+                    "资产相制",
+                    "跳过",
+                    string.Format(CultureInfo.CurrentCulture, skipMessage, skippedCount));
+            }
+
+            return filteredContexts;
+        }
+
+        /// <summary>
+        /// 方案树根据当前已扫码资产隐藏不适用的小项，避免单相用户看到 A/B/C 分相点。
+        /// </summary>
+        private bool ShouldShowSubItemInSchemeTree(MeterTestSubItem subItem)
+        {
+            if (MeterTestWorkflowRouter.Resolve(subItem) != MeterTestWorkflowKind.BasicErrorPoint)
+                return true;
+
+            List<MeterArchiveData> activeArchives = GetActiveMeterArchivesForSchemeTree();
+            if (activeArchives.Count == 0)
+                return true;
+
+            if (activeArchives.All(archive => IsSinglePhaseMeter(archive.MeterType)))
+                return !IsSplitPhaseBasicErrorSubItem(subItem);
+
+            if (activeArchives.All(archive => IsThreePhaseThreeWireMeter(archive.MeterType)))
+                return !subItem.BasicErrorPhase.Equals("B", StringComparison.OrdinalIgnoreCase);
+
+            return true;
+        }
+
+        /// <summary>读取当前具备测试资格的资产档案，供方案树做相制联动展示。</summary>
+        private List<MeterArchiveData> GetActiveMeterArchivesForSchemeTree()
+        {
+            IReadOnlyDictionary<int, MeterArchiveData> meterArchives =
+                accessDatabaseService.LoadOrCreateMeterArchives(MaxStationCount);
+            return meterArchives
+                .Values
+                .Where(archive =>
+                {
+                    string meterAddress = string.IsNullOrWhiteSpace(archive.MeterAddress) &&
+                        TryExtractMeterAddressFromBarcode(archive.Barcode, out string extractedAddress)
+                            ? extractedAddress
+                            : archive.MeterAddress;
+                    return !string.IsNullOrWhiteSpace(archive.Barcode) &&
+                        !string.IsNullOrWhiteSpace(meterAddress);
+                })
+                .ToList();
+        }
+
+        /// <summary>判断资产电表类型是否为单相。</summary>
+        private static bool IsSinglePhaseMeter(string meterType)
+        {
+            return meterType?.Contains("单相", StringComparison.OrdinalIgnoreCase) == true;
+        }
+
+        /// <summary>判断资产电表类型是否为三相三线。</summary>
+        private static bool IsThreePhaseThreeWireMeter(string meterType)
+        {
+            return meterType?.Contains("三相三线", StringComparison.OrdinalIgnoreCase) == true;
+        }
+
+        /// <summary>判断当前上下文是否为 A/B/C 分相基本误差点。</summary>
+        private static bool IsSplitPhaseBasicErrorContext(SelectedSubItemContext context)
+        {
+            return IsSplitPhaseBasicErrorSubItem(context.SubItem);
+        }
+
+        /// <summary>判断当前小项是否为 A/B/C 分相基本误差点。</summary>
+        private static bool IsSplitPhaseBasicErrorSubItem(MeterTestSubItem subItem)
+        {
+            return MeterTestWorkflowRouter.Resolve(subItem) == MeterTestWorkflowKind.BasicErrorPoint &&
+                subItem.BasicErrorPhase is "A" or "B" or "C";
+        }
+
+        /// <summary>判断当前小项是否为 B 相基本误差点。</summary>
+        private static bool IsBPhaseBasicErrorContext(SelectedSubItemContext context)
+        {
+            MeterTestSubItem subItem = context.SubItem;
+            return MeterTestWorkflowRouter.Resolve(subItem) == MeterTestWorkflowKind.BasicErrorPoint &&
+                subItem.BasicErrorPhase.Equals("B", StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// 获取指定方案下所有启用的测试小项。
+        /// 手动数据保存使用该列表生成整个方案的完整性检查和快照。
+        /// </summary>
+        private List<SelectedSubItemContext> GetEnabledSchemeContexts(string schemeName)
+        {
+            MeterTestScheme? scheme = meterTestPlanConfig.Schemes.FirstOrDefault(candidate =>
+                candidate.Name.Equals(schemeName, StringComparison.OrdinalIgnoreCase));
+            if (scheme is null)
+                return new List<SelectedSubItemContext>();
+
+            return scheme.TestItems
+                .SelectMany(item => item.TestSubItems
+                    .Where(subItem => subItem.Enabled)
+                    .Select(subItem => new SelectedSubItemContext(scheme.Name, item.Name, subItem)))
+                .ToList();
+        }
+
+        /// <summary>
         /// 兼容旧命名：包含“地址/读地址”的测试会触发表位地址解析回填。
         /// </summary>
         private static bool IsLegacyAddressTestName(string testName)
@@ -4695,7 +4229,11 @@ namespace ModelTest.MeterTest
                 string ip = Convert.ToString(row.Cells[colStationIp.Index].Value)?.Trim() ?? string.Empty;
                 string portText = Convert.ToString(row.Cells[colStationPort.Index].Value)?.Trim() ?? string.Empty;
                 string meterAddress = Convert.ToString(row.Cells[colStationMeterAddress.Index].Value)?.Trim() ?? string.Empty;
-                string baudRate = Convert.ToString(row.Cells[colMeterBaudRate.Index].Value)?.Trim() ?? "9600-8-E-1";
+                string baudRate = Convert.ToString(row.Cells[colMeterBaudRate.Index].Value)?.Trim() ?? string.Empty;
+                if (string.IsNullOrWhiteSpace(baudRate))
+                {
+                    baudRate = GetDefaultAssetOption("BaudRate");
+                }
 
                 if (string.IsNullOrWhiteSpace(ip) || !int.TryParse(portText, out int port) || port < 1 || port > 65535)
                 {
@@ -4716,7 +4254,13 @@ namespace ModelTest.MeterTest
             if (isLoadingStationConfig)
                 return;
 
-            MeterTestStationConfig config = new();
+            MeterTestStationConfig config = stationConfigService.LoadOrCreate(
+                stationConfigFilePath,
+                MaxStationCount,
+                DefaultStationIp,
+                DefaultStationStartPort,
+                meterTestPlanConfig);
+            config.Stations.Clear();
             foreach (DataGridViewRow row in stationGrid.Rows)
             {
                 if (row.IsNewRow)
@@ -4754,12 +4298,11 @@ namespace ModelTest.MeterTest
         }
 
         /// <summary>
-        /// 全选或全清工位，并对实际发生变化的工位执行对应的上电或下电操作。
+        /// 全选或全清工位，然后按所有启用的 ControlPcbGroup 执行一次全量电源同步。
         /// 单工位模式点击全选时只选择第一个工位。
         /// </summary>
         private async Task SetAllStationSelectionAsync(bool selected)
         {
-            List<StationPowerSelectionChange> changes = new();
             int firstEligibleRowIndex = stationGrid.Rows
                 .Cast<DataGridViewRow>()
                 .Where(row => !row.IsNewRow && row.Visible && HasCompleteAssetForTest(row))
@@ -4783,8 +4326,6 @@ namespace ModelTest.MeterTest
                         continue;
 
                     row.Cells[colStationSelected.Index].Value = targetSelected;
-                    int stationNo = Convert.ToInt32(row.Cells[colStationNo.Index].Value);
-                    changes.Add(new StationPowerSelectionChange(stationNo, targetSelected));
                 }
             }
             finally
@@ -4792,6 +4333,52 @@ namespace ModelTest.MeterTest
                 isUpdatingStationSelection = false;
             }
 
+            await SynchronizeEnabledControlPcbStationPowerAsync();
+        }
+
+        /// <summary>
+        /// 遍历所有 enabled=true 的 ControlPcbGroup，把选中工位设为上电状态，
+        /// 并对未选中工位明确下发断电流、下电压命令。
+        /// </summary>
+        private async Task SynchronizeEnabledControlPcbStationPowerAsync(
+            IEnumerable<int>? selectedStationNumbers = null)
+        {
+            if (stationPowerControlCts.IsCancellationRequested)
+                return;
+
+            HashSet<int> selectedStations = selectedStationNumbers is null
+                ? stationGrid.Rows
+                    .Cast<DataGridViewRow>()
+                    .Where(row => !row.IsNewRow &&
+                                  Convert.ToBoolean(row.Cells[colStationSelected.Index].Value ?? false) &&
+                                  HasCompleteAssetForTest(row))
+                    .Select(row => Convert.ToInt32(row.Cells[colStationNo.Index].Value))
+                    .ToHashSet()
+                : selectedStationNumbers.ToHashSet();
+            List<int> configuredStations = meterTestPlanConfig.ControlPcbGroups
+                .Where(group => group.Enabled)
+                .SelectMany(group => Enumerable.Range(
+                    Math.Max(1, group.StationStart),
+                    Math.Max(0, Math.Min(MaxStationCount, group.StationEnd) - Math.Max(1, group.StationStart) + 1)))
+                .Distinct()
+                .OrderBy(stationNo => stationNo)
+                .ToList();
+            if (configuredStations.Count == 0)
+            {
+                LogMessage.Debug("[工位电源][全量同步] 没有 enabled=true 的 ControlPcbGroup，跳过。");
+                return;
+            }
+
+            List<StationPowerSelectionChange> changes = configuredStations
+                .Select(stationNo => new StationPowerSelectionChange(
+                    stationNo,
+                    selectedStations.Contains(stationNo)))
+                .ToList();
+            string poweredStations = string.Join(",", configuredStations.Where(selectedStations.Contains));
+            string poweredOffStations = string.Join(",", configuredStations.Where(stationNo => !selectedStations.Contains(stationNo)));
+            LogMessage.Debug(
+                $"[工位电源][全量同步] 启用PCB覆盖{configuredStations.Count}个工位；"
+                + $"上电工位=[{poweredStations}]；下电工位=[{poweredOffStations}]。");
             await ExecuteStationPowerSelectionChangesAsync(changes);
         }
 
@@ -4926,26 +4513,29 @@ namespace ModelTest.MeterTest
         {
             try
             {
-                if (!meterArchives.TryGetValue(change.StationNo, out MeterArchiveData? archive))
+                string meterType = "资产类型未识别，使用ABC三相关闭兜底";
+                bool isThreePhase = true;
+                if (meterArchives.TryGetValue(change.StationNo, out MeterArchiveData? archive))
                 {
-                    LogMessage.Debug($"[工位电源] 工位{change.StationNo}未读取到资产信息，取消电源操作。");
-                    return;
+                    meterType = archive.MeterType.Trim();
+                    if (meterType.Contains("三相", StringComparison.OrdinalIgnoreCase))
+                    {
+                        isThreePhase = true;
+                    }
+                    else if (meterType.Contains("单相", StringComparison.OrdinalIgnoreCase))
+                    {
+                        isThreePhase = false;
+                    }
+                    else if (change.IsSelected)
+                    {
+                        LogMessage.Debug(
+                            $"[工位电源] 工位{change.StationNo}资产信息中的电表类型无法识别：{meterType}，取消上电操作。");
+                        return;
+                    }
                 }
-
-                string meterType = archive.MeterType.Trim();
-                bool isThreePhase;
-                if (meterType.Contains("三相", StringComparison.OrdinalIgnoreCase))
+                else if (change.IsSelected)
                 {
-                    isThreePhase = true;
-                }
-                else if (meterType.Contains("单相", StringComparison.OrdinalIgnoreCase))
-                {
-                    isThreePhase = false;
-                }
-                else
-                {
-                    LogMessage.Debug(
-                        $"[工位电源] 工位{change.StationNo}资产信息中的电表类型无法识别：{meterType}，取消电源操作。");
+                    LogMessage.Debug($"[工位电源] 工位{change.StationNo}未读取到资产信息，取消上电操作。");
                     return;
                 }
 
@@ -5232,43 +4822,6 @@ namespace ModelTest.MeterTest
         }
 
         /// <summary>
-        /// 将日计时最终结果复制到当前流程节点。
-        /// 最终三轮平均值仍以第三轮“读取结果”节点为原始数据源，其他节点只同步展示结论。
-        /// </summary>
-        private void SynchronizeDailyTimingStepResults(
-            SelectedSubItemContext context,
-            IReadOnlyList<StationCommunicationConfig> stations,
-            string fallbackMessage)
-        {
-            SelectedSubItemContext finalContext = GetFinalDailyTimingResultContext(context);
-            LoadStationResultsFromAccess(finalContext);
-
-            foreach (StationCommunicationConfig station in stations)
-            {
-                if (stationResultCache.TryGetValue(CreateStationResultKey(finalContext, station.StationNo), out StationDisplayState? state))
-                {
-                    SaveStationDisplayState(
-                        context,
-                        station.StationNo,
-                        context.SubItem.Name,
-                        state.MeterAddress,
-                        state.Result,
-                        state.Time,
-                        state.ResultColor,
-                        string.IsNullOrWhiteSpace(state.ToolTip) ? fallbackMessage : state.ToolTip);
-                }
-                else
-                {
-                    SaveStationConclusions(
-                        context,
-                        new[] { station },
-                        new Dictionary<int, bool> { [station.StationNo] = false },
-                        fallbackMessage);
-                }
-            }
-        }
-
-        /// <summary>
         /// 根据一组已执行的小项，生成测试项父节点的汇总结果。
         /// 汇总使用最后一个实际执行小项的逐工位结果，并单独保存为“测试项名称”子项记录。
         /// </summary>
@@ -5342,6 +4895,7 @@ namespace ModelTest.MeterTest
             return dailyResult ?? contexts[^1];
         }
 
+        /// <summary>按方案、测试项、测试小项和工位构造唯一的界面结果缓存键。</summary>
         private static StationResultKey CreateStationResultKey(SelectedSubItemContext context, int stationNo)
         {
             return new StationResultKey(context.SchemeName, context.TestItemName, context.SubItem.Name, stationNo);
@@ -5356,204 +4910,12 @@ namespace ModelTest.MeterTest
         }
 
         /// <summary>
-        /// 普通 HEX 应答匹配逻辑。
-        /// </summary>
-        private static bool IsResponseMatched(MeterTestSubItem subItem, string? response)
-        {
-            string normalizedResponse = NormalizeHex(response ?? string.Empty).Replace(" ", string.Empty);
-            string normalizedExpected = NormalizeHex(subItem.ExpectedResponse).Replace(" ", string.Empty);
-
-            if (string.IsNullOrEmpty(normalizedExpected))
-                return !string.IsNullOrEmpty(normalizedResponse);
-
-            ResponseMatchMode matchMode = Enum.TryParse(subItem.MatchMode, true, out ResponseMatchMode mode)
-                ? mode
-                : ResponseMatchMode.Contains;
-
-            return matchMode switch
-            {
-                ResponseMatchMode.Exact => normalizedResponse.Equals(normalizedExpected, StringComparison.OrdinalIgnoreCase),
-                ResponseMatchMode.StartsWith => normalizedResponse.StartsWith(normalizedExpected, StringComparison.OrdinalIgnoreCase),
-                _ => normalizedResponse.Contains(normalizedExpected, StringComparison.OrdinalIgnoreCase)
-            };
-        }
-
-        /// <summary>
-        /// 尝试从 698 广播应答中解析表位地址。
-        /// </summary>
-        private static bool TryParseMeterAddress(MeterTestSubItem subItem, string responseHex, out string meterAddress)
-        {
-            Sgcc698BroadcastAddressParseResult parseResult = ParseSgcc698BroadcastAddressResponse(subItem, responseHex);
-            meterAddress = parseResult.MeterAddress;
-            return parseResult.IsValid;
-        }
-
-        /// <summary>
-        /// 判断测试小项是否需要走 698 广播地址解析器。
-        /// </summary>
-        private static bool UsesSgcc698BroadcastAddressParser(MeterTestSubItem subItem)
-        {
-            return Enum.TryParse(subItem.ResponseParser, true, out ResponseParserType parserType)
-                && parserType == ResponseParserType.Sgcc698BroadcastAddress;
-        }
-
-        /// <summary>
         /// 判断当前测试上下文是否属于通信测试。
         /// 通信测试中的准备步骤失败后仍继续执行后续步骤，最终尝试地址读取。
         /// </summary>
         private static bool IsCommunicationTestContext(SelectedSubItemContext context)
         {
             return context.TestItemName.Contains("通信", StringComparison.OrdinalIgnoreCase);
-        }
-
-        /// <summary>
-        /// 判断测试小项是否为方案树中的串口服务器波特率检查步骤。
-        /// </summary>
-        private static bool UsesSerialPortServerBaudRateExecution(MeterTestSubItem subItem)
-        {
-            return subItem.ExecutionMode.Equals(
-                MeterTestExecutionMode.SerialPortServerBaudRateSync.ToString(),
-                StringComparison.OrdinalIgnoreCase);
-        }
-
-        /// <summary>
-        /// 判断测试小项是否是起动试验的启动电流升源步骤。
-        /// 该步骤仍复用源控制服务，但初始化电流改为根据资产档案计算出的 Ist。
-        /// </summary>
-        private static bool UsesStartingSourceExecution(MeterTestSubItem subItem)
-        {
-            return Enum.TryParse(subItem.ExecutionMode, true, out MeterTestExecutionMode executionMode)
-                && executionMode == MeterTestExecutionMode.StartingSource;
-        }
-
-        /// <summary>
-        /// 判断测试小项是否是潜动试验的1.1倍额定电压升源步骤。
-        /// </summary>
-        private static bool UsesCreepingSourceExecution(MeterTestSubItem subItem)
-        {
-            return Enum.TryParse(subItem.ExecutionMode, true, out MeterTestExecutionMode executionMode)
-                && executionMode == MeterTestExecutionMode.CreepingSource;
-        }
-
-        private static Sgcc698BroadcastAddressParseResult ParseSgcc698BroadcastAddressResponse(MeterTestSubItem subItem, string responseHex)
-        {
-            return SGCCTools.ParseBroadcastAddressResponse(
-                responseHex,
-                subItem.ExpectedOad,
-                subItem.ExpectedApdu,
-                subItem.ExpectedDataType,
-                subItem.ExpectedDataLength);
-        }
-
-        /// <summary>
-        /// 判断测试小项是否是控制 PCB 日计时流程。
-        /// </summary>
-        private static bool UsesControlPcbDailyTimingExecution(MeterTestSubItem subItem)
-        {
-            return Enum.TryParse(subItem.ExecutionMode, true, out MeterTestExecutionMode executionMode)
-                && executionMode == MeterTestExecutionMode.ControlPcbDailyTiming;
-        }
-
-        /// <summary>判断测试小项是否负责通过V2控制PCB启动0x35潜动走字试验。</summary>
-        private static bool UsesControlPcbCreepingStartExecution(MeterTestSubItem subItem)
-        {
-            return Enum.TryParse(subItem.ExecutionMode, true, out MeterTestExecutionMode executionMode)
-                && executionMode == MeterTestExecutionMode.ControlPcbCreepingStart;
-        }
-
-        /// <summary>判断测试小项是否负责按XML中的固定秒数执行潜动等待。</summary>
-        private static bool UsesCreepingWaitExecution(MeterTestSubItem subItem)
-        {
-            return Enum.TryParse(subItem.ExecutionMode, true, out MeterTestExecutionMode executionMode)
-                && executionMode == MeterTestExecutionMode.CreepingWait;
-        }
-
-        /// <summary>判断测试小项是否负责通过V2控制PCB读取0x35潜动累计结果。</summary>
-        private static bool UsesControlPcbCreepingReadExecution(MeterTestSubItem subItem)
-        {
-            return Enum.TryParse(subItem.ExecutionMode, true, out MeterTestExecutionMode executionMode)
-                && executionMode == MeterTestExecutionMode.ControlPcbCreepingRead;
-        }
-
-        /// <summary>判断测试小项是否负责按累计脉冲数小于等于1判定潜动结果。</summary>
-        private static bool UsesCreepingPulseJudgeExecution(MeterTestSubItem subItem)
-        {
-            return Enum.TryParse(subItem.ExecutionMode, true, out MeterTestExecutionMode executionMode)
-                && executionMode == MeterTestExecutionMode.CreepingPulseJudge;
-        }
-
-        /// <summary>判断测试小项是否通过统一服务执行完整有功基本误差测试点。</summary>
-        private static bool UsesBasicErrorPointExecution(MeterTestSubItem subItem)
-        {
-            return Enum.TryParse(subItem.ExecutionMode, true, out MeterTestExecutionMode executionMode)
-                && executionMode == MeterTestExecutionMode.BasicErrorPoint;
-        }
-
-        /// <summary>判断当前小项是否需要按工位建立独立蓝牙TCP连接。</summary>
-        private static bool UsesBluetoothStationTcpExecution(MeterTestSubItem subItem)
-        {
-            return Enum.TryParse(subItem.ExecutionMode, true, out MeterTestExecutionMode executionMode)
-                && executionMode == MeterTestExecutionMode.BluetoothStationTcp;
-        }
-
-        /// <summary>判断测试小项是否负责通过控制PCB开启0x38起动误差试验。</summary>
-        private static bool UsesControlPcbStartingErrorExecution(MeterTestSubItem subItem)
-        {
-            return Enum.TryParse(subItem.ExecutionMode, true, out MeterTestExecutionMode executionMode)
-                && executionMode == MeterTestExecutionMode.ControlPcbStartingError;
-        }
-
-        /// <summary>判断测试小项是否负责计算并等待起动时间。</summary>
-        private static bool UsesStartingTimeWaitExecution(MeterTestSubItem subItem)
-        {
-            return Enum.TryParse(subItem.ExecutionMode, true, out MeterTestExecutionMode executionMode)
-                && executionMode == MeterTestExecutionMode.StartingTimeWait;
-        }
-
-        /// <summary>判断测试小项是否负责读取0x38起动误差结果。</summary>
-        private static bool UsesControlPcbStartingErrorReadExecution(MeterTestSubItem subItem)
-        {
-            return Enum.TryParse(subItem.ExecutionMode, true, out MeterTestExecutionMode executionMode)
-                && executionMode == MeterTestExecutionMode.ControlPcbStartingErrorRead;
-        }
-
-        /// <summary>判断测试小项是否负责按阈值判定起动误差。</summary>
-        private static bool UsesStartingErrorJudgeExecution(MeterTestSubItem subItem)
-        {
-            return Enum.TryParse(subItem.ExecutionMode, true, out MeterTestExecutionMode executionMode)
-                && executionMode == MeterTestExecutionMode.StartingErrorJudge;
-        }
-
-        /// <summary>
-        /// 判断测试小项是否只是预置节点。
-        /// 预置节点不允许落入默认 StationTcp 执行路径，避免空报文误发到工位。
-        /// </summary>
-        private static bool UsesPlannedTestExecution(MeterTestSubItem subItem)
-        {
-            return Enum.TryParse(subItem.ExecutionMode, true, out MeterTestExecutionMode executionMode)
-                && executionMode == MeterTestExecutionMode.Planned;
-        }
-
-        /// <summary>
-        /// 找到日计时第三轮“读取结果”小项，最终平均误差按该节点回填结果。
-        /// </summary>
-        private SelectedSubItemContext GetFinalDailyTimingResultContext(SelectedSubItemContext context)
-        {
-            MeterTestSubItem? resultSubItem = meterTestPlanConfig.Schemes
-                .FirstOrDefault(scheme => scheme.Name.Equals(context.SchemeName, StringComparison.OrdinalIgnoreCase))?
-                .TestItems
-                .FirstOrDefault(item => item.Name.Equals(context.TestItemName, StringComparison.OrdinalIgnoreCase))?
-                .TestSubItems
-                .LastOrDefault(subItem =>
-                    subItem.ExecutionMode.Equals(
-                        MeterTestExecutionMode.ControlPcbDailyTiming.ToString(),
-                        StringComparison.OrdinalIgnoreCase) &&
-                    subItem.DailyTimingStep.Equals("Read", StringComparison.OrdinalIgnoreCase) &&
-                    subItem.DailyTimingRound == 3);
-
-            return resultSubItem is null
-                ? context
-                : new SelectedSubItemContext(context.SchemeName, context.TestItemName, resultSubItem);
         }
 
         /// <summary>
@@ -5571,375 +4933,6 @@ namespace ModelTest.MeterTest
         }
 
         /// <summary>
-        /// 从测试小项读取日计时的时间、次数和报文间隔。
-        /// </summary>
-        private static bool TryGetDailyTimingConfig(MeterTestSubItem subItem, out byte testTime, out byte testCount, out int packetIntervalMs)
-        {
-            testTime = 0;
-            testCount = 0;
-            packetIntervalMs = Math.Max(0, subItem.PacketIntervalMs);
-
-            if (subItem.DailyTimingTime < 1 || subItem.DailyTimingTime > 99)
-                return false;
-
-            if (subItem.DailyTimingCount < 1 || subItem.DailyTimingCount > 10)
-                return false;
-
-            testTime = (byte)subItem.DailyTimingTime;
-            testCount = (byte)subItem.DailyTimingCount;
-            return true;
-        }
-
-        /// <summary>读取并校验0x35潜动走字配置，启动和等待节点使用同一套手动时间。</summary>
-        private static bool TryGetCreepingTestConfig(
-            MeterTestSubItem subItem,
-            out byte pulseCount,
-            out uint timeSeconds,
-            out int packetIntervalMs)
-        {
-            pulseCount = 0;
-            timeSeconds = 0;
-            packetIntervalMs = Math.Max(0, subItem.PacketIntervalMs);
-            if (subItem.CreepingPulseCount < 1 || subItem.CreepingPulseCount > byte.MaxValue)
-                return false;
-
-            if (subItem.CreepingTimeSeconds < 1)
-                return false;
-
-            pulseCount = (byte)subItem.CreepingPulseCount;
-            timeSeconds = (uint)subItem.CreepingTimeSeconds;
-            return true;
-        }
-
-        /// <summary>
-        /// 根据控制 PCB 组和当前选中工位，计算实际需要下发的目标工位集合。
-        /// </summary>
-        private static List<ControlPcbStationTarget> GetControlPcbStationTargets(
-            MeterTestControlPcbGroup group,
-            List<StationCommunicationConfig> selectedStations)
-        {
-            if (group.StationStart < 1 || group.StationEnd < group.StationStart || group.MeterAddressStart < 1)
-                return new List<ControlPcbStationTarget>();
-
-            List<ControlPcbStationTarget> targets = new();
-            foreach (StationCommunicationConfig station in selectedStations)
-            {
-                if (station.StationNo < group.StationStart || station.StationNo > group.StationEnd)
-                    continue;
-
-                int meterAddress = group.MeterAddressStart + (station.StationNo - group.StationStart);
-                if (meterAddress < 1 || meterAddress > 48)
-                    continue;
-
-                targets.Add(new ControlPcbStationTarget(station.StationNo, (byte)meterAddress));
-            }
-
-            return targets;
-        }
-
-        /// <summary>
-        /// 构造控制 PCB 日计时报文。
-        /// </summary>
-        private static byte[] BuildDailyTimingPacket(
-            string protocolVersion,
-            byte meterAddress,
-            byte operation,
-            byte testTime,
-            byte testCount)
-        {
-            return IsControlPcbV2(protocolVersion)
-                ? BuildV2MeterPacket(meterAddress, MeterDailyTimingCommand, operation, testTime, testCount)
-                : BuildV1MeterPacket(meterAddress, MeterDailyTimingCommand, operation, testTime, testCount);
-        }
-
-        /// <summary>
-        /// 构造 V1 电表控制报文。
-        /// </summary>
-        private static byte[] BuildV1MeterPacket(byte meterAddress, byte command, params byte[] dataItems)
-        {
-            byte[] payload = dataItems.Length == 0 ? new byte[] { 0x00 } : dataItems;
-            int frameLength = 7 + payload.Length;
-            byte[] packet = new byte[frameLength + 2];
-
-            packet[0] = MeterFrameStartV1;
-            packet[1] = (byte)(frameLength & 0xFF);
-            packet[2] = (byte)((frameLength >> 8) & 0xFF);
-            packet[3] = MeterDirectionPcToMcu;
-            packet[4] = meterAddress;
-            packet[5] = MeterControlProtocolV1;
-            packet[6] = command;
-            Array.Copy(payload, 0, packet, 7, payload.Length);
-            packet[frameLength] = CalculateChecksum(packet, 1, frameLength - 1);
-            packet[frameLength + 1] = MeterFrameStopV1;
-            return packet;
-        }
-
-        /// <summary>
-        /// 构造 V2 电表控制报文。
-        /// </summary>
-        private static byte[] BuildV2MeterPacket(byte meterAddress, byte command, params byte[] dataItems)
-        {
-            byte[] payload = dataItems.Length == 0 ? new byte[] { 0x00 } : dataItems;
-            int dataLength = 2 + 1 + 1 + 1 + 1 + payload.Length + 1;
-            byte[] packet = new byte[2 + dataLength + 2];
-
-            packet[0] = MeterFrameStartV2A;
-            packet[1] = MeterFrameStartV2B;
-            packet[2] = (byte)(dataLength & 0xFF);
-            packet[3] = (byte)((dataLength >> 8) & 0xFF);
-            packet[4] = MeterDirectionPcToMcu;
-            packet[5] = meterAddress;
-            packet[6] = MeterControlProtocolV2;
-            packet[7] = command;
-            Array.Copy(payload, 0, packet, 8, payload.Length);
-            packet[8 + payload.Length] = CalculateChecksum(packet, 2, dataLength - 1);
-            packet[9 + payload.Length] = MeterFrameStopV2A;
-            packet[10 + payload.Length] = MeterFrameStopV2B;
-            return packet;
-        }
-
-        /// <summary>
-        /// 校验并提取日计时应答帧中的表位地址。
-        /// </summary>
-        private static bool TryGetDailyTimingResponse(
-            byte[] rawData,
-            string protocolVersion,
-            byte operation,
-            byte testTime,
-            byte testCount,
-            out byte meterAddress)
-        {
-            meterAddress = 0x00;
-            if (!TryGetControlPcbPacketDataItems(rawData, protocolVersion, MeterDailyTimingCommand, out meterAddress, out byte[] dataItems))
-                return false;
-
-            if (dataItems.Length < 3 ||
-                dataItems[0] != operation ||
-                dataItems[1] != testTime ||
-                dataItems[2] != testCount)
-            {
-                return false;
-            }
-
-            return operation != DailyTimingResultDataItem || dataItems.Length >= 3;
-        }
-
-        /// <summary>
-        /// 解析日计时结果响应中的 float 误差值。
-        /// V2 报文在 AA、时间、次数之后按 4 字节小端格式连续返回结果。
-        /// </summary>
-        private static bool TryParseDailyTimingResults(
-            byte[] rawData,
-            string protocolVersion,
-            byte testTime,
-            byte testCount,
-            out IReadOnlyList<float> values,
-            out string message)
-        {
-            values = Array.Empty<float>();
-            message = string.Empty;
-
-            if (!TryGetControlPcbPacketDataItems(
-                    rawData,
-                    protocolVersion,
-                    MeterDailyTimingCommand,
-                    out _,
-                    out byte[] dataItems))
-            {
-                message = "报文帧格式、长度、协议类型、命令码或校验和错误。";
-                return false;
-            }
-
-            if (dataItems.Length < 7 ||
-                dataItems[0] != DailyTimingResultDataItem ||
-                dataItems[1] != testTime ||
-                dataItems[2] != testCount)
-            {
-                message = "结果头不匹配，期望 AA、测试时间和测试次数。";
-                return false;
-            }
-
-            int resultDataLength = dataItems.Length - 3;
-            if (resultDataLength < 4 || resultDataLength % 4 != 0)
-            {
-                message = $"结果数据长度 {resultDataLength} 不是 4 字节 float 的整数倍。";
-                return false;
-            }
-
-            List<float> parsedValues = new(resultDataLength / 4);
-            for (int index = 3; index < dataItems.Length; index += 4)
-            {
-                float value = BitConverter.ToSingle(dataItems, index);
-                if (float.IsNaN(value) || float.IsInfinity(value))
-                {
-                    message = $"第 {parsedValues.Count + 1} 个误差结果不是有效 float。";
-                    return false;
-                }
-
-                parsedValues.Add(value);
-            }
-
-            values = parsedValues;
-            message = $"成功解析 {parsedValues.Count} 个误差结果。";
-            return true;
-        }
-
-        /// <summary>
-        /// 从控制 PCB 报文中拆出命令相关的数据项。
-        /// </summary>
-        private static bool TryGetControlPcbPacketDataItems(
-            byte[] rawData,
-            string protocolVersion,
-            byte command,
-            out byte meterAddress,
-            out byte[] dataItems)
-        {
-            meterAddress = 0x00;
-            dataItems = Array.Empty<byte>();
-            return IsControlPcbV2(protocolVersion)
-                ? TryGetV2MeterPacketDataItems(rawData, command, out meterAddress, out dataItems)
-                : TryGetV1MeterPacketDataItems(rawData, command, out meterAddress, out dataItems);
-        }
-
-        /// <summary>
-        /// 从 V1 电表报文中提取表位地址和数据项。
-        /// </summary>
-        private static bool TryGetV1MeterPacketDataItems(byte[] rawData, byte command, out byte meterAddress, out byte[] dataItems)
-        {
-            meterAddress = 0x00;
-            dataItems = Array.Empty<byte>();
-            if (rawData.Length < 10 || rawData[0] != MeterFrameStartV1 || rawData[^1] != MeterFrameStopV1)
-                return false;
-
-            int frameLength = rawData[1] | (rawData[2] << 8);
-            if (rawData.Length != frameLength + 2 || frameLength < 8)
-                return false;
-
-            int dataItemLength = frameLength - 7;
-            if (dataItemLength < 0 || CalculateChecksum(rawData, 1, frameLength - 1) != rawData[frameLength])
-                return false;
-
-            if (rawData[3] != MeterDirectionMcuToPc || rawData[5] != MeterControlProtocolV1 || rawData[6] != command)
-                return false;
-
-            meterAddress = rawData[4];
-            dataItems = rawData.Skip(7).Take(dataItemLength).ToArray();
-            return true;
-        }
-
-        /// <summary>
-        /// 从 V2 电表报文中提取表位地址和数据项。
-        /// </summary>
-        private static bool TryGetV2MeterPacketDataItems(byte[] rawData, byte command, out byte meterAddress, out byte[] dataItems)
-        {
-            meterAddress = 0x00;
-            dataItems = Array.Empty<byte>();
-            if (rawData.Length < 11 ||
-                rawData[0] != MeterFrameStartV2A ||
-                rawData[1] != MeterFrameStartV2B ||
-                rawData[^2] != MeterFrameStopV2A ||
-                rawData[^1] != MeterFrameStopV2B)
-            {
-                return false;
-            }
-
-            int dataLength = rawData[2] | (rawData[3] << 8);
-            if (rawData.Length != dataLength + 4 || dataLength < 7)
-                return false;
-
-            int dataItemLength = dataLength - 7;
-            if (dataItemLength < 0 || CalculateChecksum(rawData, 2, dataLength - 1) != rawData[^3])
-                return false;
-
-            if (rawData[4] != MeterDirectionMcuToPc || rawData[6] != MeterControlProtocolV2 || rawData[7] != command)
-                return false;
-
-            meterAddress = rawData[5];
-            dataItems = rawData.Skip(8).Take(dataItemLength).ToArray();
-            return true;
-        }
-
-        /// <summary>
-        /// 计算累加和校验字节。
-        /// </summary>
-        private static byte CalculateChecksum(byte[] data, int startIndex, int count)
-        {
-            int sum = 0;
-            for (int index = startIndex; index < startIndex + count; index++)
-            {
-                sum += data[index];
-            }
-
-            return (byte)sum;
-        }
-
-        /// <summary>
-        /// 判断控制 PCB 是否采用 V2 协议。
-        /// </summary>
-        private static bool IsControlPcbV2(string protocolVersion)
-        {
-            return !protocolVersion.Equals(MeterControlPcbProtocolVersion.V1.ToString(), StringComparison.OrdinalIgnoreCase);
-        }
-
-        /// <summary>
-        /// 把 HEX 字符串转换为字节数组。
-        /// </summary>
-        private static byte[] ParseHexBytes(string hex)
-        {
-            string normalized = NormalizeHex(hex).Replace(" ", string.Empty);
-            if (normalized.Length == 0 || normalized.Length % 2 != 0)
-                return Array.Empty<byte>();
-
-            byte[] bytes = new byte[normalized.Length / 2];
-            for (int index = 0; index < bytes.Length; index++)
-            {
-                if (!byte.TryParse(normalized.Substring(index * 2, 2), System.Globalization.NumberStyles.HexNumber, null, out bytes[index]))
-                    return Array.Empty<byte>();
-            }
-
-            return bytes;
-        }
-
-        /// <summary>
-        /// 将电表地址统一为 12 个连续的大写十六进制字符，用于实际地址与响应地址比较。
-        /// 非 6 字节地址返回空字符串，避免格式差异造成误判。
-        /// </summary>
-        private static string NormalizeMeterAddressForComparison(string? meterAddress)
-        {
-            byte[] addressBytes = ParseHexBytes(meterAddress ?? string.Empty);
-            return addressBytes.Length == 6
-                ? BitConverter.ToString(addressBytes).Replace("-", string.Empty)
-                : string.Empty;
-        }
-
-        /// <summary>
-        /// 归一化 HEX 字符串，便于比较和日志输出。
-        /// </summary>
-        private static string NormalizeHex(string value)
-        {
-            if (string.IsNullOrWhiteSpace(value))
-                return string.Empty;
-
-            string raw = value.Replace(" ", string.Empty)
-                .Replace("-", string.Empty)
-                .Replace("\r", string.Empty)
-                .Replace("\n", string.Empty)
-                .Trim();
-
-            if (raw.Length == 0)
-                return string.Empty;
-
-            List<string> bytes = new();
-            for (int index = 0; index < raw.Length; index += 2)
-            {
-                int take = Math.Min(2, raw.Length - index);
-                bytes.Add(raw.Substring(index, take).ToUpperInvariant());
-            }
-
-            return string.Join(" ", bytes);
-        }
-
-        /// <summary>
         /// 初始化台体信息采集区域。
         /// </summary>
         private void InitializeHardwareCollectionGrid()
@@ -5953,12 +4946,16 @@ namespace ModelTest.MeterTest
 
             Color[] phaseColors =
             {
-                Color.FromArgb(255, 235, 59),
-                Color.Lime,
-                Color.Red
+                Color.FromArgb(255, 217, 64),
+                Color.FromArgb(35, 220, 94),
+                Color.FromArgb(255, 71, 87)
             };
 
             hardwareLayout.SuspendLayout();
+            groupHardware.BackColor = Color.FromArgb(232, 239, 236);
+            groupHardware.ForeColor = Color.FromArgb(33, 78, 66);
+            groupHardware.Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold, GraphicsUnit.Point);
+            hardwareLayout.BackColor = Color.FromArgb(232, 239, 236);
             hardwareLayout.Controls.Clear();
             hardwareLayout.ColumnStyles.Clear();
             hardwareLayout.RowStyles.Clear();
@@ -5990,48 +4987,52 @@ namespace ModelTest.MeterTest
         /// </summary>
         private Control CreateHardwareMetricCell(string metricName, Color metricColor)
         {
-            Panel container = new()
+            RoundedMetricPanel container = new()
             {
-                BorderStyle = BorderStyle.FixedSingle,
                 Dock = DockStyle.Fill,
-                Margin = new Padding(3),
-                Padding = new Padding(2),
-                BackColor = Color.FromArgb(95, 156, 135)
+                Margin = new Padding(4, 3, 4, 3),
+                Padding = new Padding(7, 4, 7, 4),
+                BackColor = Color.FromArgb(73, 139, 119),
+                BorderColor = Color.FromArgb(42, 105, 88),
+                Radius = 8
             };
 
             TableLayoutPanel cellLayout = new()
             {
+                BackColor = Color.Transparent,
                 ColumnCount = 2,
                 Dock = DockStyle.Fill,
                 Margin = new Padding(0),
                 Padding = new Padding(0),
                 RowCount = 1
             };
-            cellLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 54F));
+            cellLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 48F));
             cellLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
             cellLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
             Label titleLabel = new()
             {
                 Dock = DockStyle.Fill,
-                Font = new Font("Microsoft YaHei UI", 8.5F, FontStyle.Bold, GraphicsUnit.Point),
+                BackColor = Color.Transparent,
+                Font = new Font("Microsoft YaHei UI", 9.5F, FontStyle.Bold, GraphicsUnit.Point),
                 ForeColor = metricColor,
                 Text = metricName,
                 TextAlign = ContentAlignment.MiddleLeft,
-                Padding = new Padding(2, 0, 0, 0),
+                Padding = new Padding(0),
                 Margin = new Padding(0)
             };
 
-            Label valueLabel = new()
+            RoundedMetricValueLabel valueLabel = new()
             {
                 Dock = DockStyle.Fill,
-                BackColor = Color.White,
-                BorderStyle = BorderStyle.FixedSingle,
-                Font = new Font("Consolas", 10F, FontStyle.Regular, GraphicsUnit.Point),
-                ForeColor = Color.FromArgb(31, 41, 55),
+                BackColor = Color.FromArgb(247, 250, 248),
+                BorderColor = Color.FromArgb(46, 111, 93),
+                Font = new Font("Consolas", 10.5F, FontStyle.Bold, GraphicsUnit.Point),
+                ForeColor = metricColor,
+                Radius = 6,
                 Text = "000.0000",
                 TextAlign = ContentAlignment.MiddleCenter,
-                Margin = new Padding(2, 0, 0, 0)
+                Margin = new Padding(3, 0, 0, 0)
             };
 
             hardwareValueLabels[metricName] = valueLabel;
@@ -6099,6 +5100,423 @@ namespace ModelTest.MeterTest
             SetButtonImage(btnStopTest, "StopTest.png");
             SetButtonImage(btnTestPlan, "TestPlan.png");
             SetButtonImage(btnAssetInfo, "资产.png");
+            SetButtonImage(btnTestResults, "检测.png");
+        }
+
+        /// <summary>
+        /// 顶部操作区按钮统一采用自绘圆角样式，压掉 WinForms 原生按钮质感。
+        /// </summary>
+        private void ConfigureOperationButtonStyles()
+        {
+            ApplyOperationButtonStyle(
+                btnStartTest,
+                baseColor: Color.FromArgb(31, 132, 92),
+                hoverColor: Color.FromArgb(37, 151, 106),
+                pressedColor: Color.FromArgb(21, 105, 74),
+                borderColor: Color.FromArgb(19, 100, 70));
+
+            ApplyOperationButtonStyle(
+                btnStopTest,
+                baseColor: Color.FromArgb(185, 54, 54),
+                hoverColor: Color.FromArgb(207, 67, 67),
+                pressedColor: Color.FromArgb(146, 39, 39),
+                borderColor: Color.FromArgb(130, 36, 36));
+
+            ApplyOperationButtonStyle(
+                btnTestPlan,
+                baseColor: Color.FromArgb(54, 113, 168),
+                hoverColor: Color.FromArgb(65, 132, 194),
+                pressedColor: Color.FromArgb(42, 88, 135),
+                borderColor: Color.FromArgb(37, 83, 126));
+
+            ApplyOperationButtonStyle(
+                btnAssetInfo,
+                baseColor: Color.FromArgb(88, 125, 112),
+                hoverColor: Color.FromArgb(103, 144, 130),
+                pressedColor: Color.FromArgb(70, 101, 90),
+                borderColor: Color.FromArgb(63, 93, 82));
+
+            ApplyOperationButtonStyle(
+                btnTestResults,
+                baseColor: Color.FromArgb(93, 93, 154),
+                hoverColor: Color.FromArgb(109, 109, 181),
+                pressedColor: Color.FromArgb(73, 73, 125),
+                borderColor: Color.FromArgb(66, 66, 115));
+        }
+
+        /// <summary>
+        /// 绑定单个操作按钮的现代化视觉状态和交互反馈。
+        /// </summary>
+        private void ApplyOperationButtonStyle(
+            Button button,
+            Color baseColor,
+            Color hoverColor,
+            Color pressedColor,
+            Color borderColor)
+        {
+            button.FlatStyle = FlatStyle.Flat;
+            button.FlatAppearance.BorderSize = 0;
+            button.FlatAppearance.MouseOverBackColor = baseColor;
+            button.FlatAppearance.MouseDownBackColor = pressedColor;
+            button.UseVisualStyleBackColor = false;
+            button.BackColor = Color.Transparent;
+            button.ForeColor = Color.White;
+            button.Cursor = Cursors.Hand;
+            button.Padding = new Padding(16, 0, 16, 0);
+            button.Font = new Font(button.Font.FontFamily, button.Font.Size, FontStyle.Bold);
+
+            operationButtonVisualStates[button] = new OperationButtonVisualState(
+                baseColor,
+                hoverColor,
+                pressedColor,
+                borderColor,
+                Color.White,
+                radius: 14);
+
+            button.Paint -= OperationButton_Paint;
+            button.Paint += OperationButton_Paint;
+            button.MouseEnter -= OperationButton_MouseEnter;
+            button.MouseEnter += OperationButton_MouseEnter;
+            button.MouseLeave -= OperationButton_MouseLeave;
+            button.MouseLeave += OperationButton_MouseLeave;
+            button.MouseDown -= OperationButton_MouseDown;
+            button.MouseDown += OperationButton_MouseDown;
+            button.MouseUp -= OperationButton_MouseUp;
+            button.MouseUp += OperationButton_MouseUp;
+            button.EnabledChanged -= OperationButton_StateChanged;
+            button.EnabledChanged += OperationButton_StateChanged;
+            button.Resize -= OperationButton_Resize;
+            button.Resize += OperationButton_Resize;
+
+            ApplyOperationButtonRegion(button);
+        }
+
+        /// <summary>
+        /// 自绘按钮背景、圆角边框、图标和文字。
+        /// </summary>
+        private void OperationButton_Paint(object? sender, PaintEventArgs e)
+        {
+            if (sender is not Button button || !operationButtonVisualStates.TryGetValue(button, out OperationButtonVisualState state))
+                return;
+
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            Rectangle bounds = new(0, 0, button.Width - 1, button.Height - 1);
+            if (bounds.Width <= 0 || bounds.Height <= 0)
+                return;
+
+            Color fillColor = GetOperationButtonFillColor(button, state);
+            using GraphicsPath path = CreateRoundedRectanglePath(bounds, state.Radius);
+            using SolidBrush backgroundBrush = new(fillColor);
+            using Pen borderPen = new(button.Enabled ? state.BorderColor : Color.FromArgb(176, 184, 180), 1F);
+            e.Graphics.FillPath(backgroundBrush, path);
+            e.Graphics.DrawPath(borderPen, path);
+
+            DrawOperationButtonContent(button, e.Graphics, bounds, button.Enabled ? state.ForeColor : Color.FromArgb(115, 124, 119));
+
+            if (button.Focused && button.Enabled)
+            {
+                Rectangle focusBounds = Rectangle.Inflate(bounds, -5, -5);
+                using GraphicsPath focusPath = CreateRoundedRectanglePath(focusBounds, Math.Max(6, state.Radius - 4));
+                using Pen focusPen = new(Color.FromArgb(180, 255, 255, 255), 1F);
+                e.Graphics.DrawPath(focusPen, focusPath);
+            }
+        }
+
+        /// <summary>
+        /// 绘制按钮图标和文字，保证图标加文字整体居中。
+        /// </summary>
+        private static void DrawOperationButtonContent(Button button, Graphics graphics, Rectangle bounds, Color textColor)
+        {
+            const int iconSize = 24;
+            const int iconTextGap = 10;
+            const int horizontalPadding = 28;
+            int iconPartWidth = button.Image is null ? 0 : iconSize + iconTextGap;
+            int maxTextWidth = Math.Max(20, bounds.Width - horizontalPadding * 2 - iconPartWidth);
+            Size preferredTextSize = TextRenderer.MeasureText(button.Text, button.Font);
+            int textWidth = Math.Min(preferredTextSize.Width, maxTextWidth);
+            int contentWidth = iconPartWidth + textWidth;
+            int startX = bounds.Left + Math.Max(horizontalPadding, (bounds.Width - contentWidth) / 2);
+
+            if (button.Image is not null)
+            {
+                int iconY = bounds.Top + (bounds.Height - iconSize) / 2;
+                graphics.DrawImage(button.Image, new Rectangle(startX, iconY, iconSize, iconSize));
+                startX += iconPartWidth;
+            }
+
+            Rectangle textBounds = new(startX, bounds.Top, Math.Max(20, bounds.Right - startX - horizontalPadding), bounds.Height);
+            TextRenderer.DrawText(
+                graphics,
+                button.Text,
+                button.Font,
+                textBounds,
+                textColor,
+                TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.EndEllipsis);
+        }
+
+        /// <summary>
+        /// 根据当前鼠标状态返回按钮背景色。
+        /// </summary>
+        private static Color GetOperationButtonFillColor(Button button, OperationButtonVisualState state)
+        {
+            if (!button.Enabled)
+                return Color.FromArgb(218, 226, 222);
+
+            return state.IsPressed
+                ? state.PressedColor
+                : state.IsHovered
+                    ? state.HoverColor
+                    : state.BaseColor;
+        }
+
+        /// <summary>进入操作按钮时启用悬停视觉状态。</summary>
+        private void OperationButton_MouseEnter(object? sender, EventArgs e)
+        {
+            SetOperationButtonHoverState(sender, isHovered: true);
+        }
+
+        /// <summary>离开操作按钮时清除悬停和按压视觉状态。</summary>
+        private void OperationButton_MouseLeave(object? sender, EventArgs e)
+        {
+            if (sender is Button button && operationButtonVisualStates.TryGetValue(button, out OperationButtonVisualState state))
+            {
+                state.IsHovered = false;
+                state.IsPressed = false;
+                button.Invalidate();
+            }
+        }
+
+        /// <summary>按下鼠标左键时启用操作按钮按压状态。</summary>
+        private void OperationButton_MouseDown(object? sender, MouseEventArgs e)
+        {
+            if (e.Button != MouseButtons.Left)
+                return;
+
+            SetOperationButtonPressedState(sender, isPressed: true);
+        }
+
+        /// <summary>释放鼠标时清除操作按钮按压状态。</summary>
+        private void OperationButton_MouseUp(object? sender, MouseEventArgs e)
+        {
+            SetOperationButtonPressedState(sender, isPressed: false);
+        }
+
+        /// <summary>按钮启用状态或文本变化后请求重新绘制现代化外观。</summary>
+        private void OperationButton_StateChanged(object? sender, EventArgs e)
+        {
+            if (sender is Button button)
+                button.Invalidate();
+        }
+
+        /// <summary>按钮尺寸变化后重新计算圆角点击区域。</summary>
+        private void OperationButton_Resize(object? sender, EventArgs e)
+        {
+            if (sender is Button button)
+                ApplyOperationButtonRegion(button);
+        }
+
+        /// <summary>设置指定操作按钮的悬停状态并触发重绘。</summary>
+        private void SetOperationButtonHoverState(object? sender, bool isHovered)
+        {
+            if (sender is Button button && operationButtonVisualStates.TryGetValue(button, out OperationButtonVisualState state))
+            {
+                state.IsHovered = isHovered;
+                button.Invalidate();
+            }
+        }
+
+        /// <summary>设置指定操作按钮的按压状态并触发重绘。</summary>
+        private void SetOperationButtonPressedState(object? sender, bool isPressed)
+        {
+            if (sender is Button button && operationButtonVisualStates.TryGetValue(button, out OperationButtonVisualState state))
+            {
+                state.IsPressed = isPressed;
+                button.Invalidate();
+            }
+        }
+
+        /// <summary>
+        /// 同步控件点击热区为圆角，避免视觉圆角但鼠标区域仍是直角。
+        /// </summary>
+        private void ApplyOperationButtonRegion(Button button)
+        {
+            if (!operationButtonVisualStates.TryGetValue(button, out OperationButtonVisualState state) ||
+                button.Width <= 0 ||
+                button.Height <= 0)
+            {
+                return;
+            }
+
+            Rectangle bounds = new(0, 0, button.Width, button.Height);
+            using GraphicsPath path = CreateRoundedRectanglePath(bounds, state.Radius);
+            Region? oldRegion = button.Region;
+            button.Region = new Region(path);
+            oldRegion?.Dispose();
+        }
+
+        /// <summary>
+        /// 创建圆角矩形路径。
+        /// </summary>
+        private static GraphicsPath CreateRoundedRectanglePath(Rectangle bounds, int radius)
+        {
+            int diameter = Math.Min(radius * 2, Math.Min(bounds.Width, bounds.Height));
+            Rectangle arc = new(bounds.Location, new Size(diameter, diameter));
+            GraphicsPath path = new();
+
+            path.AddArc(arc, 180, 90);
+            arc.X = bounds.Right - diameter;
+            path.AddArc(arc, 270, 90);
+            arc.Y = bounds.Bottom - diameter;
+            path.AddArc(arc, 0, 90);
+            arc.X = bounds.Left;
+            path.AddArc(arc, 90, 90);
+            path.CloseFigure();
+            return path;
+        }
+
+        /// <summary>
+        /// 顶部操作区按钮的视觉状态。
+        /// </summary>
+        private sealed class OperationButtonVisualState
+        {
+            /// <summary>创建一组操作按钮基础色、交互色、边框色和圆角参数。</summary>
+            public OperationButtonVisualState(
+                Color baseColor,
+                Color hoverColor,
+                Color pressedColor,
+                Color borderColor,
+                Color foreColor,
+                int radius)
+            {
+                BaseColor = baseColor;
+                HoverColor = hoverColor;
+                PressedColor = pressedColor;
+                BorderColor = borderColor;
+                ForeColor = foreColor;
+                Radius = radius;
+            }
+
+            public Color BaseColor { get; }
+            public Color HoverColor { get; }
+            public Color PressedColor { get; }
+            public Color BorderColor { get; }
+            public Color ForeColor { get; }
+            public int Radius { get; }
+            public bool IsHovered { get; set; }
+            public bool IsPressed { get; set; }
+        }
+
+        /// <summary>
+        /// 台体信息采集区域的圆角指标容器，去掉WinForms原生直角边框。
+        /// </summary>
+        private sealed class RoundedMetricPanel : Panel
+        {
+            /// <summary>启用自绘、双缓冲和尺寸变化重绘，减少台体指标区域闪烁。</summary>
+            public RoundedMetricPanel()
+            {
+                SetStyle(
+                    ControlStyles.UserPaint |
+                    ControlStyles.AllPaintingInWmPaint |
+                    ControlStyles.OptimizedDoubleBuffer |
+                    ControlStyles.ResizeRedraw,
+                    true);
+            }
+
+            public int Radius { get; set; } = 8;
+
+            public Color BorderColor { get; set; } = Color.FromArgb(42, 105, 88);
+
+            /// <summary>绘制指标容器的圆角背景和边框。</summary>
+            protected override void OnPaint(PaintEventArgs e)
+            {
+                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                Rectangle bounds = new(0, 0, Width - 1, Height - 1);
+                if (bounds.Width <= 0 || bounds.Height <= 0)
+                    return;
+
+                using GraphicsPath path = CreateRoundedRectanglePath(bounds, Radius);
+                using SolidBrush fillBrush = new(BackColor);
+                using Pen borderPen = new(BorderColor, 1F);
+                e.Graphics.FillPath(fillBrush, path);
+                e.Graphics.DrawPath(borderPen, path);
+            }
+
+            /// <summary>尺寸变化时同步真实窗口区域，消除圆角外侧露白。</summary>
+            protected override void OnResize(EventArgs eventargs)
+            {
+                base.OnResize(eventargs);
+                ApplyRoundedRegion(this, Radius);
+            }
+        }
+
+        /// <summary>
+        /// 台体信息采集区域的圆角数值框，负责绘制粗体彩色读数。
+        /// </summary>
+        private sealed class RoundedMetricValueLabel : Label
+        {
+            /// <summary>启用数值标签自绘和双缓冲。</summary>
+            public RoundedMetricValueLabel()
+            {
+                SetStyle(
+                    ControlStyles.UserPaint |
+                    ControlStyles.AllPaintingInWmPaint |
+                    ControlStyles.OptimizedDoubleBuffer |
+                    ControlStyles.ResizeRedraw,
+                    true);
+            }
+
+            public int Radius { get; set; } = 6;
+
+            public Color BorderColor { get; set; } = Color.FromArgb(46, 111, 93);
+
+            /// <summary>绘制圆角数值框、边框及居中的粗体彩色读数。</summary>
+            protected override void OnPaint(PaintEventArgs e)
+            {
+                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                Rectangle bounds = new(0, 0, Width - 1, Height - 1);
+                if (bounds.Width <= 0 || bounds.Height <= 0)
+                    return;
+
+                using GraphicsPath path = CreateRoundedRectanglePath(bounds, Radius);
+                using SolidBrush fillBrush = new(BackColor);
+                using Pen borderPen = new(BorderColor, 1F);
+                e.Graphics.FillPath(fillBrush, path);
+                e.Graphics.DrawPath(borderPen, path);
+
+                Rectangle textBounds = Rectangle.Inflate(bounds, -5, 0);
+                TextRenderer.DrawText(
+                    e.Graphics,
+                    Text,
+                    Font,
+                    textBounds,
+                    ForeColor,
+                    TextFormatFlags.HorizontalCenter |
+                    TextFormatFlags.VerticalCenter |
+                    TextFormatFlags.EndEllipsis |
+                    TextFormatFlags.NoPadding);
+            }
+
+            /// <summary>尺寸变化时同步数值框的圆角窗口区域。</summary>
+            protected override void OnResize(EventArgs e)
+            {
+                base.OnResize(e);
+                ApplyRoundedRegion(this, Radius);
+            }
+        }
+
+        /// <summary>
+        /// 同步圆角控件的窗口区域，避免只绘制圆角但外侧矩形背景露白。
+        /// </summary>
+        private static void ApplyRoundedRegion(Control control, int radius)
+        {
+            if (control.Width <= 0 || control.Height <= 0)
+                return;
+
+            Rectangle bounds = new(0, 0, control.Width, control.Height);
+            using GraphicsPath path = CreateRoundedRectanglePath(bounds, radius);
+            Region? oldRegion = control.Region;
+            control.Region = new Region(path);
+            oldRegion?.Dispose();
         }
 
         /// <summary>
@@ -6157,33 +5575,8 @@ namespace ModelTest.MeterTest
             return Path.Combine(AppContext.BaseDirectory, "config", "MeterTestStationConfig.xml");
         }
 
-        /// <summary>单个工位的通信参数。</summary>
-        private sealed record StationCommunicationConfig(int StationNo, string Ip, int Port, string MeterAddress, string BaudRate);
-
-        /// <summary>控制 PCB 流程中的目标工位与表位地址。</summary>
-        private sealed record ControlPcbStationTarget(int StationNo, byte MeterAddress);
-
-        /// <summary>0x35+AA返回的单个工位潜动累计脉冲数和累计时间。</summary>
-        private sealed record CreepingPulseMeasurement(byte PulseCount, uint TimeSeconds);
-
         /// <summary>用户勾选变化对应的工位上电或下电请求。</summary>
         private sealed record StationPowerSelectionChange(int StationNo, bool IsSelected);
-
-        /// <summary>当前被执行的小项上下文。</summary>
-        private sealed record SelectedSubItemContext(string SchemeName, string TestItemName, MeterTestSubItem SubItem);
-
-        /// <summary>串口服务器波特率完整流程的整体结论和逐工位结论。</summary>
-        private sealed record SerialPortServerBaudFlowResult(
-            bool Succeeded,
-            IReadOnlyDictionary<int, bool> StationResults,
-            IReadOnlyDictionary<int, SerialPortServerStationTrace> StationTraces);
-
-        /// <summary>串口服务器完整流程在单个工位上的可回放日志。</summary>
-        private sealed record SerialPortServerStationTrace(
-            string IpAddress,
-            bool Success,
-            string Message,
-            IReadOnlyList<string> Details);
 
         /// <summary>工位结果缓存键。</summary>
         private sealed record StationResultKey(string SchemeName, string TestItemName, string TestSubItemName, int StationNo);
@@ -6194,28 +5587,21 @@ namespace ModelTest.MeterTest
         /// <summary>右侧日志区域的一条有序日志记录。</summary>
         private sealed record TestProcessLogEntry(long Sequence, int? StationNo, string Text);
 
-        /// <summary>运行时连接异常，用于和普通执行异常区分。</summary>
-        private sealed class StationConnectionException : Exception
-        {
-            public StationConnectionException(string message, Exception innerException)
-                : base(message, innerException)
-            {
-            }
-        }
-
         /// <summary>
         /// 当前表格的显示模式。
         /// </summary>
         private enum MeterTestGridViewMode
         {
             TestPlan,
-            AssetInfo
+            AssetInfo,
+            TestResults
         }
 
-        /// <summary>方案树节点的三态测试结论。</summary>
+        /// <summary>方案树节点的四态测试结论。</summary>
         private enum SchemeNodeStatus
         {
             Pending,
+            Running,
             Passed,
             Failed
         }

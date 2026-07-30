@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Net;
 using ModelTest.Socket_DLL.Socket_Client;
 using ModelTest.Socket_DLL.Socket_Client.TCPClientManner;
+using ModelTest.Tools;
 
 namespace ModelTest.MeterTest;
 
@@ -24,6 +25,7 @@ public sealed class MeterTestControlPcbConnectionManager : IAsyncDisposable
     private readonly ConcurrentDictionary<ControlPcbEndpoint, MeterTestControlPcbConnection> connections = new();
     private int disposed;
 
+    /// <summary>创建连接管理器并订阅 BatchTcpClientManager 的原始消息和连接状态事件。</summary>
     public MeterTestControlPcbConnectionManager()
     {
         batchManager.MessageReceived += BatchManager_MessageReceived;
@@ -43,7 +45,7 @@ public sealed class MeterTestControlPcbConnectionManager : IAsyncDisposable
         List<ControlPcbEndpointDefinition> definitions = new();
         foreach (MeterTestControlPcbGroup group in planConfig.ControlPcbGroups.Where(group => group.Enabled))
         {
-            if (TryCreateDefinition(group.Ip, group.Port, group.ProtocolVersion, $"控制PCB组 {group.Name}", out ControlPcbEndpointDefinition? definition))
+            if (TryCreateDefinition(group.Ip, group.Port, group.ProtocolVersion, $"控制PCB组 {group.Name}", out ControlPcbEndpointDefinition definition))
             {
                 definitions.Add(definition);
             }
@@ -54,15 +56,26 @@ public sealed class MeterTestControlPcbConnectionManager : IAsyncDisposable
         }
 
         MeterTestBenchTypeSwitchConfig benchConfig = planConfig.BenchTypeSwitchConfig;
-        if (benchConfig.Enabled &&
-            TryCreateDefinition(
-                benchConfig.Ip,
-                benchConfig.Port,
-                MeterControlPcbProtocolVersion.V2.ToString(),
-                "升源前台体类型切换",
-                out ControlPcbEndpointDefinition? benchDefinition))
+        if (benchConfig.Enabled)
         {
-            definitions.Add(benchDefinition);
+            foreach (MeterTestBenchTypeSwitchEndpoint endpoint in benchConfig.GetEnabledEndpoints())
+            {
+                if (TryCreateDefinition(
+                        endpoint.Ip,
+                        endpoint.Port,
+                        MeterControlPcbProtocolVersion.V2.ToString(),
+                        $"升源前台体类型切换 {endpoint.DisplayName}",
+                        out ControlPcbEndpointDefinition benchDefinition))
+                {
+                    definitions.Add(benchDefinition);
+                }
+                else
+                {
+                    statusLogger?.Invoke(
+                        $"台体类型切换端点跳过：{endpoint.DisplayName} 的 IP/Port 配置无效。"
+                        + $" 当前={endpoint.Ip}:{endpoint.Port}。");
+                }
+            }
         }
 
         Dictionary<ControlPcbEndpoint, ControlPcbEndpointDefinition> uniqueDefinitions = new();
@@ -169,26 +182,29 @@ public sealed class MeterTestControlPcbConnectionManager : IAsyncDisposable
         connections.Clear();
     }
 
+    /// <summary>将 BatchTcpClientManager 收到的原始字节块路由到对应控制 PCB 连接。</summary>
     private void BatchManager_MessageReceived(object? sender, TcpClientMessageEventArgs e)
     {
         MeterTestControlPcbConnection? connection = connections.Values.FirstOrDefault(item => item.ConnectionId == e.ConnectionId);
         connection?.HandleRawData(e.RawData);
     }
 
+    /// <summary>将底层连接状态变化路由到对应控制 PCB 连接并记录断线信息。</summary>
     private void BatchManager_ConnectionStatusChanged(object? sender, TcpConnectionEventArgs e)
     {
         MeterTestControlPcbConnection? connection = connections.Values.FirstOrDefault(item => item.ConnectionId == e.ConnectionId);
         connection?.HandleBatchConnectionStatus(e.IsConnected, e.Status);
     }
 
+    /// <summary>校验端点并创建带协议版本和配置来源的连接定义。</summary>
     private static bool TryCreateDefinition(
         string ip,
         int port,
         string protocolVersion,
         string source,
-        out ControlPcbEndpointDefinition? definition)
+        out ControlPcbEndpointDefinition definition)
     {
-        definition = null;
+        definition = null!;
         if (!TryCreateEndpoint(ip, port, out ControlPcbEndpoint endpoint, out _))
         {
             return false;
@@ -198,6 +214,7 @@ public sealed class MeterTestControlPcbConnectionManager : IAsyncDisposable
         return true;
     }
 
+    /// <summary>校验 IP 和端口并生成规范化控制 PCB 端点键。</summary>
     private static bool TryCreateEndpoint(
         string ip,
         int port,
@@ -222,6 +239,7 @@ public sealed class MeterTestControlPcbConnectionManager : IAsyncDisposable
         return true;
     }
 
+    /// <summary>管理器已释放时阻止继续创建或获取连接。</summary>
     private void ThrowIfDisposed()
     {
         if (Volatile.Read(ref disposed) != 0)
@@ -230,11 +248,13 @@ public sealed class MeterTestControlPcbConnectionManager : IAsyncDisposable
         }
     }
 
+    /// <summary>作为连接字典键使用的规范化控制 PCB IP 和端口。</summary>
     internal readonly record struct ControlPcbEndpoint(string Ip, int Port)
     {
         public string DisplayName => $"{Ip}:{Port}";
     }
 
+    /// <summary>控制 PCB 唯一端点、协议版本及其配置来源。</summary>
     private sealed record ControlPcbEndpointDefinition(
         ControlPcbEndpoint Endpoint,
         string ProtocolVersion,
@@ -260,6 +280,7 @@ public sealed class MeterTestControlPcbConnection : IAsyncDisposable
     private int connectAttempted;
     private int disposed;
 
+    /// <summary>创建一个绑定到 BatchTcpClientManager 唯一端点的协议适配连接。</summary>
     internal MeterTestControlPcbConnection(
         BatchTcpClientManager batchManager,
         MeterTestControlPcbConnectionManager.ControlPcbEndpoint endpoint,
@@ -272,12 +293,16 @@ public sealed class MeterTestControlPcbConnection : IAsyncDisposable
         this.statusLogger = statusLogger;
     }
 
+    /// <summary>该端点拆包和组包使用的控制 PCB 协议版本。</summary>
     public string ProtocolVersion { get; }
 
+    /// <summary>用于日志展示的 IP:Port。</summary>
     public string DisplayName => endpoint.DisplayName;
 
+    /// <summary>BatchTcpClientManager 返回的内部连接标识。</summary>
     public string? ConnectionId => connectionId;
 
+    /// <summary>判断底层连接是否存在且处于已连接状态。</summary>
     public bool IsConnected => connectionId is not null &&
         batchManager.GetConnectionInfo(connectionId)?.IsConnected == true;
 
@@ -292,21 +317,34 @@ public sealed class MeterTestControlPcbConnection : IAsyncDisposable
 
         try
         {
-            statusLogger?.Invoke($"控制PCB开始连接：{DisplayName}");
+            ReportStatus(
+                $"[控制PCB连接接口] 开始连接：端点={DisplayName}，协议={ProtocolVersion}，"
+                + $"超时={Math.Max(100, timeout.TotalMilliseconds):0}ms。"
+            );
             string? createdConnectionId = await batchManager.CreateAndConnectAsync(endpoint.Ip, endpoint.Port, DisplayName);
             connectionId = createdConnectionId;
             if (createdConnectionId is null)
             {
-                statusLogger?.Invoke($"控制PCB连接失败：{DisplayName}");
+                ReportStatus(
+                    $"[控制PCB连接接口] 连接失败：端点={DisplayName}，协议={ProtocolVersion}，"
+                    + "BatchTcpClientManager未返回连接标识。",
+                    isError: true);
             }
             else
             {
-                statusLogger?.Invoke($"控制PCB连接成功：{DisplayName}，后续测试复用此连接");
+                ReportStatus(
+                    $"[控制PCB连接接口] 连接成功：端点={DisplayName}，协议={ProtocolVersion}，"
+                    + $"ConnectionId={createdConnectionId}；后续测试复用此连接。"
+                );
             }
         }
         catch (Exception ex)
         {
-            statusLogger?.Invoke($"控制PCB连接失败：{DisplayName}，{ex.Message}");
+            ReportStatus(
+                $"[控制PCB连接接口] 连接异常：端点={DisplayName}，协议={ProtocolVersion}，"
+                + $"异常={ex.Message}。",
+                isError: true,
+                exception: ex);
         }
         finally
         {
@@ -356,6 +394,11 @@ public sealed class MeterTestControlPcbConnection : IAsyncDisposable
                 bool sent = await batchManager.SendBytesAsync(connectionId, packet);
                 if (!sent)
                 {
+                    LogMessage.Error(
+                        $"[控制PCB连接接口] 发送失败：端点={DisplayName}，协议={ProtocolVersion}，"
+                        + $"序号={index + 1}/{packets.Count}，"
+                        + $"报文={BitConverter.ToString(packet).Replace("-", " ")}。",
+                        null);
                     throw new IOException($"BatchTcpClientManager 发送失败：{DisplayName}");
                 }
 
@@ -382,7 +425,7 @@ public sealed class MeterTestControlPcbConnection : IAsyncDisposable
         lock (receiveBufferLock)
         {
             receiveBuffer.AddRange(rawData);
-            while (TryTakeFrame(receiveBuffer, ProtocolVersion, out byte[]? frame))
+            while (TryTakeFrame(receiveBuffer, ProtocolVersion, out byte[] frame))
             {
                 foreach (Action<byte[]> handler in subscribers.Values.ToArray())
                 {
@@ -392,21 +435,48 @@ public sealed class MeterTestControlPcbConnection : IAsyncDisposable
                     }
                     catch (Exception ex)
                     {
-                        statusLogger?.Invoke($"控制PCB应答处理异常：{DisplayName}，{ex.Message}");
+                        ReportStatus(
+                            $"[控制PCB连接接口] 应答订阅处理异常：端点={DisplayName}，"
+                            + $"协议={ProtocolVersion}，报文={BitConverter.ToString(frame).Replace("-", " ")}，"
+                            + $"异常={ex.Message}。",
+                            isError: true,
+                            exception: ex);
                     }
                 }
             }
         }
     }
 
+    /// <summary>接收底层连接状态；断开时写入可追踪的端点状态日志。</summary>
     internal void HandleBatchConnectionStatus(bool isConnected, string status)
     {
         if (!isConnected)
         {
-            statusLogger?.Invoke($"控制PCB连接状态变化：{DisplayName}，{status}");
+            ReportStatus(
+                $"[控制PCB连接接口] 连接状态变化：端点={DisplayName}，协议={ProtocolVersion}，"
+                + $"IsConnected={isConnected}，状态={status}。",
+                isError: true);
         }
     }
 
+    /// <summary>将连接层状态同步写入界面回调和全局日志，并保留可选异常堆栈。</summary>
+    private void ReportStatus(
+        string message,
+        bool isError = false,
+        Exception? exception = null)
+    {
+        statusLogger?.Invoke(message);
+        if (isError)
+        {
+            LogMessage.Error(message, exception);
+        }
+        else
+        {
+            LogMessage.Debug(message);
+        }
+    }
+
+    /// <summary>停止接收、清空缓存并释放发送锁；底层管理器统一处理实际 TCP 生命周期。</summary>
     public ValueTask DisposeAsync()
     {
         if (Interlocked.Exchange(ref disposed, 1) == 0)
@@ -423,9 +493,10 @@ public sealed class MeterTestControlPcbConnection : IAsyncDisposable
         return ValueTask.CompletedTask;
     }
 
-    private static bool TryTakeFrame(List<byte> buffer, string protocolVersion, out byte[]? frame)
+    /// <summary>按 V1 或 V2 长度及结束符从累计缓冲区提取一帧完整控制 PCB 报文。</summary>
+    private static bool TryTakeFrame(List<byte> buffer, string protocolVersion, out byte[] frame)
     {
-        frame = null;
+        frame = Array.Empty<byte>();
         bool isV2 = !protocolVersion.Equals(MeterControlPcbProtocolVersion.V1.ToString(), StringComparison.OrdinalIgnoreCase);
         int startIndex = FindStartIndex(buffer, 0x55, isV2 ? (byte?)0x44 : null);
         if (startIndex < 0)
@@ -491,6 +562,7 @@ public sealed class MeterTestControlPcbConnection : IAsyncDisposable
         return true;
     }
 
+    /// <summary>在累计缓冲区定位 V1 单字节或 V2 双字节起始符。</summary>
     private static int FindStartIndex(List<byte> buffer, byte first, byte? second)
     {
         for (int index = 0; index < buffer.Count; index++)
@@ -505,15 +577,18 @@ public sealed class MeterTestControlPcbConnection : IAsyncDisposable
         return -1;
     }
 
+    /// <summary>应答订阅的可释放句柄，释放时从连接订阅集合移除回调。</summary>
     private sealed class Subscription : IDisposable
     {
         private Action? disposeAction;
 
+        /// <summary>创建由指定移除动作控制的订阅句柄。</summary>
         public Subscription(Action disposeAction)
         {
             this.disposeAction = disposeAction;
         }
 
+        /// <summary>以线程安全且幂等的方式执行一次取消订阅。</summary>
         public void Dispose()
         {
             Interlocked.Exchange(ref disposeAction, null)?.Invoke();

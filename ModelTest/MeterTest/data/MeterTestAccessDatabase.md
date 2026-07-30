@@ -94,12 +94,71 @@ SQLite 本地文件数据库
 | AccessMode | TEXT | 接入方式，直接式或互感式，默认直接式 |
 | Voltage | TEXT | 电表电压，默认 220V |
 | Current | TEXT | 基本电流，默认 5A |
+| CurrentSpecification | TEXT | 电流规格；界面候选项从 MeterTestAssetOption 获取 |
 | ActiveClass | TEXT | 有功等级，默认 A |
 | ActiveConstant | TEXT | 有功常数，默认 1000 |
 | ReactiveClass | TEXT | 无功等级，默认 2.0 |
 | ReactiveConstant | TEXT | 无功常数，默认 1000 |
+| Barcode | TEXT | 资产条形码 |
 | MeterAddress | TEXT | 电表地址，默认空 |
 | BaudRate | TEXT | 电表通信波特率，默认 9600-8-E-1 |
 | UpdatedAt | TEXT | 配置更新时间 |
 
 唯一索引：`StationNo`
+
+## MeterTestAssetBarcodeSetting
+
+用途：保存条形码生成电表地址的规则。规则1使用单个起止区间；规则2拼接两个用户可配置片段。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| Id | INTEGER PRIMARY KEY | 固定为 1 的单行配置 |
+| BarcodeStartIndex | INTEGER | 规则1的0基起始位置 |
+| BarcodeEndIndex | INTEGER | 规则1的0基结束位置，包含结束位置 |
+| RuleType | TEXT | Rule1Range 或 Rule2Composite |
+| Rule2FirstStart | INTEGER | 规则2第一段0基起始位置 |
+| Rule2FirstLength | INTEGER | 规则2第一段长度 |
+| Rule2SecondStart | INTEGER | 规则2第二段0基起始位置 |
+| Rule2SecondLength | INTEGER | 规则2第二段长度 |
+| UpdatedAt | TEXT | 配置更新时间 |
+
+## MeterTestAssetOption
+
+用途：保存资产信息下拉字段的候选值、显示顺序和默认项。程序启动后从该表加载候选值，Designer不保存业务候选数组。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| Id | INTEGER PRIMARY KEY AUTOINCREMENT | 自增主键 |
+| Category | TEXT | 字段类别，例如 MeterType、CurrentSpecification |
+| Scope | TEXT | 作用域，例如 Direct 或 Transformer |
+| Value | TEXT | 下拉候选值 |
+| SortOrder | INTEGER | 显示顺序 |
+| IsDefault | INTEGER | 是否为默认值 |
+| Enabled | INTEGER | 是否启用 |
+
+唯一约束：`Category + Scope + Value`
+
+直接式电流规格初始数据包含：`0.25-0.5(60)A`、`0.25-0.5(100)A`、`0.5-1(60)A`、`0.5-1(100)A`。
+
+## MeterTestPowerFactorAngle
+
+用途：保存有功基本误差测试中“功率方向 + 功率因数”对应的 `AnyUIOutput` FA角度。基本误差执行时使用 `Direction + PowerFactor` 从该表查询，不再从代码硬编码角度。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| Id | INTEGER PRIMARY KEY AUTOINCREMENT | 自增主键 |
+| Direction | TEXT | `ForwardActive` 正向有功或 `ReverseActive` 反向有功 |
+| PowerFactor | TEXT | 功率因数，例如 `1.0`、`0.5L`、`0.8C` |
+| LoadType | TEXT | 纯阻性、感性或容性 |
+| CurrentAngle | REAL | `IAJ/IBJ/ICJ` 使用的有符号电压电流夹角，范围 `-180°~180°` |
+| Description | TEXT | 现场配置说明 |
+| Enabled | INTEGER | 是否启用，1为启用，0为停用 |
+| UpdatedAt | TEXT | 数据库更新时间 |
+
+唯一约束：`Direction + PowerFactor`。程序只会补充缺失的默认组合，不会覆盖现场已修改的角度。
+
+例如测试点 `正有-H-0.5L-1U-10Itr` 使用查询键 `ForwardActive + 0.5L`，默认读取到 `CurrentAngle=60`。
+
+## MeterTestResultTask / MeterTestResultStation / MeterTestResultDetail
+
+用途：保存用户确认后的历史测试任务、任务工位资产快照和测试明细。清理方案运行态时只删除 `MeterTestStationResult`，不会删除这三张历史表的数据。

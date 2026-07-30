@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Xml.Serialization;
+using ModelTest.Protocol;
 
 namespace ModelTest.MeterTest;
 
@@ -38,6 +39,18 @@ public class MeterTestPlanConfig
     [XmlArrayItem("BluetoothTcpChannel")]
     public List<MeterTestBluetoothTcpChannel> BluetoothTcpChannels { get; set; } = new();
 
+    /// <summary>现场台体切换配置已迁移到 MeterTestStationConfig.xml，测试方案序列化时不再写回。</summary>
+    public bool ShouldSerializeBenchTypeSwitchConfig() => false;
+
+    /// <summary>现场源配置已迁移到 MeterTestStationConfig.xml，测试方案序列化时不再写回。</summary>
+    public bool ShouldSerializeSourceControlConfigs() => false;
+
+    /// <summary>现场控制PCB配置已迁移到 MeterTestStationConfig.xml，测试方案序列化时不再写回。</summary>
+    public bool ShouldSerializeControlPcbGroups() => false;
+
+    /// <summary>现场蓝牙TCP通道配置已迁移到 MeterTestStationConfig.xml，测试方案序列化时不再写回。</summary>
+    public bool ShouldSerializeBluetoothTcpChannels() => false;
+
     /// <summary>
     /// 测试方案集合。界面左侧 TreeView 按此集合生成方案树。
     /// </summary>
@@ -46,7 +59,9 @@ public class MeterTestPlanConfig
 }
 
 /// <summary>
-/// 升源前通过装置通信板切换台体接线类型的固定通信配置。
+/// 升源前通过装置通信板切换台体接线类型的通信配置。
+/// 一个配置可以包含多个装置通信板端点。
+/// 单相模式只发送到支持单相的端点；三相直接式和三相互感式发送到全部启用端点。
 /// </summary>
 public class MeterTestBenchTypeSwitchConfig
 {
@@ -54,13 +69,20 @@ public class MeterTestBenchTypeSwitchConfig
     [XmlAttribute("enabled")]
     public bool Enabled { get; set; } = true;
 
-    /// <summary>装置通信板固定 IP。</summary>
+    /// <summary>
+    /// 旧版单端点配置的 IP，仅用于兼容旧 XML。
+    /// 新配置应使用 Endpoints；存在 Endpoint 时序列化不会再输出此属性。
+    /// </summary>
     [XmlAttribute("ip")]
-    public string Ip { get; set; } = "192.168.127.101";
+    public string Ip { get; set; } = string.Empty;
 
-    /// <summary>装置通信板固定 TCP 端口。</summary>
+    /// <summary>旧版单端点配置的 TCP 端口，仅用于兼容旧 XML。</summary>
     [XmlAttribute("port")]
-    public int Port { get; set; } = 4001;
+    public int Port { get; set; }
+
+    /// <summary>需要同步切换台体类型的装置通信板端点。</summary>
+    [XmlElement("Endpoint")]
+    public List<MeterTestBenchTypeSwitchEndpoint> Endpoints { get; set; } = new();
 
     /// <summary>连接和应答超时时间，单位毫秒。</summary>
     [XmlAttribute("timeoutMs")]
@@ -69,6 +91,89 @@ public class MeterTestBenchTypeSwitchConfig
     /// <summary>切换成功后进入控源流程前的等待时间，单位毫秒。</summary>
     [XmlAttribute("delayAfterSuccessMs")]
     public int DelayAfterSuccessMs { get; set; } = 1000;
+
+    /// <summary>存在新版端点时不再把旧版 IP 属性写回 XML。</summary>
+    public bool ShouldSerializeIp() => Endpoints.Count == 0;
+
+    /// <summary>存在新版端点时不再把旧版 Port 属性写回 XML。</summary>
+    public bool ShouldSerializePort() => Endpoints.Count == 0;
+
+    /// <summary>
+    /// 返回所有启用端点；尚未迁移的旧配置自动映射成一个临时端点，保证旧 XML 仍可运行。
+    /// </summary>
+    public IReadOnlyList<MeterTestBenchTypeSwitchEndpoint> GetEnabledEndpoints()
+    {
+        if (Endpoints.Count > 0)
+        {
+            return Endpoints.Where(endpoint => endpoint.Enabled).ToList();
+        }
+
+        if (string.IsNullOrWhiteSpace(Ip) || Port == 0)
+        {
+            return Array.Empty<MeterTestBenchTypeSwitchEndpoint>();
+        }
+
+        return new[]
+        {
+            new MeterTestBenchTypeSwitchEndpoint
+            {
+                Name = "台体切换-旧版配置",
+                Enabled = true,
+                Ip = Ip,
+                Port = Port,
+                SupportsSinglePhase = true
+            }
+        };
+    }
+
+    /// <summary>
+    /// 返回支持指定0x82模式的启用端点。
+    /// 三相直接式和互感式由全部启用端点共同切换；单相只发送给支持单相的端点。
+    /// </summary>
+    public IReadOnlyList<MeterTestBenchTypeSwitchEndpoint> GetEnabledEndpointsForMode(
+        DeviceBoardConnectionMode connectionMode)
+    {
+        return GetEnabledEndpoints()
+            .Where(endpoint => endpoint.SupportsConnectionMode(connectionMode))
+            .ToList();
+    }
+}
+
+/// <summary>单个台体类型切换装置通信板端点。</summary>
+public class MeterTestBenchTypeSwitchEndpoint
+{
+    /// <summary>端点名称，用于配置识别和日志输出。</summary>
+    [XmlAttribute("name")]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>是否启用该装置通信板。</summary>
+    [XmlAttribute("enabled")]
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>装置通信板 IP。</summary>
+    [XmlAttribute("ip")]
+    public string Ip { get; set; } = string.Empty;
+
+    /// <summary>装置通信板 TCP 端口。</summary>
+    [XmlAttribute("port")]
+    public int Port { get; set; }
+
+    /// <summary>
+    /// 是否支持0x82单相模式。
+    /// 三相直接式和三相互感式始终允许，不受该配置影响。
+    /// </summary>
+    [XmlAttribute("supportsSinglePhase")]
+    public bool SupportsSinglePhase { get; set; }
+
+    /// <summary>日志中使用的端点名称。</summary>
+    [XmlIgnore]
+    public string DisplayName => string.IsNullOrWhiteSpace(Name) ? $"{Ip}:{Port}" : Name.Trim();
+
+    /// <summary>判断当前端点是否参与指定台体模式切换。</summary>
+    public bool SupportsConnectionMode(DeviceBoardConnectionMode connectionMode)
+    {
+        return connectionMode != DeviceBoardConnectionMode.SinglePhase || SupportsSinglePhase;
+    }
 }
 
 /// <summary>
@@ -208,12 +313,34 @@ public class MeterTestSubItem
     public string SerialPortServerStep { get; set; } = string.Empty;
 
     /// <summary>
-    /// 蓝牙专用TCP流程步骤：Reset、ConnectMeter、Preprocess、ReadAddress。
-    /// 每个选中工位都根据BluetoothTcpChannels使用独立TcpClient，
+    /// 蓝牙专用TCP流程步骤：SetBaudRate、Reset、ConnectMeter、Preprocess、ReadAddress。
+    /// SetBaudRate使用同IP的64444管理端，与通信测试共用管理连接；其余步骤根据BluetoothTcpChannels使用蓝牙工位端口。
     /// 不复用资产信息中的485端点、StationTcp或控制PCB连接。
     /// </summary>
     [XmlAttribute("bluetoothStep")]
     public string BluetoothStep { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 设备自检步骤：ShortCircuit、OpenCircuit、TemperatureHumidity。
+    /// 仅在 ControlPcbDeviceSelfCheck 模式下生效。
+    /// </summary>
+    [XmlAttribute("deviceSelfCheckStep")]
+    public string DeviceSelfCheckStep { get; set; } = string.Empty;
+
+    /// <summary>0x84/0x86启动应答成功后，读取检测结果前的等待时间，单位毫秒。</summary>
+    [XmlAttribute("selfCheckDelayMs")]
+    public int SelfCheckDelayMs { get; set; } = 1000;
+
+    /// <summary>0xCA温度读取使用的传感器序号，从1开始。</summary>
+    [XmlAttribute("temperatureSensorIndex")]
+    public int TemperatureSensorIndex { get; set; } = 1;
+
+    /// <summary>
+    /// 允许执行短路检测的最大安全相电压，单位V。
+    /// 最近标准表采样任一相超过该值时禁止下发0x86。
+    /// </summary>
+    [XmlAttribute("selfCheckMaximumSafeVoltage")]
+    public decimal SelfCheckMaximumSafeVoltage { get; set; } = 5m;
 
     /// <summary>日计时测试时间，单位秒。</summary>
     [XmlAttribute("dailyTimingTime")]
@@ -238,13 +365,9 @@ public class MeterTestSubItem
     [XmlAttribute("dailyTimingRound")]
     public int DailyTimingRound { get; set; }
 
-    /// <summary>0x35潜动走字试验的目标脉冲数，协议字段为1字节。</summary>
-    [XmlAttribute("creepingPulseCount")]
-    public int CreepingPulseCount { get; set; } = 1;
-
-    /// <summary>0x35潜动走字试验的手动配置时间，单位秒；启动节点和等待节点分别读取各自配置值。</summary>
-    [XmlAttribute("creepingTimeSeconds")]
-    public int CreepingTimeSeconds { get; set; } = 60;
+    /// <summary>起动试验等待倍率；最终等待秒数为ceil(Tst上限)×倍率×起动配置脉冲数，默认倍率2。</summary>
+    [XmlAttribute("startingTimeMultiplier")]
+    public int StartingTimeMultiplier { get; set; } = 2;
 
     /// <summary>0x38基本误差试验使用的被测表脉冲数；0表示按不少于10秒自动计算，1-99表示固定值。</summary>
     [XmlAttribute("basicErrorPulseCount")]
@@ -258,9 +381,13 @@ public class MeterTestSubItem
     [XmlAttribute("basicErrorPulseType")]
     public int BasicErrorPulseType { get; set; }
 
-    /// <summary>误差结果绝对值阈值；大于0时使用配置值，基本误差点配置0时按JJG596表1自动计算。</summary>
+    /// <summary>旧版误差阈值兼容字段；当前起动和基本误差判定统一使用JJG596算法及60%判定系数。</summary>
     [XmlAttribute("basicErrorLimit")]
-    public decimal BasicErrorLimit { get; set; } = 1.5m;
+    public decimal BasicErrorLimit { get; set; }
+
+    /// <summary>旧版等级误差限兼容字段；保留用于读取既有XML，不再参与当前误差结果判定。</summary>
+    [XmlAttribute("basicErrorLimits")]
+    public string BasicErrorLimits { get; set; } = string.Empty;
 
     /// <summary>基本误差电能方向：ForwardActive（正向有功）或 ReverseActive（反向有功）。</summary>
     [XmlAttribute("basicErrorDirection")]
@@ -286,9 +413,13 @@ public class MeterTestSubItem
     [XmlAttribute("basicErrorMinimumWaitSeconds")]
     public int BasicErrorMinimumWaitSeconds { get; set; } = 10;
 
-    /// <summary>基本误差理论测量时间结束后的结果计算余量，单位秒。</summary>
+    /// <summary>基本误差全部试验次数理论时间结束后的结果计算余量，单位秒。</summary>
     [XmlAttribute("basicErrorWaitPaddingSeconds")]
-    public int BasicErrorWaitPaddingSeconds { get; set; } = 10;
+    public int BasicErrorWaitPaddingSeconds { get; set; } = MeterTestBasicErrorDefaults.WaitPaddingSeconds;
+
+    /// <summary>常数试验旧版电量比对容差，保留用于兼容旧配置；当前判定按理论脉冲和待测表脉冲差值≤1。</summary>
+    [XmlAttribute("constantEnergyToleranceKwh")]
+    public decimal ConstantEnergyToleranceKwh { get; set; } = 0.01m;
 
     /// <summary>StationTcp 模式下发送的请求 HEX 报文。</summary>
     [XmlAttribute("requestHex")]
@@ -373,33 +504,57 @@ public enum MeterTestExecutionMode
     ControlPcbStartingError,
     SerialPortServerBaudRateSync,
     /// <summary>
-    /// 根据资产信息计算 Ist，并在升源前把启动电流用于电表初始化参数。
+    /// 根据资产信息计算Ist；Ini使用资产基本电流，实际升源输出使用Ist。
     /// </summary>
     StartingSource,
     /// <summary>
     /// 根据资产额定电压计算1.1倍潜动电压，单相输出Ua、三相输出Ua/Ub/Uc，电流保持为0。
     /// </summary>
     CreepingSource,
-    /// <summary>通过V2控制PCB按工位发送0x35潜动走字试验启动报文，并等待逐表位应答。</summary>
+    /// <summary>通过V2控制PCB按工位发送0x25+01潜动试验启动报文，并等待逐表位应答。</summary>
     ControlPcbCreepingStart,
-    /// <summary>按XML中手动配置的秒数等待潜动试验，不执行公式计算。</summary>
+    /// <summary>按资产信息和JJG596公式自动计算潜动试验等待时间。</summary>
     CreepingWait,
-    /// <summary>通过V2控制PCB按工位发送0x35+AA，并读取累计脉冲数和累计时间。</summary>
+    /// <summary>通过V2控制PCB按工位发送0x25+AA，并读取4字节小端uint实际脉冲数。</summary>
     ControlPcbCreepingRead,
     /// <summary>根据已读取的累计脉冲数判定潜动试验，脉冲数小于等于1为合格。</summary>
     CreepingPulseJudge,
     /// <summary>
-    /// 根据资产档案计算各工位Tst上限，并按最大值统一等待。
+    /// 根据资产档案计算各工位Tst上限，并按最大值乘方案倍率后统一等待。
     /// </summary>
     StartingTimeWait,
     /// <summary>通过控制PCB发送0x38+AA读取起动误差float结果。</summary>
     ControlPcbStartingErrorRead,
     /// <summary>按配置阈值判断已读取的起动误差结果。</summary>
     StartingErrorJudge,
+    /// <summary>执行单个起动误差测试点内部的升源、启动、等待、读取和判定完整流程。</summary>
+    StartingErrorPoint,
     /// <summary>执行单个基本误差测试点内部的升源、启动、等待、读取和判定完整流程。</summary>
     BasicErrorPoint,
     /// <summary>按工位建立独立TCP连接，执行国网智芯蓝牙转换器检测步骤。</summary>
     BluetoothStationTcp,
+    /// <summary>
+    /// 通过V2控制PCB按工位执行0x86短路检测、0x84断路检测或0xCA温度读取。
+    /// </summary>
+    ControlPcbDeviceSelfCheck,
+    /// <summary>通过工位485 TCP通道读取正向有功开始电量。</summary>
+    ConstantEnergyReadStart,
+    /// <summary>通过控制PCB发送0x37+00启动走字试验。</summary>
+    ControlPcbWalkingStart,
+    /// <summary>按资产额定电压和Imax电流升源。</summary>
+    ConstantImaxSource,
+    /// <summary>常数试验固定等待。</summary>
+    ConstantWait,
+    /// <summary>按资产额定电压升源，电流降为0。</summary>
+    ConstantVoltageSource,
+    /// <summary>通过工位485 TCP通道读取正向有功结束电量。</summary>
+    ConstantEnergyReadEnd,
+    /// <summary>通过控制PCB发送0x37+FF停止走字试验。</summary>
+    ControlPcbWalkingStop,
+    /// <summary>通过控制PCB发送0x37+AA读取走字试验脉冲数和标准表电能量。</summary>
+    ControlPcbWalkingRead,
+    /// <summary>按电表电量差×有功常数得到理论脉冲，并与0x37待测表脉冲数比对常数试验结果。</summary>
+    ConstantResultJudge,
     /// <summary>
     /// 仅用于在方案树中预置尚未接入报文的测试流程，启用前需要补充对应执行器。
     /// </summary>
@@ -428,6 +583,10 @@ public class MeterTestSourceControlConfig
     /// <summary>是否启用该源控制配置。</summary>
     [XmlAttribute("enabled")]
     public bool Enabled { get; set; } = true;
+
+    /// <summary>源厂家通信协议，当前支持 XYCtr；手动降源按该值选择驱动。</summary>
+    [XmlAttribute("protocol")]
+    public string Protocol { get; set; } = string.Empty;
 
     /// <summary>测量单元类型：SinglePhase / ThreePhase。</summary>
     [XmlAttribute("phaseMode")]
@@ -548,4 +707,10 @@ public enum MeterTestSourceInterfaceType
     Adj,
     RangeOutputUI,
     ShutPowerSource
+}
+
+/// <summary>已接入的源厂家通信协议。</summary>
+public enum MeterTestSourceProtocol
+{
+    XYCtr
 }

@@ -53,7 +53,7 @@ public static class MeterTestStartingTestCalculator
             : activeClass switch
             {
                 "A" => 0.05m,
-                "B" or "C" or "D" => 0.04m,
+                "B" or "C" or "D" or "E" => 0.04m,
                 _ => 0m
             };
         if (currentFactor <= 0)
@@ -76,11 +76,13 @@ public static class MeterTestStartingTestCalculator
     }
 
     /// <summary>
-    /// 按 Tst=(1±Est)×3.6×10^6/(C×Pst×Ki×Ku) 计算单个工位的起动时间。
-    /// Est 在资产信息中以百分数表示，参与公式前会除以100。
+    /// 按 Tst=(1±Est)×3.6×10^6/(C×Pst×Ki×Ku) 计算单个工位的单脉冲起动时间。
+    /// 最终等待时间为ceil(Tst上限)×等待倍率×起动配置脉冲数。
     /// </summary>
     public static bool TryCalculateStartingTime(
         MeterArchiveData archive,
+        int waitMultiplier,
+        int pulseCount,
         out MeterTestStartingTimeResult? result,
         out string? errorMessage)
     {
@@ -130,9 +132,30 @@ public static class MeterTestStartingTestCalculator
         decimal baseTime = 3_600_000m / (meterConstant * startingPower * Ki * Ku);
         decimal lowerSeconds = (1m - estRatio) * baseTime;
         decimal upperSeconds = (1m + estRatio) * baseTime;
+        if (waitMultiplier <= 0)
+        {
+            errorMessage = $"起动时间等待倍率必须大于0，当前={waitMultiplier}。";
+            return false;
+        }
+        if (pulseCount is < 1 or > 99)
+        {
+            errorMessage = $"起动试验脉冲数必须在1-99之间，当前={pulseCount}。";
+            return false;
+        }
+
         if (upperSeconds <= 0 || upperSeconds > int.MaxValue)
         {
-            errorMessage = $"计算出的起动时间超出支持范围：{upperSeconds}s。";
+            errorMessage = $"计算出的起动等待时间超出支持范围：Tst上限={upperSeconds}s，"
+                + $"倍率={waitMultiplier}，脉冲数={pulseCount}。";
+            return false;
+        }
+
+        int roundedUpperSeconds = (int)Math.Ceiling(upperSeconds);
+        long totalWaitSeconds = (long)roundedUpperSeconds * waitMultiplier * pulseCount;
+        if (totalWaitSeconds > int.MaxValue)
+        {
+            errorMessage = $"计算出的起动等待时间超出支持范围：向上取整Tst={roundedUpperSeconds}s，"
+                + $"倍率={waitMultiplier}，脉冲数={pulseCount}。";
             return false;
         }
 
@@ -148,8 +171,10 @@ public static class MeterTestStartingTestCalculator
             startingPower,
             lowerSeconds,
             upperSeconds,
-            (int)Math.Ceiling(upperSeconds),
-            $"{currentNote}；测量单元={unitNote}；Ki=1，Ku=1");
+            waitMultiplier,
+            pulseCount,
+            (int)totalWaitSeconds,
+            $"{currentNote}；测量单元={unitNote}；Ki=1，Ku=1；等待倍率={waitMultiplier}；脉冲数={pulseCount}");
         return true;
     }
 
@@ -219,6 +244,7 @@ public static class MeterTestStartingTestCalculator
                number > 0;
     }
 
+    /// <summary>规范化起动试验使用的 A-E 有功准确度等级。</summary>
     private static string NormalizeActiveClass(string? value)
     {
         return (value ?? string.Empty)
@@ -241,5 +267,7 @@ public sealed record MeterTestStartingTimeResult(
     decimal StartingPower,
     decimal LowerSeconds,
     decimal UpperSeconds,
+    int WaitMultiplier,
+    int PulseCount,
     int WaitSeconds,
     string CalculationNote);

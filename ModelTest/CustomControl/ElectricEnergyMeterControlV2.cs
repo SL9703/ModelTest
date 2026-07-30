@@ -18,45 +18,38 @@ namespace ModelTest.CustomControl
 {
     public partial class ElectricEnergyMeterControlV2 : UserControl
     {
-        private const byte MeterFrameStart1 = 0x55;
-        private const byte MeterFrameStart2 = 0x44;
-        private const byte MeterFrameStop1 = 0xAA;
-        private const byte MeterFrameStop2 = 0xBB;
+        private const byte MeterFrameStart1 = MeterControlPcbProtocol.V2StartByte1;
+        private const byte MeterFrameStart2 = MeterControlPcbProtocol.V2StartByte2;
+        private const byte MeterFrameStop1 = MeterControlPcbProtocol.V2EndByte1;
+        private const byte MeterFrameStop2 = MeterControlPcbProtocol.V2EndByte2;
         private static readonly Color SuccessMessageColor = Color.FromArgb(245, 245, 245);
-        private const byte MeterDirectionPcToMcu = 0x00;
-        private const byte MeterDirectionMcuToPc = 0x01;
-        private const byte MeterControlProtocol = 0x02;
-        private const byte MeterTransparentProtocol = 0x03;
-        private const byte MeterTestCommand = 0x00;
-        private const byte MeterAcVoltageCommand = 0x01;
-        private const byte MeterAcCurrentCommand = 0x02;
-        private const byte MeterBasicErrorCommand = 0x21;
-        private const byte MeterCreepingTestCommand = 0x35;
-        private const byte MeterBasicErrorCommand38 = 0x38;
-        private const byte MeterDailyTimingCommand = 0x36;
-        private const byte MeterMeterPresenceDetectionCommand = 0x84;
-        private const byte MeterVoltageShortCircuitDetectionCommand = 0x86;
-        private const byte MeterMotorCrimpingCommand = 0xC9;
-        private const byte MeterResetCommand = 0xFF;
-        private const byte MeterFeedbackCommand = 0xFB;
-        private const byte MeterEmptyDataItem = 0x00;
-        private const byte DailyTimingStartDataItem = 0x00;
-        private const byte DailyTimingResultDataItem = 0xAA;
-        private const byte DailyTimingStopDataItem = 0xFF;
-        public const byte CreepingTestStartOperation = 0x00;
-        public const byte CreepingTestResultOperation = 0xAA;
-        private static readonly TimeSpan MultiMeterPacketInterval = TimeSpan.FromMilliseconds(100);
-        private const byte BasicErrorStartDataItem = 0x01;
-        private const byte BasicErrorResultDataItem = 0xAA;
-        private const byte BasicError38StartDataItem = 0x00;
-        private const byte BasicError38StopDataItem = 0xFF;
-        private const byte MeterPresenceDetectionStartDataItem = 0x01;
-        private const byte MeterPresenceDetectionResultDataItem = 0xAA;
-        private const byte VoltageShortCircuitDetectionStartDataItem = 0x01;
-        private const byte VoltageShortCircuitDetectionResultDataItem = 0xAA;
-        private const byte MotorCrimpingPressDataItem = 0x00;
-        private const byte MotorCrimpingReleaseDataItem = 0x01;
-        private const byte MotorCrimpingPowerOffDataItem = 0xFF;
+        private const byte MeterDirectionPcToMcu = MeterControlPcbProtocol.DownlinkDirection;
+        private const byte MeterDirectionMcuToPc = MeterControlPcbProtocol.UplinkDirection;
+        private const byte MeterControlProtocol = MeterControlPcbProtocol.V2MeterControlProtocolType;
+        private const byte MeterTransparentProtocol = MeterControlPcbProtocol.V2MeterTransparentProtocolType;
+        private const byte MeterTestCommand = MeterControlPcbProtocol.TestCommunicationCommand;
+        private const byte MeterAcVoltageCommand = MeterControlPcbProtocol.AcVoltageCommand;
+        private const byte MeterAcCurrentCommand = MeterControlPcbProtocol.AcCurrentCommand;
+        private const byte MeterBasicErrorCommand = MeterControlPcbProtocol.BasicError21Command;
+        private const byte MeterCreepingTestCommand = MeterControlPcbProtocol.CreepingTestCommand;
+        private const byte MeterWalkingTestCommand = MeterControlPcbProtocol.WalkingTestCommand;
+        private const byte MeterBasicErrorCommand38 = MeterControlPcbProtocol.BasicError38Command;
+        private const byte MeterDailyTimingCommand = MeterControlPcbProtocol.DailyTimingCommand;
+        private const byte MeterMeterPresenceDetectionCommand = MeterControlPcbProtocol.MeterPresenceDetectionCommand;
+        private const byte MeterVoltageShortCircuitDetectionCommand = MeterControlPcbProtocol.VoltageShortCircuitDetectionCommand;
+        private const byte MeterTemperatureCommand = MeterControlPcbProtocol.TemperatureCommand;
+        private const byte MeterMotorCrimpingCommand = MeterControlPcbProtocol.MotorCrimpingCommand;
+        private const byte MeterResetCommand = MeterControlPcbProtocol.ResetCommand;
+        private const byte MeterFeedbackCommand = MeterControlPcbProtocol.FeedbackCommand;
+        /// <summary>通用操作值00：用于启动、压接或空数据项，具体含义由命令码决定。</summary>
+        public const byte OperationStart = MeterControlPcbProtocol.StartOperation;
+        /// <summary>通用操作值01：用于执行、检测启动、校准或释放，具体含义由命令码决定。</summary>
+        public const byte OperationExecute = MeterControlPcbProtocol.ExecuteOperation;
+        /// <summary>通用操作值AA：用于读取当前命令的试验或检测结果。</summary>
+        public const byte OperationRead = MeterControlPcbProtocol.ReadOperation;
+        /// <summary>通用操作值FF：用于停止、断电或删除配置，具体含义由命令码决定。</summary>
+        public const byte OperationStop = MeterControlPcbProtocol.StopOperation;
+        private static readonly TimeSpan MultiMeterPacketInterval = MeterControlPcbProtocol.DefaultPacketInterval;
 
         public delegate void UpdateMainFormDelegate(string message, Color? color = null);
 
@@ -143,8 +136,6 @@ namespace ModelTest.CustomControl
             ConfigureNumericTextBox(tbxDailyTimingCount, 2);
             ConfigureNumericTextBox(tbxBasicErrorPulseCount, 2);
             ConfigureNumericTextBox(tbxBasicErrorTestCount, 2);
-            ConfigureNumericTextBox(tbxCreepingPulseCount, 3);
-            ConfigureNumericTextBox(tbxCreepingTime, 10);
             cbxBasicErrorType.SelectedIndex = 0;
             cbxDeviceBoardMeterCategory.SelectedIndex = 0;
             cbxDeviceBoardRunLamp.SelectedIndex = 0;
@@ -331,7 +322,7 @@ namespace ModelTest.CustomControl
             {
                 if (command == MeterVoltageShortCircuitDetectionCommand &&
                     dataItems.Length == 2 &&
-                    dataItems[0] == VoltageShortCircuitDetectionResultDataItem)
+                    dataItems[0] == OperationRead)
                 {
                     _voltageShortCircuitSummary = dataItems[1] switch
                     {
@@ -349,7 +340,7 @@ namespace ModelTest.CustomControl
 
                 if (command == MeterMeterPresenceDetectionCommand &&
                     dataItems.Length == 2 &&
-                    dataItems[0] == MeterPresenceDetectionResultDataItem)
+                    dataItems[0] == OperationRead)
                 {
                     _meterPresenceSummary = dataItems[1] switch
                     {
@@ -472,12 +463,12 @@ namespace ModelTest.CustomControl
 
         private async void btnTestMeterCommunication_Click(object sender, EventArgs e)
         {
-            await SendCommandAsync(MeterTestCommand, "测试表位通信报文", MeterEmptyDataItem);
+            await SendCommandAsync(MeterTestCommand, "测试表位通信报文", OperationStart);
         }
 
         private async void btnResetCommand_Click(object sender, EventArgs e)
         {
-            await SendCommandAsync(MeterResetCommand, "复位命令", MeterEmptyDataItem);
+            await SendCommandAsync(MeterResetCommand, "复位命令", OperationStart);
         }
 
         private async void btnAcVoltagePower_Click(object sender, EventArgs e)
@@ -594,11 +585,10 @@ namespace ModelTest.CustomControl
             await RunDailyTimingWorkflowAsync();
         }
 
-        /// <summary>按表位逐一发送0x35潜动走字试验启动报文，并只认可完整回显脉冲数和时间的应答。</summary>
+        /// <summary>按表位逐一发送0x25+01潜动试验启动报文，并严格校验启动应答。</summary>
         private async void btnStartCreepingTest_Click(object sender, EventArgs e)
         {
-            if (!TryGetCreepingTestParameters(out byte pulseCount, out uint timeSeconds) ||
-                !TryGetDailyTimingMeterAddresses(out byte[] meterAddresses))
+            if (!TryGetDailyTimingMeterAddresses(out byte[] meterAddresses))
             {
                 return;
             }
@@ -608,28 +598,20 @@ namespace ModelTest.CustomControl
             {
                 Dictionary<byte, byte[]> responses = await SendPacketsAndCollectResponsesAsync(
                     meterAddresses,
-                    meterAddress => BuildCreepingTestStartPacket(meterAddress, pulseCount, timeSeconds),
-                    meterAddress => $"潜动走字试验[表位={meterAddress:X2}, 开始, 脉冲数={pulseCount}, 时间={timeSeconds}s]",
-                    meterAddress => rawData =>
-                        TryParseCreepingTestResponse(
-                            rawData,
-                            meterAddress,
-                            CreepingTestStartOperation,
-                            out byte responsePulseCount,
-                            out uint responseTimeSeconds) &&
-                        responsePulseCount == pulseCount &&
-                        responseTimeSeconds == timeSeconds,
+                    BuildCreepingTestStartPacket,
+                    meterAddress => $"0x25潜动试验启动[表位={meterAddress:X2}]",
+                    meterAddress => rawData => TryParseCreepingTestStartResponse(rawData, meterAddress),
                     TimeSpan.FromSeconds(5),
                     CancellationToken.None);
 
                 byte[] failedAddresses = meterAddresses.Except(responses.Keys).ToArray();
                 foreach (byte meterAddress in failedAddresses)
                 {
-                    PublishMeterMessage($"[错误] 表位 {meterAddress:X2} 开启潜动走字试验未收到正确应答");
+                    PublishMeterMessage($"[错误] 表位 {meterAddress:X2} 开启0x25潜动试验未收到正确应答");
                 }
 
                 labelCreepingResult.Text = responses.Count > 0
-                    ? $"启动成功：{FormatMeterAddressList(responses.Keys)}；等待时间：{timeSeconds}s"
+                    ? $"启动成功：{FormatMeterAddressList(responses.Keys)}"
                     : "启动失败：所有表位均未收到正确应答";
             }
             finally
@@ -638,7 +620,7 @@ namespace ModelTest.CustomControl
             }
         }
 
-        /// <summary>发送0x35+AA结果获取报文，并展示各表位当前累计脉冲数和累计时间。</summary>
+        /// <summary>发送0x25+AA结果获取报文，并展示各表位当前累计脉冲数。</summary>
         private async void btnGetCreepingTestResult_Click(object sender, EventArgs e)
         {
             if (!TryGetDailyTimingMeterAddresses(out byte[] meterAddresses))
@@ -652,13 +634,8 @@ namespace ModelTest.CustomControl
                 Dictionary<byte, byte[]> responses = await SendPacketsAndCollectResponsesAsync(
                     meterAddresses,
                     BuildCreepingTestResultPacket,
-                    meterAddress => $"潜动走字试验结果获取[表位={meterAddress:X2}]",
-                    meterAddress => rawData => TryParseCreepingTestResponse(
-                        rawData,
-                        meterAddress,
-                        CreepingTestResultOperation,
-                        out _,
-                        out _),
+                    meterAddress => $"0x25潜动试验结果获取[表位={meterAddress:X2}]",
+                    meterAddress => rawData => TryParseCreepingTestResultResponse(rawData, meterAddress, out _),
                     TimeSpan.FromSeconds(5),
                     CancellationToken.None);
 
@@ -666,18 +643,13 @@ namespace ModelTest.CustomControl
                 foreach (byte meterAddress in meterAddresses)
                 {
                     if (!responses.TryGetValue(meterAddress, out byte[]? response) ||
-                        !TryParseCreepingTestResponse(
-                            response,
-                            meterAddress,
-                            CreepingTestResultOperation,
-                            out byte pulseCount,
-                            out uint timeSeconds))
+                        !TryParseCreepingTestResultResponse(response, meterAddress, out uint pulseCount))
                     {
-                        PublishMeterMessage($"[错误] 表位 {meterAddress:X2} 获取潜动走字结果未收到正确应答");
+                        PublishMeterMessage($"[错误] 表位 {meterAddress:X2} 获取0x25潜动结果未收到正确应答");
                         continue;
                     }
 
-                    string resultText = $"表位{meterAddress:X2}：脉冲={pulseCount}，时间={timeSeconds}s";
+                    string resultText = $"表位{meterAddress:X2}：实际脉冲数={pulseCount}";
                     resultTexts.Add(resultText);
                     PublishMeterMessage($"潜动走字试验结果，{resultText}");
                 }
@@ -689,6 +661,77 @@ namespace ModelTest.CustomControl
             finally
             {
                 SetCreepingTestUiBusy(false);
+            }
+        }
+
+        /// <summary>按表位逐一发送0x37+00走字试验启动报文，并严格校验启动应答。</summary>
+        private async void btnStartWalkingTest_Click(object sender, EventArgs e)
+        {
+            await RunWalkingTestSimpleCommandAsync(
+                BuildWalkingTestStartPacket,
+                meterAddress => $"0x37走字试验开始[表位={meterAddress:X2}]",
+                (rawData, meterAddress) => TryParseWalkingTestStartResponse(rawData, meterAddress),
+                "开始成功",
+                "开始失败");
+        }
+
+        /// <summary>按表位逐一发送0x37+FF走字试验停止报文，并严格校验停止应答。</summary>
+        private async void btnStopWalkingTest_Click(object sender, EventArgs e)
+        {
+            await RunWalkingTestSimpleCommandAsync(
+                BuildWalkingTestStopPacket,
+                meterAddress => $"0x37走字试验停止[表位={meterAddress:X2}]",
+                (rawData, meterAddress) => TryParseWalkingTestStopResponse(rawData, meterAddress),
+                "停止成功",
+                "停止失败");
+        }
+
+        /// <summary>发送0x37+AA结果获取报文，并展示被测表脉冲数与标准表电能量。</summary>
+        private async void btnGetWalkingTestResult_Click(object sender, EventArgs e)
+        {
+            if (!TryGetDailyTimingMeterAddresses(out byte[] meterAddresses))
+            {
+                return;
+            }
+
+            SetWalkingTestUiBusy(true);
+            try
+            {
+                Dictionary<byte, byte[]> responses = await SendPacketsAndCollectResponsesAsync(
+                    meterAddresses,
+                    BuildWalkingTestResultPacket,
+                    meterAddress => $"0x37走字试验结果获取[表位={meterAddress:X2}]",
+                    meterAddress => rawData => TryParseWalkingTestResultResponse(rawData, meterAddress, out _, out _),
+                    TimeSpan.FromSeconds(5),
+                    CancellationToken.None);
+
+                List<string> pulseTexts = new();
+                List<string> energyTexts = new();
+                foreach (byte meterAddress in meterAddresses)
+                {
+                    if (!responses.TryGetValue(meterAddress, out byte[]? response) ||
+                        !TryParseWalkingTestResultResponse(response, meterAddress, out uint pulseCount, out float standardEnergyKwh))
+                    {
+                        PublishMeterMessage($"[错误] 表位 {meterAddress:X2} 获取0x37走字结果未收到正确应答");
+                        continue;
+                    }
+
+                    string energyText = standardEnergyKwh.ToString("0.000000", CultureInfo.InvariantCulture);
+                    pulseTexts.Add($"表位{meterAddress:X2}：{pulseCount}");
+                    energyTexts.Add($"表位{meterAddress:X2}：{energyText} kWh");
+                    PublishMeterMessage($"走字试验结果，表位{meterAddress:X2}，待测表脉冲数={pulseCount}，标准表电能量={energyText} kWh");
+                }
+
+                labelWalkingPulseResult.Text = pulseTexts.Count > 0
+                    ? $"待测表脉冲数：{string.Join("；", pulseTexts)}"
+                    : "待测表脉冲数：未获取";
+                labelWalkingEnergyResult.Text = energyTexts.Count > 0
+                    ? $"标准表电能量：{string.Join("；", energyTexts)}"
+                    : "标准表电能量：未获取";
+            }
+            finally
+            {
+                SetWalkingTestUiBusy(false);
             }
         }
 
@@ -705,7 +748,7 @@ namespace ModelTest.CustomControl
                 PublishMeterMessage("已取消基本误差自动等待流程，立即执行手动结果获取");
             }
 
-            await RunBasicErrorCommandAsync(BasicErrorResultDataItem);
+            await RunBasicErrorCommandAsync(OperationRead);
         }
 
         private async void btnGetDailyTimingResult_Click(object sender, EventArgs e)
@@ -718,7 +761,7 @@ namespace ModelTest.CustomControl
             await SendCommandAsync(
                 MeterDailyTimingCommand,
                 $"日计时结果获取[时间={testTime}s, 次数={testCount}]",
-                DailyTimingResultDataItem,
+                OperationRead,
                 testTime,
                 testCount);
         }
@@ -735,7 +778,7 @@ namespace ModelTest.CustomControl
             await SendCommandAsync(
                 MeterDailyTimingCommand,
                 $"停止日计时[时间={testTime}s, 次数={testCount}]",
-                DailyTimingStopDataItem,
+                OperationStop,
                 testTime,
                 testCount);
         }
@@ -745,7 +788,7 @@ namespace ModelTest.CustomControl
             await SendCommandAsync(
                 MeterVoltageShortCircuitDetectionCommand,
                 "表位电压短路检测[开始检测]",
-                VoltageShortCircuitDetectionStartDataItem);
+                OperationExecute);
         }
 
         private async void btnGetVoltageShortCircuitDetectionResult_Click(object sender, EventArgs e)
@@ -753,7 +796,7 @@ namespace ModelTest.CustomControl
             await SendCommandAsync(
                 MeterVoltageShortCircuitDetectionCommand,
                 "表位电压短路检测[结果获取]",
-                VoltageShortCircuitDetectionResultDataItem);
+                OperationRead);
         }
 
         private async void btnStartMeterPresenceDetection_Click(object sender, EventArgs e)
@@ -761,7 +804,7 @@ namespace ModelTest.CustomControl
             await SendCommandAsync(
                 MeterMeterPresenceDetectionCommand,
                 "表位有无电表检测[开始检测]",
-                MeterPresenceDetectionStartDataItem);
+                OperationExecute);
         }
 
         private async void btnGetMeterPresenceDetectionResult_Click(object sender, EventArgs e)
@@ -769,7 +812,7 @@ namespace ModelTest.CustomControl
             await SendCommandAsync(
                 MeterMeterPresenceDetectionCommand,
                 "表位有无电表检测[结果获取]",
-                MeterPresenceDetectionResultDataItem);
+                OperationRead);
         }
 
         private async void btnMotorCrimpPress_Click(object sender, EventArgs e)
@@ -777,7 +820,7 @@ namespace ModelTest.CustomControl
             await SendCommandAsync(
                 MeterMotorCrimpingCommand,
                 "电机压接[压接]",
-                MotorCrimpingPressDataItem);
+                OperationStart);
         }
 
         private async void btnMotorCrimpRelease_Click(object sender, EventArgs e)
@@ -785,7 +828,7 @@ namespace ModelTest.CustomControl
             await SendCommandAsync(
                 MeterMotorCrimpingCommand,
                 "电机压接[弹开]",
-                MotorCrimpingReleaseDataItem);
+                OperationExecute);
         }
 
         private async void btnMotorCrimpPowerOff_Click(object sender, EventArgs e)
@@ -793,7 +836,7 @@ namespace ModelTest.CustomControl
             await SendCommandAsync(
                 MeterMotorCrimpingCommand,
                 "电机压接[电机断电]",
-                MotorCrimpingPowerOffDataItem);
+                OperationStop);
         }
 
         private async Task RunDailyTimingWorkflowAsync()
@@ -822,14 +865,14 @@ namespace ModelTest.CustomControl
                         MeterDirectionPcToMcu,
                         meterAddress,
                         MeterDailyTimingCommand,
-                        DailyTimingStartDataItem,
+                        OperationStart,
                         testTime,
                         testCount),
                     meterAddress => $"日计时试验[表位={meterAddress:X2}, 开始, 时间={testTime}s, 次数={testCount}]",
                     meterAddress => rawData => IsExpectedDailyTimingResponse(
                         rawData,
                         meterAddress,
-                        DailyTimingStartDataItem,
+                        OperationStart,
                         testTime,
                         testCount),
                     TimeSpan.FromSeconds(5),
@@ -861,14 +904,14 @@ namespace ModelTest.CustomControl
                         MeterDirectionPcToMcu,
                         meterAddress,
                         MeterDailyTimingCommand,
-                        DailyTimingResultDataItem,
+                        OperationRead,
                         testTime,
                         testCount),
                     meterAddress => $"日计时结果获取[表位={meterAddress:X2}, 时间={testTime}s, 次数={testCount}]",
                     meterAddress => rawData => IsExpectedDailyTimingResponse(
                         rawData,
                         meterAddress,
-                        DailyTimingResultDataItem,
+                        OperationRead,
                         testTime,
                         testCount),
                     TimeSpan.FromSeconds(10),
@@ -911,7 +954,7 @@ namespace ModelTest.CustomControl
                 return await RunBasicError38CommandAsync(meterAddresses, errorTypes, standardConstant, meterConstant, actionDataItem);
             }
 
-            if (actionDataItem == BasicErrorStartDataItem)
+            if (actionDataItem == OperationExecute)
             {
                 foreach (byte errorType in errorTypes)
                 {
@@ -953,6 +996,47 @@ namespace ModelTest.CustomControl
             return hasAnyResponse;
         }
 
+        private async Task RunWalkingTestSimpleCommandAsync(
+            Func<byte, byte[]> packetFactory,
+            Func<byte, string> packetNameFactory,
+            Func<byte[], byte, bool> responseParser,
+            string successText,
+            string failureText)
+        {
+            if (!TryGetDailyTimingMeterAddresses(out byte[] meterAddresses))
+            {
+                return;
+            }
+
+            SetWalkingTestUiBusy(true);
+            try
+            {
+                Dictionary<byte, byte[]> responses = await SendPacketsAndCollectResponsesAsync(
+                    meterAddresses,
+                    packetFactory,
+                    packetNameFactory,
+                    meterAddress => rawData => responseParser(rawData, meterAddress),
+                    TimeSpan.FromSeconds(5),
+                    CancellationToken.None);
+
+                foreach (byte meterAddress in meterAddresses.Except(responses.Keys))
+                {
+                    PublishMeterMessage($"[错误] 表位 {meterAddress:X2} 走字试验{failureText}：未收到正确应答");
+                }
+
+                labelWalkingPulseResult.Text = responses.Count > 0
+                    ? $"待测表脉冲数：{successText}，表位={FormatMeterAddressList(responses.Keys)}"
+                    : $"待测表脉冲数：{failureText}";
+                labelWalkingEnergyResult.Text = responses.Count > 0
+                    ? "标准表电能量：等待结果获取"
+                    : "标准表电能量：未获取";
+            }
+            finally
+            {
+                SetWalkingTestUiBusy(false);
+            }
+        }
+
         private async Task RunBasicErrorWorkflowAsync()
         {
             if (_basicErrorWorkflowCts != null)
@@ -978,7 +1062,7 @@ namespace ModelTest.CustomControl
 
             try
             {
-                bool startSuccess = await RunBasicErrorCommandAsync(BasicErrorStartDataItem);
+                bool startSuccess = await RunBasicErrorCommandAsync(OperationExecute);
                 if (!startSuccess)
                 {
                     PublishMeterMessage("[错误] 基本误差启动阶段未成功，不进入自动等待和结果获取");
@@ -987,7 +1071,7 @@ namespace ModelTest.CustomControl
 
                 PublishMeterMessage($"基本误差启动报文发送完成，等待 {waitSeconds} 秒后自动获取结果。{waitDescription}");
                 await Task.Delay(TimeSpan.FromSeconds(waitSeconds), cancellationToken);
-                await RunBasicErrorCommandAsync(BasicErrorResultDataItem);
+                await RunBasicErrorCommandAsync(OperationRead);
             }
             catch (OperationCanceledException)
             {
@@ -1013,7 +1097,7 @@ namespace ModelTest.CustomControl
                 return false;
             }
 
-            if (actionDataItem == BasicErrorStartDataItem)
+            if (actionDataItem == OperationExecute)
             {
                 foreach (byte errorType in errorTypes)
                 {
@@ -1652,7 +1736,7 @@ namespace ModelTest.CustomControl
 
         private static byte[] BuildMeterPacket(byte direction, byte meterAddress, byte command, params byte[] dataItems)
         {
-            byte[] payload = (dataItems == null || dataItems.Length == 0) ? new[] { MeterEmptyDataItem } : dataItems;
+            byte[] payload = (dataItems == null || dataItems.Length == 0) ? new[] { OperationStart } : dataItems;
             int dataLength = 2 + 1 + 1 + 1 + 1 + payload.Length + 1;
             byte[] packet = new byte[2 + dataLength + 2];
 
@@ -1672,63 +1756,447 @@ namespace ModelTest.CustomControl
             return packet;
         }
 
-        /// <summary>
-        /// 构造V2电表0x35潜动走字试验启动报文。
-        /// 数据项依次为00、脉冲数、4字节小端秒数。
-        /// </summary>
-        public static byte[] BuildCreepingTestStartPacket(byte meterAddress, byte pulseCount, uint timeSeconds)
+        /// <summary>构造V2电表0x25+01潜动试验启动报文。</summary>
+        public static byte[] BuildCreepingTestStartPacket(byte meterAddress)
         {
-            byte[] dataItems =
-            {
-                CreepingTestStartOperation,
-                pulseCount,
-                (byte)(timeSeconds & 0xFF),
-                (byte)((timeSeconds >> 8) & 0xFF),
-                (byte)((timeSeconds >> 16) & 0xFF),
-                (byte)((timeSeconds >> 24) & 0xFF)
-            };
-            return BuildMeterPacket(MeterDirectionPcToMcu, meterAddress, MeterCreepingTestCommand, dataItems);
+            return BuildMeterPacket(
+                MeterDirectionPcToMcu,
+                meterAddress,
+                MeterCreepingTestCommand,
+                OperationExecute);
         }
 
-        /// <summary>构造V2电表0x35+AA潜动走字试验结果获取报文。</summary>
+        /// <summary>构造V2电表0x25+AA潜动试验结果获取报文。</summary>
         public static byte[] BuildCreepingTestResultPacket(byte meterAddress)
         {
             return BuildMeterPacket(
                 MeterDirectionPcToMcu,
                 meterAddress,
                 MeterCreepingTestCommand,
-                CreepingTestResultOperation);
+                OperationRead);
         }
 
-        /// <summary>
-        /// 校验并解析V2电表0x35应答。启动和结果应答都包含操作码、脉冲数和4字节小端秒数。
-        /// </summary>
-        public static bool TryParseCreepingTestResponse(
+        /// <summary>校验V2电表0x25启动应答；数据项必须严格为单字节01。</summary>
+        public static bool TryParseCreepingTestStartResponse(
+            byte[] rawData,
+            byte expectedMeterAddress)
+        {
+            return TryGetMeterPacketDataItems(
+                    rawData,
+                    expectedMeterAddress,
+                    MeterCreepingTestCommand,
+                    out byte[] dataItems) &&
+                dataItems.Length == 1 &&
+                dataItems[0] == OperationExecute;
+        }
+
+        /// <summary>校验并解析V2电表0x25结果应答：AA后4字节为小端uint实际脉冲数。</summary>
+        public static bool TryParseCreepingTestResultResponse(
             byte[] rawData,
             byte expectedMeterAddress,
-            byte expectedOperation,
-            out byte pulseCount,
-            out uint timeSeconds)
+            out uint pulseCount)
         {
             pulseCount = 0;
-            timeSeconds = 0;
             if (!TryGetMeterPacketDataItems(
                     rawData,
                     expectedMeterAddress,
                     MeterCreepingTestCommand,
                     out byte[] dataItems) ||
-                dataItems.Length != 6 ||
-                dataItems[0] != expectedOperation)
+                dataItems.Length != 5 ||
+                dataItems[0] != OperationRead)
             {
                 return false;
             }
 
-            pulseCount = dataItems[1];
-            timeSeconds = (uint)(dataItems[2] |
-                (dataItems[3] << 8) |
-                (dataItems[4] << 16) |
-                (dataItems[5] << 24));
+            pulseCount = BinaryPrimitives.ReadUInt32LittleEndian(dataItems.AsSpan(1, sizeof(uint)));
             return true;
+        }
+
+        /// <summary>构造V2电表0x37+00走字试验启动报文。</summary>
+        public static byte[] BuildWalkingTestStartPacket(byte meterAddress)
+        {
+            return BuildMeterPacket(
+                MeterDirectionPcToMcu,
+                meterAddress,
+                MeterWalkingTestCommand,
+                OperationStart);
+        }
+
+        /// <summary>构造V2电表0x37+FF走字试验停止报文。</summary>
+        public static byte[] BuildWalkingTestStopPacket(byte meterAddress)
+        {
+            return BuildMeterPacket(
+                MeterDirectionPcToMcu,
+                meterAddress,
+                MeterWalkingTestCommand,
+                OperationStop);
+        }
+
+        /// <summary>构造V2电表0x37+AA走字试验结果获取报文。</summary>
+        public static byte[] BuildWalkingTestResultPacket(byte meterAddress)
+        {
+            return BuildMeterPacket(
+                MeterDirectionPcToMcu,
+                meterAddress,
+                MeterWalkingTestCommand,
+                OperationRead);
+        }
+
+        /// <summary>校验V2电表0x37启动应答；数据项必须严格为单字节00。</summary>
+        public static bool TryParseWalkingTestStartResponse(
+            byte[] rawData,
+            byte expectedMeterAddress)
+        {
+            return TryGetMeterPacketDataItems(
+                    rawData,
+                    expectedMeterAddress,
+                    MeterWalkingTestCommand,
+                    out byte[] dataItems) &&
+                dataItems.Length == 1 &&
+                dataItems[0] == OperationStart;
+        }
+
+        /// <summary>校验V2电表0x37停止应答；数据项必须严格为单字节FF。</summary>
+        public static bool TryParseWalkingTestStopResponse(
+            byte[] rawData,
+            byte expectedMeterAddress)
+        {
+            return TryGetMeterPacketDataItems(
+                    rawData,
+                    expectedMeterAddress,
+                    MeterWalkingTestCommand,
+                    out byte[] dataItems) &&
+                dataItems.Length == 1 &&
+                dataItems[0] == OperationStop;
+        }
+
+        /// <summary>
+        /// 校验V2电表0x37结果应答是否为完整的读取报文。
+        /// 该方法只检查帧格式、表位地址、命令字和数据项结构，不判断标准表电能量是否有效。
+        /// </summary>
+        public static bool TryGetWalkingTestResultResponse(
+            byte[] rawData,
+            byte expectedMeterAddress,
+            out byte[] dataItems)
+        {
+            return TryGetMeterPacketDataItems(
+                    rawData,
+                    expectedMeterAddress,
+                    MeterWalkingTestCommand,
+                    out dataItems) &&
+                dataItems.Length == 9 &&
+                dataItems[0] == OperationRead;
+        }
+
+        /// <summary>校验并解析V2电表0x37结果应答：AA后4字节uint脉冲数，再后4字节float标准表电能量(kWh)。</summary>
+        public static bool TryParseWalkingTestResultResponse(
+            byte[] rawData,
+            byte expectedMeterAddress,
+            out uint pulseCount,
+            out float standardEnergyKwh)
+        {
+            return TryParseWalkingTestResultResponse(
+                rawData,
+                expectedMeterAddress,
+                out pulseCount,
+                out standardEnergyKwh,
+                out _);
+        }
+
+        /// <summary>
+        /// 校验并解析V2电表0x37结果应答，并把标准表电能量是否有效作为参考状态单独返回。
+        /// 常数试验结论只依赖待测表脉冲数，标准表电能量为NaN/Infinity时不影响脉冲数读取。
+        /// </summary>
+        public static bool TryParseWalkingTestResultResponse(
+            byte[] rawData,
+            byte expectedMeterAddress,
+            out uint pulseCount,
+            out float standardEnergyKwh,
+            out bool standardEnergyValid,
+            out string diagnosticMessage)
+        {
+            pulseCount = 0;
+            standardEnergyKwh = 0;
+            standardEnergyValid = false;
+            diagnosticMessage = string.Empty;
+            if (!TryGetWalkingTestResultResponse(rawData, expectedMeterAddress, out byte[] dataItems))
+            {
+                diagnosticMessage = "报文不是0x37+AA读取结果应答，或长度/校验/表位不匹配。";
+                return false;
+            }
+
+            pulseCount = BinaryPrimitives.ReadUInt32LittleEndian(dataItems.AsSpan(1, sizeof(uint)));
+            standardEnergyKwh = BinaryPrimitives.ReadSingleLittleEndian(dataItems.AsSpan(5, sizeof(float)));
+            standardEnergyValid = !float.IsNaN(standardEnergyKwh) && !float.IsInfinity(standardEnergyKwh);
+            if (!standardEnergyValid)
+            {
+                string rawFloatBytes = BitConverter.ToString(dataItems, 5, sizeof(float)).Replace('-', ' ');
+                diagnosticMessage = $"标准表电能量参考值无效：raw={rawFloatBytes}，解析值={standardEnergyKwh}。";
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// 校验并解析V2电表0x37结果应答，并在标准表电能量无效时返回明确的诊断信息。
+        /// 该兼容入口保持旧语义：脉冲数和标准表电能量都有效才返回true。
+        /// </summary>
+        public static bool TryParseWalkingTestResultResponse(
+            byte[] rawData,
+            byte expectedMeterAddress,
+            out uint pulseCount,
+            out float standardEnergyKwh,
+            out string errorMessage)
+        {
+            bool parsed = TryParseWalkingTestResultResponse(
+                rawData,
+                expectedMeterAddress,
+                out pulseCount,
+                out standardEnergyKwh,
+                out bool standardEnergyValid,
+                out errorMessage);
+            return parsed && standardEnergyValid;
+        }
+
+        /// <summary>构造V2电表0x86检测单元短路检测启动报文。</summary>
+        public static byte[] BuildShortCircuitDetectionStartPacket(byte meterAddress)
+        {
+            return BuildMeterPacket(
+                MeterDirectionPcToMcu,
+                meterAddress,
+                MeterVoltageShortCircuitDetectionCommand,
+                OperationExecute);
+        }
+
+        /// <summary>构造V2电表0x86检测单元短路检测结果读取报文。</summary>
+        public static byte[] BuildShortCircuitDetectionResultPacket(byte meterAddress)
+        {
+            return BuildMeterPacket(
+                MeterDirectionPcToMcu,
+                meterAddress,
+                MeterVoltageShortCircuitDetectionCommand,
+                OperationRead);
+        }
+
+        /// <summary>
+        /// 校验并解析0x86短路检测应答。启动应答只回显01，结果应答为AA+结果码。
+        /// 结果码00表示电压线路正常，其余结果码表示对应相线存在短路。
+        /// </summary>
+        public static bool TryParseShortCircuitDetectionResponse(
+            byte[] rawData,
+            byte meterAddress,
+            byte expectedOperation,
+            out byte resultCode,
+            out string description)
+        {
+            resultCode = 0x00;
+            description = string.Empty;
+            if (!TryGetMeterPacketDataItems(
+                    rawData,
+                    meterAddress,
+                    MeterVoltageShortCircuitDetectionCommand,
+                    out byte[] dataItems))
+            {
+                description = "0x86应答帧格式、地址、协议类型、命令码或校验和错误。";
+                return false;
+            }
+
+            if (expectedOperation == OperationExecute)
+            {
+                if (dataItems.Length != 1 || dataItems[0] != OperationExecute)
+                {
+                    description = "0x86启动应答未正确回显01。";
+                    return false;
+                }
+
+                description = "检测单元短路检测启动应答正常。";
+                return true;
+            }
+
+            if (expectedOperation != OperationRead ||
+                dataItems.Length != 2 ||
+                dataItems[0] != OperationRead)
+            {
+                description = "0x86结果应答格式错误，期望AA+结果码。";
+                return false;
+            }
+
+            resultCode = dataItems[1];
+            description = GetShortCircuitDetectionResultDescription(resultCode);
+            return true;
+        }
+
+        /// <summary>构造V2电表0x84检测单元断路检测启动报文。</summary>
+        public static byte[] BuildOpenCircuitDetectionStartPacket(byte meterAddress)
+        {
+            return BuildMeterPacket(
+                MeterDirectionPcToMcu,
+                meterAddress,
+                MeterMeterPresenceDetectionCommand,
+                OperationExecute);
+        }
+
+        /// <summary>构造V2电表0x84检测单元断路检测结果读取报文。</summary>
+        public static byte[] BuildOpenCircuitDetectionResultPacket(byte meterAddress)
+        {
+            return BuildMeterPacket(
+                MeterDirectionPcToMcu,
+                meterAddress,
+                MeterMeterPresenceDetectionCommand,
+                OperationRead);
+        }
+
+        /// <summary>
+        /// 校验并解析0x84断路检测应答。结果码01表示有电表且电流线路正常。
+        /// </summary>
+        public static bool TryParseOpenCircuitDetectionResponse(
+            byte[] rawData,
+            byte meterAddress,
+            byte expectedOperation,
+            out byte resultCode,
+            out string description)
+        {
+            resultCode = 0x00;
+            description = string.Empty;
+            if (!TryGetMeterPacketDataItems(
+                    rawData,
+                    meterAddress,
+                    MeterMeterPresenceDetectionCommand,
+                    out byte[] dataItems))
+            {
+                description = "0x84应答帧格式、地址、协议类型、命令码或校验和错误。";
+                return false;
+            }
+
+            if (expectedOperation == OperationExecute)
+            {
+                if (dataItems.Length != 1 || dataItems[0] != OperationExecute)
+                {
+                    description = "0x84启动应答未正确回显01。";
+                    return false;
+                }
+
+                description = "检测单元断路检测启动应答正常。";
+                return true;
+            }
+
+            if (expectedOperation != OperationRead ||
+                dataItems.Length != 2 ||
+                dataItems[0] != OperationRead)
+            {
+                description = "0x84结果应答格式错误，期望AA+结果码。";
+                return false;
+            }
+
+            resultCode = dataItems[1];
+            description = GetOpenCircuitDetectionResultDescription(resultCode);
+            return true;
+        }
+
+        /// <summary>构造V2电表0xCA温度读取报文：CA+传感器序号+AA。</summary>
+        public static byte[] BuildTemperatureReadPacket(byte meterAddress, byte sensorIndex)
+        {
+            ValidateTemperatureSensorIndex(sensorIndex);
+            return BuildMeterPacket(
+                MeterDirectionPcToMcu,
+                meterAddress,
+                MeterTemperatureCommand,
+                sensorIndex,
+                OperationRead);
+        }
+
+        /// <summary>构造V2电表0xCA温度校准报文，温度值按4字节有符号小端编码。</summary>
+        public static byte[] BuildTemperatureCalibrationPacket(byte meterAddress, byte sensorIndex, int temperatureValue)
+        {
+            ValidateTemperatureSensorIndex(sensorIndex);
+            byte[] valueBytes = new byte[sizeof(int)];
+            BinaryPrimitives.WriteInt32LittleEndian(valueBytes, temperatureValue);
+            return BuildMeterPacket(
+                MeterDirectionPcToMcu,
+                meterAddress,
+                MeterTemperatureCommand,
+                new[] { sensorIndex, OperationExecute }.Concat(valueBytes).ToArray());
+        }
+
+        /// <summary>构造V2电表0xCA删除温度校准值报文：CA+传感器序号+FF+00。</summary>
+        public static byte[] BuildTemperatureCalibrationDeletePacket(byte meterAddress, byte sensorIndex)
+        {
+            ValidateTemperatureSensorIndex(sensorIndex);
+            return BuildMeterPacket(
+                MeterDirectionPcToMcu,
+                meterAddress,
+                MeterTemperatureCommand,
+                sensorIndex,
+                OperationStop,
+                0x00);
+        }
+
+        /// <summary>
+        /// 校验并解析0xCA温度读取应答。协议未定义缩放比例，因此返回4字节有符号原始值。
+        /// </summary>
+        public static bool TryParseTemperatureReadResponse(
+            byte[] rawData,
+            byte meterAddress,
+            byte expectedSensorIndex,
+            out int temperatureRawValue,
+            out string description)
+        {
+            temperatureRawValue = 0;
+            description = string.Empty;
+            if (!TryGetMeterPacketDataItems(rawData, meterAddress, MeterTemperatureCommand, out byte[] dataItems))
+            {
+                description = "0xCA应答帧格式、地址、协议类型、命令码或校验和错误。";
+                return false;
+            }
+
+            if (dataItems.Length != 6 ||
+                dataItems[0] != expectedSensorIndex ||
+                dataItems[1] != OperationRead)
+            {
+                description = $"0xCA读取应答格式错误，期望传感器{expectedSensorIndex}+AA+4字节温度值。";
+                return false;
+            }
+
+            temperatureRawValue = BinaryPrimitives.ReadInt32LittleEndian(dataItems.AsSpan(2, sizeof(int)));
+            description = $"温度传感器{expectedSensorIndex}读取正常，温度原始值={temperatureRawValue}。";
+            return true;
+        }
+
+        /// <summary>返回0x86结果码对应的短路位置说明。</summary>
+        public static string GetShortCircuitDetectionResultDescription(byte resultCode)
+        {
+            return resultCode switch
+            {
+                0x00 => "电压线路正常",
+                0x01 => "A相电压短路",
+                0x02 => "B相电压短路",
+                0x03 => "A、B与N短路",
+                0x04 => "C相电压短路",
+                0x05 => "A、C与N短路",
+                0x06 => "B、C与N短路",
+                0x07 => "三相电压都短路",
+                _ => $"未知短路检测结果0x{resultCode:X2}"
+            };
+        }
+
+        /// <summary>返回0x84结果码对应的断路检测说明。</summary>
+        public static string GetOpenCircuitDetectionResultDescription(byte resultCode)
+        {
+            return resultCode switch
+            {
+                0x00 => "无电表，电流线路可能断路",
+                0x01 => "有电表，电流线路正常",
+                0x02 => "短接磁保持继电器短路异常",
+                _ => $"未知断路检测结果0x{resultCode:X2}"
+            };
+        }
+
+        private static void ValidateTemperatureSensorIndex(byte sensorIndex)
+        {
+            if (sensorIndex == 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(sensorIndex), "温度传感器序号必须从1开始。");
+            }
         }
 
         /// <summary>构造V2电表A2标准表有功常数设置报文，常数按8字节小端编码。</summary>
@@ -1762,7 +2230,7 @@ namespace ModelTest.CustomControl
                 MeterDirectionPcToMcu,
                 meterAddress,
                 MeterBasicErrorCommand38,
-                BasicError38StartDataItem,
+                OperationStart,
                 pulseCount,
                 testCount,
                 0x00);
@@ -1775,7 +2243,7 @@ namespace ModelTest.CustomControl
                 MeterDirectionPcToMcu,
                 meterAddress,
                 MeterBasicErrorCommand38,
-                BasicErrorResultDataItem,
+                OperationRead,
                 pulseCount,
                 testCount);
         }
@@ -1799,7 +2267,7 @@ namespace ModelTest.CustomControl
             byte testCount)
         {
             return TryGetMeterPacketDataItems(rawData, meterAddress, MeterBasicErrorCommand38, out byte[] dataItems) &&
-                dataItems.SequenceEqual(new[] { BasicError38StartDataItem, pulseCount, testCount, (byte)0x00 });
+                dataItems.SequenceEqual(new[] { OperationStart, pulseCount, testCount, (byte)0x00 });
         }
 
         /// <summary>
@@ -1822,7 +2290,7 @@ namespace ModelTest.CustomControl
             }
 
             if (dataItems.Length < 3 ||
-                dataItems[0] != BasicErrorResultDataItem ||
+                dataItems[0] != OperationRead ||
                 dataItems[1] != pulseCount ||
                 dataItems[2] != testCount)
             {
@@ -2029,7 +2497,7 @@ namespace ModelTest.CustomControl
                 return false;
             }
 
-            return operation != DailyTimingResultDataItem || dataItems.Length >= 3;
+            return operation != OperationRead || dataItems.Length >= 3;
         }
 
         private static bool IsExpectedBasicErrorResponse(
@@ -2050,7 +2518,7 @@ namespace ModelTest.CustomControl
                 return false;
             }
 
-            return actionDataItem != BasicErrorResultDataItem || dataItems.Length >= 6;
+            return actionDataItem != OperationRead || dataItems.Length >= 6;
         }
 
         private static bool IsExpectedBasicError38Response(
@@ -2074,17 +2542,17 @@ namespace ModelTest.CustomControl
                 return false;
             }
 
-            if (operation == BasicError38StartDataItem)
+            if (operation == OperationStart)
             {
                 return dataItems.Length >= 4 && dataItems[3] == pulseType;
             }
 
-            if (operation == BasicErrorResultDataItem)
+            if (operation == OperationRead)
             {
                 return true;
             }
 
-            return operation == BasicError38StopDataItem;
+            return operation == OperationStop;
         }
 
         private static bool IsExpectedWriteCommandResponseOrFeedback(byte[] rawData, byte meterAddress, byte command)
@@ -2249,7 +2717,7 @@ namespace ModelTest.CustomControl
 
             if (command == MeterTestCommand &&
                 dataItems.Length == 1 &&
-                dataItems[0] == MeterEmptyDataItem)
+                dataItems[0] == OperationStart)
             {
                 responseDescription = $"表位通信测试应答正常，表位地址={meterAddress:X2}";
                 return true;
@@ -2257,7 +2725,7 @@ namespace ModelTest.CustomControl
 
             if (command == MeterResetCommand &&
                 dataItems.Length == 1 &&
-                dataItems[0] == MeterEmptyDataItem)
+                dataItems[0] == OperationStart)
             {
                 responseDescription = $"复位命令应答正常，表位地址={meterAddress:X2}";
                 return true;
@@ -2276,6 +2744,12 @@ namespace ModelTest.CustomControl
 
             if (command == MeterCreepingTestCommand &&
                 TryDescribeCreepingTestResponse(meterAddress, dataItems, out responseDescription))
+            {
+                return true;
+            }
+
+            if (command == MeterWalkingTestCommand &&
+                TryDescribeWalkingTestResponse(meterAddress, dataItems, out responseDescription))
             {
                 return true;
             }
@@ -2300,6 +2774,12 @@ namespace ModelTest.CustomControl
 
             if (command == MeterVoltageShortCircuitDetectionCommand &&
                 TryDescribeVoltageShortCircuitDetectionResponse(meterAddress, dataItems, out responseDescription))
+            {
+                return true;
+            }
+
+            if (command == MeterTemperatureCommand &&
+                TryDescribeTemperatureResponse(meterAddress, dataItems, out responseDescription))
             {
                 return true;
             }
@@ -2460,19 +2940,19 @@ namespace ModelTest.CustomControl
             byte testTime = dataItems[1];
             byte testCount = dataItems[2];
 
-            if (operation == DailyTimingStartDataItem && dataItems.Length == 3)
+            if (operation == OperationStart && dataItems.Length == 3)
             {
                 responseDescription = $"日计时试验开始应答，表位地址={meterAddress:X2}，时间={testTime}s，次数={testCount}";
                 return true;
             }
 
-            if (operation == DailyTimingStopDataItem && dataItems.Length == 3)
+            if (operation == OperationStop && dataItems.Length == 3)
             {
                 responseDescription = $"日计时试验停止应答，表位地址={meterAddress:X2}，时间={testTime}s，次数={testCount}";
                 return true;
             }
 
-            if (operation != DailyTimingResultDataItem)
+            if (operation != OperationRead)
             {
                 return false;
             }
@@ -2503,56 +2983,72 @@ namespace ModelTest.CustomControl
             return true;
         }
 
-        /// <summary>把0x35启动/结果应答转换成可读日志。</summary>
+        /// <summary>把0x25启动/结果应答转换成可读日志。</summary>
         private static bool TryDescribeCreepingTestResponse(
             byte meterAddress,
             byte[] dataItems,
             out string responseDescription)
         {
             responseDescription = string.Empty;
-            if (dataItems.Length != 6 ||
-                (dataItems[0] != CreepingTestStartOperation && dataItems[0] != CreepingTestResultOperation))
+            if (dataItems.Length == 1 && dataItems[0] == OperationExecute)
             {
-                return false;
+                responseDescription = $"潜动试验启动应答，表位地址={meterAddress:X2}";
+                return true;
             }
 
-            byte pulseCount = dataItems[1];
-            uint timeSeconds = (uint)(dataItems[2] |
-                (dataItems[3] << 8) |
-                (dataItems[4] << 16) |
-                (dataItems[5] << 24));
-            string action = dataItems[0] == CreepingTestStartOperation ? "开始应答" : "结果获取应答";
-            responseDescription = $"潜动走字试验{action}，表位地址={meterAddress:X2}，脉冲数={pulseCount}，时间={timeSeconds}s";
-            return true;
+            if (dataItems.Length == 5 && dataItems[0] == OperationRead)
+            {
+                uint pulseCount = BinaryPrimitives.ReadUInt32LittleEndian(dataItems.AsSpan(1, sizeof(uint)));
+                responseDescription = $"潜动试验结果获取应答，表位地址={meterAddress:X2}，实际脉冲数={pulseCount}";
+                return true;
+            }
+
+            return false;
         }
 
-        /// <summary>读取并校验潜动走字试验UI参数。</summary>
-        private bool TryGetCreepingTestParameters(out byte pulseCount, out uint timeSeconds)
+        /// <summary>把0x37启动/停止/结果应答转换成可读日志。</summary>
+        private static bool TryDescribeWalkingTestResponse(
+            byte meterAddress,
+            byte[] dataItems,
+            out string responseDescription)
         {
-            pulseCount = 0;
-            timeSeconds = 0;
-            if (!byte.TryParse(tbxCreepingPulseCount.Text.Trim(), out pulseCount) || pulseCount == 0)
+            responseDescription = string.Empty;
+            if (dataItems.Length == 1 && dataItems[0] == OperationStart)
             {
-                PublishMeterMessage("[错误] 潜动走字脉冲数必须是1-255之间的整数");
-                return false;
+                responseDescription = $"走字试验启动应答，表位地址={meterAddress:X2}";
+                return true;
             }
 
-            if (!uint.TryParse(tbxCreepingTime.Text.Trim(), out timeSeconds) || timeSeconds == 0)
+            if (dataItems.Length == 1 && dataItems[0] == OperationStop)
             {
-                PublishMeterMessage("[错误] 潜动走字时间必须是大于0的整数秒");
-                return false;
+                responseDescription = $"走字试验停止应答，表位地址={meterAddress:X2}";
+                return true;
             }
 
-            return true;
+            if (dataItems.Length == 9 && dataItems[0] == OperationRead)
+            {
+                uint pulseCount = BinaryPrimitives.ReadUInt32LittleEndian(dataItems.AsSpan(1, sizeof(uint)));
+                float energyKwh = BinaryPrimitives.ReadSingleLittleEndian(dataItems.AsSpan(5, sizeof(float)));
+                responseDescription = $"走字试验结果获取应答，表位地址={meterAddress:X2}，待测表脉冲数={pulseCount}，标准表电能量={energyKwh.ToString("0.000000", CultureInfo.InvariantCulture)} kWh";
+                return true;
+            }
+
+            return false;
         }
 
         /// <summary>潜动走字命令执行期间锁定参数和按钮，避免重复发送。</summary>
         private void SetCreepingTestUiBusy(bool isBusy)
         {
-            tbxCreepingPulseCount.Enabled = !isBusy;
-            tbxCreepingTime.Enabled = !isBusy;
             btnStartCreepingTest.Enabled = !isBusy;
             btnGetCreepingTestResult.Enabled = !isBusy;
+        }
+
+        /// <summary>走字试验执行期间锁定参数和按钮，避免重复发送。</summary>
+        private void SetWalkingTestUiBusy(bool isBusy)
+        {
+            btnStartWalkingTest.Enabled = !isBusy;
+            btnStopWalkingTest.Enabled = !isBusy;
+            btnGetWalkingTestResult.Enabled = !isBusy;
         }
 
         private static bool TryDescribeBasicErrorResponse(byte meterAddress, byte[] dataItems, out string responseDescription)
@@ -2566,13 +3062,13 @@ namespace ModelTest.CustomControl
             byte errorType = dataItems[0];
             byte action = dataItems[1];
 
-            if (action == BasicErrorStartDataItem && dataItems.Length == 2)
+            if (action == OperationExecute && dataItems.Length == 2)
             {
                 responseDescription = $"误差测试启动应答，表位地址={meterAddress:X2}，类型={DescribeBasicErrorType(errorType)}";
                 return true;
             }
 
-            if (action != BasicErrorResultDataItem)
+            if (action != OperationRead)
             {
                 return false;
             }
@@ -2600,7 +3096,7 @@ namespace ModelTest.CustomControl
             byte pulseCount = dataItems[1];
             byte testCount = dataItems[2];
 
-            if (operation == BasicError38StartDataItem)
+            if (operation == OperationStart)
             {
                 if (dataItems.Length < 4)
                 {
@@ -2612,13 +3108,13 @@ namespace ModelTest.CustomControl
                 return true;
             }
 
-            if (operation == BasicError38StopDataItem)
+            if (operation == OperationStop)
             {
                 responseDescription = $"0x38基本误差停止应答，表位地址={meterAddress:X2}，脉冲数={pulseCount}，次数={testCount}";
                 return true;
             }
 
-            if (operation != BasicErrorResultDataItem)
+            if (operation != OperationRead)
             {
                 return false;
             }
@@ -2668,15 +3164,15 @@ namespace ModelTest.CustomControl
         {
             return actionDataItem switch
             {
-                BasicErrorStartDataItem => BasicError38StartDataItem,
-                BasicErrorResultDataItem => BasicErrorResultDataItem,
-                _ => BasicError38StopDataItem
+                OperationExecute => OperationStart,
+                OperationRead => OperationRead,
+                _ => OperationStop
             };
         }
 
         private static byte[] BuildBasicError38Payload(byte operation, byte pulseCount, byte testCount, byte pulseType)
         {
-            return operation == BasicErrorResultDataItem
+            return operation == OperationRead
                 ? new[] { operation, pulseCount, testCount }
                 : new[] { operation, pulseCount, testCount, pulseType };
         }
@@ -2685,8 +3181,8 @@ namespace ModelTest.CustomControl
         {
             return operation switch
             {
-                BasicError38StartDataItem => $"0x38基本误差[表位={meterAddress:X2}, 类型={DescribeBasicErrorType(errorType)}, 脉冲数={pulseCount}, 次数={testCount}, 开始]",
-                BasicErrorResultDataItem => $"0x38基本误差[表位={meterAddress:X2}, 类型={DescribeBasicErrorType(errorType)}, 脉冲数={pulseCount}, 次数={testCount}, 结果获取]",
+                OperationStart => $"0x38基本误差[表位={meterAddress:X2}, 类型={DescribeBasicErrorType(errorType)}, 脉冲数={pulseCount}, 次数={testCount}, 开始]",
+                OperationRead => $"0x38基本误差[表位={meterAddress:X2}, 类型={DescribeBasicErrorType(errorType)}, 脉冲数={pulseCount}, 次数={testCount}, 结果获取]",
                 _ => $"0x38基本误差[表位={meterAddress:X2}, 类型={DescribeBasicErrorType(errorType)}, 脉冲数={pulseCount}, 次数={testCount}, 停止]"
             };
         }
@@ -2722,8 +3218,8 @@ namespace ModelTest.CustomControl
         {
             return actionDataItem switch
             {
-                BasicErrorStartDataItem => "实验启动",
-                BasicErrorResultDataItem => "实验结果获取",
+                OperationExecute => "实验启动",
+                OperationRead => "实验结果获取",
                 _ => $"动作{actionDataItem:X2}"
             };
         }
@@ -2745,14 +3241,14 @@ namespace ModelTest.CustomControl
         {
             responseDescription = string.Empty;
             if (dataItems.Length == 1 &&
-                dataItems[0] == VoltageShortCircuitDetectionStartDataItem)
+                dataItems[0] == OperationExecute)
             {
                 responseDescription = $"表位电压短路检测开始应答正常，表位地址={meterAddress:X2}";
                 return true;
             }
 
             if (dataItems.Length != 2 ||
-                dataItems[0] != VoltageShortCircuitDetectionResultDataItem)
+                dataItems[0] != OperationRead)
             {
                 return false;
             }
@@ -2778,14 +3274,14 @@ namespace ModelTest.CustomControl
         {
             responseDescription = string.Empty;
             if (dataItems.Length == 1 &&
-                dataItems[0] == MeterPresenceDetectionStartDataItem)
+                dataItems[0] == OperationExecute)
             {
                 responseDescription = $"表位有无电表检测开始应答正常，表位地址={meterAddress:X2}";
                 return true;
             }
 
             if (dataItems.Length != 2 ||
-                dataItems[0] != MeterPresenceDetectionResultDataItem)
+                dataItems[0] != OperationRead)
             {
                 return false;
             }
@@ -2802,6 +3298,35 @@ namespace ModelTest.CustomControl
             return true;
         }
 
+        /// <summary>把0xCA温度读取、校准和删除校准应答转换为可读日志。</summary>
+        private static bool TryDescribeTemperatureResponse(
+            byte meterAddress,
+            byte[] dataItems,
+            out string responseDescription)
+        {
+            responseDescription = string.Empty;
+            if (dataItems.Length == 6 &&
+                (dataItems[1] == OperationRead || dataItems[1] == OperationExecute))
+            {
+                int rawValue = BinaryPrimitives.ReadInt32LittleEndian(dataItems.AsSpan(2, sizeof(int)));
+                string operation = dataItems[1] == OperationRead ? "读取" : "校准";
+                responseDescription =
+                    $"温度{operation}应答，表位地址={meterAddress:X2}，传感器={dataItems[0]}，温度原始值={rawValue}";
+                return true;
+            }
+
+            if (dataItems.Length == 3 &&
+                dataItems[1] == OperationStop &&
+                dataItems[2] == 0x00)
+            {
+                responseDescription =
+                    $"删除温度校准值应答，表位地址={meterAddress:X2}，传感器={dataItems[0]}";
+                return true;
+            }
+
+            return false;
+        }
+
         private static bool TryDescribeMotorCrimpingResponse(byte meterAddress, byte[] dataItems, out string responseDescription)
         {
             responseDescription = string.Empty;
@@ -2812,9 +3337,9 @@ namespace ModelTest.CustomControl
 
             string actionDescription = dataItems[0] switch
             {
-                MotorCrimpingPressDataItem => "压接",
-                MotorCrimpingReleaseDataItem => "弹开",
-                MotorCrimpingPowerOffDataItem => "电机断电",
+                OperationStart => "压接",
+                OperationExecute => "弹开",
+                OperationStop => "电机断电",
                 _ => string.Empty
             };
 

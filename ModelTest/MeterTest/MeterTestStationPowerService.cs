@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using ModelTest.Protocol;
 
 namespace ModelTest.MeterTest;
 
@@ -13,20 +14,6 @@ namespace ModelTest.MeterTest;
 /// </summary>
 public sealed class MeterTestStationPowerService
 {
-    private const byte FrameStart1 = 0x55;
-    private const byte FrameStart2 = 0x44;
-    private const byte FrameStop1 = 0xAA;
-    private const byte FrameStop2 = 0xBB;
-    private const byte DirectionPcToMcu = 0x00;
-    private const byte MeterControlProtocol = 0x02;
-    private const byte AcVoltageCommand = 0x01;
-    private const byte AcCurrentCommand = 0x02;
-    private const byte SinglePhaseEnableDataItem = 0x01;
-    private const byte SinglePhaseDisableDataItem = 0x05;
-    private const byte ThreePhaseEnableDataItem = 0x04;
-    private const byte ThreePhaseDisableDataItem = 0x08;
-    private static readonly TimeSpan PacketInterval = TimeSpan.FromMilliseconds(100);
-
     /// <summary>
     /// 同一个控制 PCB 连接内的报文必须保持顺序，避免多个工位快速勾选时发生报文穿插。
     /// 不同 IP/Port 的控制 PCB 可以并行操作。
@@ -62,9 +49,8 @@ public sealed class MeterTestStationPowerService
             return MeterTestStationPowerResult.Fail(message);
         }
 
-        // 本功能按界面工位号直接作为控制 PCB 表位地址，例如工位10发送地址0x0A。
-        // ControlPcbGroup 只负责确定该工位对应的控制 PCB IP 和 Port。
-        int meterAddressValue = stationNo;
+        // 表位地址严格按 ControlPcbGroup 映射计算，不假设界面工位号与PCB地址始终相同。
+        int meterAddressValue = group.MeterAddressStart + stationNo - group.StationStart;
         if (meterAddressValue is < 1 or > 254)
         {
             string message = $"工位{stationNo}计算出的表位地址{meterAddressValue}超出1-254。";
@@ -81,10 +67,16 @@ public sealed class MeterTestStationPowerService
 
         byte meterAddress = (byte)meterAddressValue;
         byte dataItem = isThreePhase
-            ? powerOn ? ThreePhaseEnableDataItem : ThreePhaseDisableDataItem
-            : powerOn ? SinglePhaseEnableDataItem : SinglePhaseDisableDataItem;
-        byte[] voltagePacket = BuildV2MeterPacket(meterAddress, AcVoltageCommand, dataItem);
-        byte[] currentPacket = BuildV2MeterPacket(meterAddress, AcCurrentCommand, dataItem);
+            ? powerOn ? MeterControlPcbProtocol.ThreePhaseEnableDataItem : MeterControlPcbProtocol.ThreePhaseDisableDataItem
+            : powerOn ? MeterControlPcbProtocol.SinglePhaseEnableDataItem : MeterControlPcbProtocol.SinglePhaseDisableDataItem;
+        byte[] voltagePacket = MeterControlPcbProtocol.BuildV2ControlFrame(
+            meterAddress,
+            MeterControlPcbProtocol.AcVoltageCommand,
+            dataItem);
+        byte[] currentPacket = MeterControlPcbProtocol.BuildV2ControlFrame(
+            meterAddress,
+            MeterControlPcbProtocol.AcCurrentCommand,
+            dataItem);
         (string Name, byte[] Packet)[] operations = powerOn
             ? new[] { ("上电压", voltagePacket), ("通电流", currentPacket) }
             : new[] { ("断电流", currentPacket), ("下电压", voltagePacket) };
@@ -110,7 +102,7 @@ public sealed class MeterTestStationPowerService
             LogMessage.Debug($"[工位电源] 复用控制PCB长连接：工位={stationNo}，Endpoint={endpoint}");
             await connection.SendSequenceAsync(
                 operations.Select(operation => operation.Packet).ToArray(),
-                PacketInterval,
+                MeterControlPcbProtocol.DefaultPacketInterval,
                 (index, packet) => LogMessage.Debug(
                     $"[工位电源] 工位{stationNo} {operations[index].Name}报文[PC-->MCU]：{ToHexString(packet)}"),
                 cancellationToken);
@@ -143,40 +135,7 @@ public sealed class MeterTestStationPowerService
         }
     }
 
-    /// <summary>
-    /// 按 ElectricEnergyMeterControlV2 格式构造电表控制协议报文。
-    /// </summary>
-    private static byte[] BuildV2MeterPacket(byte meterAddress, byte command, byte dataItem)
-    {
-        const int dataLength = 8;
-        byte[] packet = new byte[12];
-        packet[0] = FrameStart1;
-        packet[1] = FrameStart2;
-        packet[2] = dataLength;
-        packet[3] = 0x00;
-        packet[4] = DirectionPcToMcu;
-        packet[5] = meterAddress;
-        packet[6] = MeterControlProtocol;
-        packet[7] = command;
-        packet[8] = dataItem;
-        packet[9] = CalculateChecksum(packet, 2, dataLength - 1);
-        packet[10] = FrameStop1;
-        packet[11] = FrameStop2;
-        return packet;
-    }
-
-    /// <summary>计算从长度字段开始到数据项结束的累加和低字节。</summary>
-    private static byte CalculateChecksum(byte[] data, int startIndex, int count)
-    {
-        int checksum = 0;
-        for (int index = startIndex; index < startIndex + count; index++)
-        {
-            checksum += data[index];
-        }
-
-        return (byte)checksum;
-    }
-
+    /// <summary>将工位上下电控制帧格式化为空格分隔的十六进制日志文本。</summary>
     private static string ToHexString(byte[] data)
     {
         return BitConverter.ToString(data).Replace("-", " ");
@@ -186,9 +145,11 @@ public sealed class MeterTestStationPowerService
 /// <summary>单个工位上电或下电操作结果。</summary>
 public sealed record MeterTestStationPowerResult(bool Success, string Message, byte MeterAddress)
 {
+    /// <summary>创建工位上电或下电成功结果。</summary>
     public static MeterTestStationPowerResult Ok(string message, byte meterAddress)
         => new(true, message, meterAddress);
 
+    /// <summary>创建工位电源控制失败结果并保留已解析表位地址。</summary>
     public static MeterTestStationPowerResult Fail(string message, byte meterAddress = 0x00)
         => new(false, message, meterAddress);
 }

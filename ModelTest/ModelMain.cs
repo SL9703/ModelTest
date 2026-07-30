@@ -1549,6 +1549,25 @@ namespace ModelTest
         /// <param name="e"></param>
         private void tsbtnMeterTest_Click(object sender, EventArgs e)
         {
+            if (_meterTestForm is not null && !_meterTestForm.IsDisposed)
+            {
+                MessageBox.Show(
+                    this,
+                    "MeterTest 已经打开，只允许同时运行一个测试用例窗口。",
+                    "重复打开提醒",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+
+                if (_meterTestForm.WindowState == FormWindowState.Minimized)
+                {
+                    _meterTestForm.WindowState = FormWindowState.Maximized;
+                }
+
+                _meterTestForm.Show();
+                _meterTestForm.Activate();
+                _meterTestForm.BringToFront();
+                return;
+            }
             ShowNonModalToolWindow(_meterTestForm, () => new MeterTest.MeterTest(), form => _meterTestForm = form);
         }
         /// <summary>

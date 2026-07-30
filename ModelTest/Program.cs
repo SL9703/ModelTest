@@ -12,9 +12,28 @@ namespace ModelTest
         // 静态主窗体引用
         public static ModelMain MainForm { get; private set; }
         public static DatabaseTestForm _databaseTestForm { get; private set; }
+
+        /// <summary>
+        /// 同一Windows登录会话只允许启动一个MeterTest进程，防止多个实例同时占用源、串口和PCB连接。
+        /// </summary>
+        private const string MeterTestSingleInstanceMutexName = @"Local\XCKJ.ModelTest.MeterTest.SingleInstance";
+
         [STAThread]
         static void Main()
         {
+            using Mutex singleInstanceMutex = new(
+              initiallyOwned: true,
+              MeterTestSingleInstanceMutexName,
+              out bool createdNew);
+            if (!createdNew)
+            {
+                MessageBox.Show(
+                    "MeterTest 已经在运行，只允许同时打开一个测试用例。请关闭已有窗口后再试。",
+                    "重复启动提醒",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+                return;
+            }
             // To customize application configuration such as set high DPI settings or default font,
             // see https://aka.ms/applicationconfiguration.
             ApplicationConfiguration.Initialize();
@@ -31,7 +50,7 @@ namespace ModelTest
                 //Application.Run(MainForm);
                 //_databaseTestForm = new DatabaseTestForm();
                 //Application.Run(_databaseTestForm);
-              Application.Run(new MeterTest.MeterTest());
+                Application.Run(new MeterTest.MeterTest());
             }
             catch (Exception ex)
             {
@@ -40,6 +59,9 @@ namespace ModelTest
                     "应用程序错误",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Error);
+            }finally
+            {
+                singleInstanceMutex.ReleaseMutex();
             }
         }
 

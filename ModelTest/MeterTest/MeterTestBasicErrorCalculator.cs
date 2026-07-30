@@ -5,17 +5,11 @@ namespace ModelTest.MeterTest;
 
 /// <summary>
 /// JJG596-2026 有功基本误差测试点计算器。
-/// 负责把 XML 测试条件和资产档案转换成升源参数、0x38脉冲参数、等待时间及误差限。
+/// 负责把 XML 测试条件和资产档案转换成升源参数、0x38脉冲参数、等待时间及规程误差限。
 /// </summary>
 public static class MeterTestBasicErrorCalculator
 {
     private const decimal EnergyConversionFactor = 3_600_000m;
-    private static readonly Regex CurrentRangeRegex = new(
-        @"(?<imin>\d+(?:\.\d+)?)\s*-\s*(?<itr>\d+(?:\.\d+)?)\s*\(\s*(?<imax>\d+(?:\.\d+)?)\s*\)",
-        RegexOptions.Compiled | RegexOptions.CultureInvariant);
-    private static readonly Regex BaseCurrentWithMaximumRegex = new(
-        @"(?<basic>\d+(?:\.\d+)?)\s*\(\s*(?<imax>\d+(?:\.\d+)?)\s*\)",
-        RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     /// <summary>
     /// 计算一个基本误差小项涉及的全部工位参数。
@@ -25,6 +19,7 @@ public static class MeterTestBasicErrorCalculator
         MeterTestSubItem subItem,
         IReadOnlyList<MeterTestStationCommunication> selectedStations,
         IReadOnlyDictionary<int, MeterArchiveData> meterArchives,
+        IReadOnlyList<MeterTestPowerFactorAngleData> powerFactorAngles,
         out MeterTestBasicErrorExecutionPlan? plan,
         out string? errorMessage)
     {
@@ -45,11 +40,15 @@ public static class MeterTestBasicErrorCalculator
         if (!TryParsePowerFactor(
                 subItem.BasicErrorPowerFactor,
                 reverseActive,
+                powerFactorAngles,
                 out decimal powerFactor,
                 out decimal currentAngle,
                 out string powerFactorText))
         {
-            errorMessage = $"基本误差功率因数不支持：{subItem.BasicErrorPowerFactor}。";
+            errorMessage =
+                $"基本误差功率因数或FA角度配置不支持："
+                + $"{subItem.BasicErrorDirection}/{subItem.BasicErrorPowerFactor}。"
+                + "请检查数据库表 MeterTestPowerFactorAngle。";
             return false;
         }
 
@@ -81,7 +80,8 @@ public static class MeterTestBasicErrorCalculator
         }
 
         int minimumWaitSeconds = Math.Max(1, subItem.BasicErrorMinimumWaitSeconds);
-        int waitPaddingSeconds = Math.Max(0, subItem.BasicErrorWaitPaddingSeconds);
+        // 所有基本误差点使用同一个固定余量，避免现场XML中不同小项出现不一致等待时间。
+        int waitPaddingSeconds = MeterTestBasicErrorDefaults.WaitPaddingSeconds;
         List<MeterTestBasicErrorStationPlan> stationPlans = new();
         foreach (MeterTestStationCommunication station in selectedStations.OrderBy(item => item.StationNo))
         {
@@ -165,6 +165,7 @@ public static class MeterTestBasicErrorCalculator
         return true;
     }
 
+    /// <summary>根据单工位资产和测试点标记生成电压、电流、相角、功率、脉冲数及等待时间计划。</summary>
     private static bool TryCreateStationPlan(
         MeterTestSubItem subItem,
         MeterArchiveData archive,
@@ -192,8 +193,14 @@ public static class MeterTestBasicErrorCalculator
         }
 
         string activeClass = NormalizeActiveClass(archive.ActiveClass);
+        if (!TryParsePositiveNumber(archive.Current, out decimal basicCurrent))
+        {
+            errorMessage = $"基本电流无法解析：{archive.Current}。";
+            return false;
+        }
+
         if (!TryParseCurrentSpecification(
-                archive.Current,
+                archive.CurrentSpecification,
                 archive.AccessMode,
                 activeClass,
                 out MeterTestBasicErrorCurrentSpecification? currentSpecification,
@@ -225,7 +232,8 @@ public static class MeterTestBasicErrorCalculator
         }
 
         decimal sourcePhaseVoltage = phaseVoltage * subItem.BasicErrorVoltageMultiplier;
-        decimal currentPercentage = testCurrent / currentSpecification!.BasicCurrent * 100m;
+        // 电流点由独立电流规格解析。百分比仅用于日志和数据追溯，实际升源使用绝对电流值。
+        decimal currentPercentage = testCurrent / basicCurrent * 100m;
         decimal power = CalculateActivePower(
             phaseMode,
             phase,
@@ -239,14 +247,31 @@ public static class MeterTestBasicErrorCalculator
             return false;
         }
 
-        if (!TryResolveErrorLimit(
-                activeClass,
-                subItem.BasicErrorCurrentPoint,
-                powerFactorText,
-                subItem.BasicErrorLimit,
-                out decimal errorLimit))
+        if (!MeterTestStartingTestCalculator.TryCalculateStartingCurrent(
+                archive,
+                out decimal startingCurrent,
+                out _,
+                out string? startingCurrentError))
         {
-            errorMessage = $"有功等级 {archive.ActiveClass} 没有可用的基本误差限。";
+            errorMessage = $"基本误差限所需Ist计算失败：{startingCurrentError}";
+            return false;
+        }
+
+        MeterTestErrorLimitResult errorLimitResult = MeterTestErrorResultComparer.CalculateLimit(
+            new MeterTestErrorLimitRequest(
+                MeterTestErrorEnergyType.Active,
+                activeClass,
+                archive.AccessMode,
+                powerFactorText,
+                testCurrent,
+                startingCurrent,
+                currentSpecification!.Imin,
+                currentSpecification.Itr,
+                currentSpecification.Imax,
+                basicCurrent));
+        if (!errorLimitResult.IsValid || !errorLimitResult.IsApplicable)
+        {
+            errorMessage = $"测试点 {subItem.Name} 无法计算规程误差限：{errorLimitResult.Message}";
             return false;
         }
 
@@ -264,34 +289,49 @@ public static class MeterTestBasicErrorCalculator
             return false;
         }
 
+        // singleTestSeconds 已经包含0x38配置的脉冲数，总等待时间只再乘试验次数，
+        // 不能在外层再乘一次脉冲数，否则会重复计算。
         decimal singleTestSeconds = EnergyConversionFactor * pulseCount / (meterConstant * power);
         decimal totalTestSeconds = singleTestSeconds * subItem.BasicErrorTestCount;
-        int waitSeconds = Math.Max(
+        int roundedTheorySeconds = (int)Math.Ceiling(singleTestSeconds);
+        int singleRoundWaitSeconds = Math.Max(
             minimumWaitSeconds,
-            (int)Math.Ceiling(totalTestSeconds + waitPaddingSeconds));
+            roundedTheorySeconds);
+        long totalWaitSeconds = (long)singleRoundWaitSeconds * subItem.BasicErrorTestCount + waitPaddingSeconds;
+        if (totalWaitSeconds > int.MaxValue)
+        {
+            errorMessage = $"基本误差总等待时间超出系统上限：{totalWaitSeconds}s。";
+            return false;
+        }
+
+        int waitSeconds = (int)totalWaitSeconds;
         string calculationNote =
             $"{directionText}/{phase}/{powerFactorText}/1U/{currentPointText}，"
             + $"电流规格={currentSpecification!.Description}，测试电流={testCurrent:0.#########}A，"
-            + $"Adj电压={subItem.BasicErrorVoltageMultiplier * 100m:0.######}%，"
-            + $"Adj电流={testCurrent:0.#########}/{currentSpecification.BasicCurrent:0.#########}×100={currentPercentage:0.#########}%，"
+            + $"AnyUIOutput电压={sourcePhaseVoltage:0.######}V，"
+            + $"AnyUIOutput电流={testCurrent:0.#########}A（相对基本电流{currentPercentage:0.#########}%），"
             + $"功率={power:0.######}W，表常数={meterConstant:0.######}，"
             + $"脉冲数={pulseCount}，次数={subItem.BasicErrorTestCount}，"
-            + $"理论时间={totalTestSeconds:0.###}s，结果余量={waitPaddingSeconds}s，等待={waitSeconds}s，"
-            + $"误差限=±{errorLimit:0.######}%";
+            + $"单次理论时间={singleTestSeconds:0.###}s，向上取整并保证不少于{minimumWaitSeconds}s后={singleRoundWaitSeconds}s，"
+            + $"总理论时间={totalTestSeconds:0.###}s，"
+            + $"总等待={singleRoundWaitSeconds}s×次数{subItem.BasicErrorTestCount}+{waitPaddingSeconds}s余量={waitSeconds}s，"
+            + $"最大允许误差=±{errorLimitResult.MaximumPermittedLimit:0.######}%，"
+            + $"60%判定限=±{errorLimitResult.ComparisonLimit:0.######}%";
 
         stationPlan = new MeterTestBasicErrorStationPlan(
             archive.StationNo,
             phaseMode,
             sourcePhaseVoltage,
             testCurrent,
-            currentSpecification.BasicCurrent,
+            basicCurrent,
             currentPercentage,
             power,
             meterConstant,
             (byte)pulseCount,
             (byte)subItem.BasicErrorTestCount,
-            errorLimit,
+            errorLimitResult,
             singleTestSeconds,
+            singleRoundWaitSeconds,
             waitSeconds,
             calculationNote);
         return true;
@@ -309,72 +349,15 @@ public static class MeterTestBasicErrorCalculator
         out MeterTestBasicErrorCurrentSpecification? specification,
         out string? errorMessage)
     {
-        specification = null;
-        errorMessage = null;
-        string normalized = currentText?.Trim() ?? string.Empty;
-        bool isTransformer = accessMode?.Contains("互感", StringComparison.OrdinalIgnoreCase) == true;
-        bool isDirect = accessMode?.Contains("直接", StringComparison.OrdinalIgnoreCase) == true;
-        if (!isTransformer && !isDirect)
-        {
-            errorMessage = $"接入方式无法识别：{accessMode}。";
-            return false;
-        }
-
-        Match rangeMatch = CurrentRangeRegex.Match(normalized);
-        if (rangeMatch.Success &&
-            TryParsePositiveNumber(rangeMatch.Groups["imin"].Value, out decimal rangeImin) &&
-            TryParsePositiveNumber(rangeMatch.Groups["itr"].Value, out decimal rangeItr) &&
-            TryParsePositiveNumber(rangeMatch.Groups["imax"].Value, out decimal rangeImax) &&
-            rangeImin <= rangeItr &&
-            rangeItr <= rangeImax)
-        {
-            decimal rangeBasicCurrent = rangeItr * (isTransformer ? 20m : 10m);
-            specification = new MeterTestBasicErrorCurrentSpecification(
-                rangeImin,
-                rangeItr,
-                rangeImax,
-                rangeBasicCurrent,
-                $"资产完整规格 {rangeImin:0.######}-{rangeItr:0.######}({rangeImax:0.######})A，"
-                + $"基本电流{(isTransformer ? "In" : "Ib")}={rangeBasicCurrent:0.######}A");
-            return true;
-        }
-
-        decimal basicCurrent;
-        decimal? configuredMaximum = null;
-        Match baseWithMaximumMatch = BaseCurrentWithMaximumRegex.Match(normalized);
-        if (baseWithMaximumMatch.Success &&
-            TryParsePositiveNumber(baseWithMaximumMatch.Groups["basic"].Value, out basicCurrent) &&
-            TryParsePositiveNumber(baseWithMaximumMatch.Groups["imax"].Value, out decimal maximumCurrent))
-        {
-            configuredMaximum = maximumCurrent;
-        }
-        else if (!TryParsePositiveNumber(normalized, out basicCurrent))
-        {
-            errorMessage = $"额定/基本电流无法解析：{currentText}。";
-            return false;
-        }
-
-        decimal itr = basicCurrent / (isTransformer ? 20m : 10m);
-        decimal imin = isTransformer
-            ? itr * 0.2m
-            : itr * (activeClass == "A" ? 0.5m : 0.4m);
-        decimal imax = configuredMaximum ?? basicCurrent * (isTransformer ? 4m : 12m);
-        if (imin <= 0 || itr <= 0 || imax < itr)
-        {
-            errorMessage = $"由资产电流推导出的 Imin/Itr/Imax 无效：{currentText}。";
-            return false;
-        }
-
-        specification = new MeterTestBasicErrorCurrentSpecification(
-            imin,
-            itr,
-            imax,
-            basicCurrent,
-            $"由{(isTransformer ? "In" : "Ib")}={basicCurrent:0.######}A推导"
-            + $" Imin={imin:0.######}A、Itr={itr:0.######}A、Imax={imax:0.######}A");
-        return true;
+        return MeterTestCurrentSpecificationParser.TryParse(
+            currentText,
+            accessMode,
+            activeClass,
+            out specification,
+            out errorMessage);
     }
 
+    /// <summary>将 Imin、Itr、10Itr、0.5Imax、Imax 或 1.2Imax 转换为实际测试电流。</summary>
     private static bool TryResolveTestCurrent(
         string currentPoint,
         MeterTestBasicErrorCurrentSpecification specification,
@@ -395,44 +378,7 @@ public static class MeterTestBasicErrorCalculator
         return current > 0;
     }
 
-    private static bool TryResolveErrorLimit(
-        string activeClass,
-        string currentPoint,
-        string powerFactor,
-        decimal configuredLimit,
-        out decimal limit)
-    {
-        if (configuredLimit > 0)
-        {
-            limit = configuredLimit;
-            return true;
-        }
-
-        bool lowCurrentRange = currentPoint.Equals("Imin", StringComparison.OrdinalIgnoreCase);
-        bool unityPowerFactor = powerFactor.Equals("1.0", StringComparison.OrdinalIgnoreCase);
-        limit = (lowCurrentRange, unityPowerFactor, activeClass) switch
-        {
-            (false, true, "A") => 2.0m,
-            (false, true, "B") => 1.0m,
-            (false, true, "C") => 0.5m,
-            (false, true, "D") => 0.2m,
-            (false, false, "A") => 2.0m,
-            (false, false, "B") => 1.0m,
-            (false, false, "C") => 0.6m,
-            (false, false, "D") => 0.3m,
-            (true, true, "A") => 2.5m,
-            (true, true, "B") => 1.5m,
-            (true, true, "C") => 1.0m,
-            (true, true, "D") => 0.4m,
-            (true, false, "A") => 2.5m,
-            (true, false, "B") => 1.5m,
-            (true, false, "C") => 1.0m,
-            (true, false, "D") => 0.5m,
-            _ => 0m
-        };
-        return limit > 0;
-    }
-
+    /// <summary>按单相或三相测量单元、相电压、电流和功率因数计算当前点有功功率。</summary>
     private static decimal CalculateActivePower(
         MeterTestSourcePhaseMode phaseMode,
         string phase,
@@ -450,9 +396,11 @@ public static class MeterTestBasicErrorCalculator
         return phaseVoltage * current * powerFactor;
     }
 
+    /// <summary>解析 1.0、0.5L、0.8C 等功率因数文本，并返回数值及负载性质。</summary>
     private static bool TryParsePowerFactor(
         string value,
         bool reverseActive,
+        IReadOnlyList<MeterTestPowerFactorAngleData> powerFactorAngles,
         out decimal powerFactor,
         out decimal currentAngle,
         out string normalized)
@@ -463,6 +411,9 @@ public static class MeterTestBasicErrorCalculator
             "1" or "1.0" => 1m,
             "0.5L" => 0.5m,
             "0.8C" => 0.8m,
+            "0.25L" => 0.25m,
+            "0.5C" => 0.5m,
+            "0.25C" => 0.25m,
             _ => 0m
         };
         if (powerFactor <= 0)
@@ -472,19 +423,23 @@ public static class MeterTestBasicErrorCalculator
         }
 
         normalized = normalized is "1" ? "1.0" : normalized;
-        currentAngle = (reverseActive, normalized) switch
+        string direction = reverseActive ? "ReverseActive" : "ForwardActive";
+        string normalizedPowerFactor = normalized;
+        MeterTestPowerFactorAngleData? angleConfiguration = powerFactorAngles.FirstOrDefault(item =>
+            string.Equals(item.Direction, direction, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(item.PowerFactor, normalizedPowerFactor, StringComparison.OrdinalIgnoreCase));
+        if (angleConfiguration is null || angleConfiguration.CurrentAngle is < -180m or > 180m)
         {
-            (false, "1.0") => 0m,
-            (false, "0.5L") => 60m,
-            (false, "0.8C") => 323.130102m,
-            (true, "1.0") => 180m,
-            (true, "0.5L") => 120m,
-            (true, "0.8C") => 216.869898m,
-            _ => 0m
-        };
+            currentAngle = 0m;
+            return false;
+        }
+
+        // IAJ/IBJ/ICJ直接使用数据库维护的有符号电压电流夹角，避免再次转换成0~360°。
+        currentAngle = decimal.Round(angleConfiguration.CurrentAngle, 6, MidpointRounding.AwayFromZero);
         return true;
     }
 
+    /// <summary>解析正有或反有方向标记，并返回是否为反向有功及可读说明。</summary>
     private static bool TryParseDirection(string value, out bool reverseActive, out string directionText)
     {
         string normalized = value?.Trim() ?? string.Empty;
@@ -509,6 +464,7 @@ public static class MeterTestBasicErrorCalculator
         return false;
     }
 
+    /// <summary>根据资产电表类型解析单相或三相源输出模式。</summary>
     private static bool TryResolvePhaseMode(string meterType, out MeterTestSourcePhaseMode phaseMode)
     {
         if (meterType?.Contains("单相", StringComparison.OrdinalIgnoreCase) == true)
@@ -527,6 +483,7 @@ public static class MeterTestBasicErrorCalculator
         return false;
     }
 
+    /// <summary>解析额定电压文本；三相线电压按相制换算为源输出所需相电压。</summary>
     private static bool TryParseVoltage(
         string value,
         MeterTestSourcePhaseMode phaseMode,
@@ -567,12 +524,14 @@ public static class MeterTestBasicErrorCalculator
         return lineVoltage > 0;
     }
 
+    /// <summary>规范化有功准确度等级，去除“级”和多余空格并转为大写。</summary>
     private static string NormalizeActiveClass(string value)
     {
-        Match match = Regex.Match(value?.ToUpperInvariant() ?? string.Empty, @"[A-D]");
+        Match match = Regex.Match(value?.ToUpperInvariant() ?? string.Empty, @"[A-E]");
         return match.Success ? match.Value : string.Empty;
     }
 
+    /// <summary>从带单位文本中提取首个正十进制数。</summary>
     private static bool TryParsePositiveNumber(string value, out decimal number)
     {
         number = 0;
@@ -613,15 +572,15 @@ public sealed record MeterTestBasicErrorStationPlan(
     decimal MeterConstant,
     byte PulseCount,
     byte TestCount,
-    decimal ErrorLimit,
+    MeterTestErrorLimitResult ErrorLimitResult,
     decimal SingleTestSeconds,
+    int SingleRoundWaitSeconds,
     int WaitSeconds,
-    string CalculationNote);
+    string CalculationNote)
+{
+    /// <summary>规程表给出的最大允许误差绝对值。</summary>
+    public decimal MaximumPermittedErrorLimit => ErrorLimitResult.MaximumPermittedLimit ?? 0m;
 
-/// <summary>资产信息解析得到的 Imin、Itr 和 Imax。</summary>
-public sealed record MeterTestBasicErrorCurrentSpecification(
-    decimal Imin,
-    decimal Itr,
-    decimal Imax,
-    decimal BasicCurrent,
-    string Description);
+    /// <summary>实际判定使用的60%误差限绝对值。</summary>
+    public decimal ErrorLimit => ErrorLimitResult.ComparisonLimit ?? 0m;
+}

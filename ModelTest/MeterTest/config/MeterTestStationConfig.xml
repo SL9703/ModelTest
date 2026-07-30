@@ -1,25 +1,66 @@
 <?xml version="1.0" encoding="utf-8"?>
 <MeterTestStationConfig xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
-  <Station stationNo="1" ip="127.0.0.1" port="4001" />
-  <Station stationNo="2" ip="127.0.0.1" port="4002" />
-  <Station stationNo="3" ip="127.0.0.1" port="4003" />
-  <Station stationNo="4" ip="127.0.0.1" port="4004" />
-  <Station stationNo="5" ip="127.0.0.1" port="4005" />
-  <Station stationNo="6" ip="127.0.0.1" port="4006" />
-  <Station stationNo="7" ip="127.0.0.1" port="4007" />
-  <Station stationNo="8" ip="127.0.0.1" port="4008" />
-  <Station stationNo="9" ip="127.0.0.1" port="4009" />
-  <Station stationNo="10" ip="127.0.0.1" port="4010" />
-  <Station stationNo="11" ip="127.0.0.1" port="4011" />
-  <Station stationNo="12" ip="127.0.0.1" port="4012" />
-  <Station stationNo="13" ip="127.0.0.1" port="4013" />
-  <Station stationNo="14" ip="127.0.0.1" port="4014" />
-  <Station stationNo="15" ip="127.0.0.1" port="4015" />
-  <Station stationNo="16" ip="127.0.0.1" port="4016" />
-  <Station stationNo="17" ip="127.0.0.1" port="4017" />
-  <Station stationNo="18" ip="127.0.0.1" port="4018" />
-  <Station stationNo="19" ip="127.0.0.1" port="4019" />
-  <Station stationNo="20" ip="127.0.0.1" port="4020" />
+  <BenchTypeSwitchConfig enabled="true" timeoutMs="5000" delayAfterSuccessMs="1000">
+    <Endpoint name="台体切换-1" enabled="true" ip="192.168.127.121" port="8080" supportsSinglePhase="true" />
+    <Endpoint name="台体切换-2" enabled="true" ip="192.168.127.122" port="8080" supportsSinglePhase="false" />
+    <Endpoint name="台体切换-3" enabled="true" ip="192.168.127.123" port="8080" supportsSinglePhase="false" />
+  </BenchTypeSwitchConfig>
+  <SourceControlConfigs>
+    <SourceControlConfig name="单相默认源" enabled="true" protocol="XYCtr" phaseMode="SinglePhase" interfaceType="AnyUIOutput" sourcePort="1" openCommBeforeOutput="true" verificationTimeoutSeconds="20" verificationIntervalSeconds="3" verificationTolerancePercent="0.03" voltage="220" current="5" currentAngleA="0" currentAngleB="0" currentAngleC="0" uab="120" uac="240" phase="A" powerFactor="1.0" pulse="2" description="单相默认升源配置，默认 A 相输出" />
+    <SourceControlConfig name="三相默认源" enabled="true" protocol="XYCtr" phaseMode="ThreePhase" interfaceType="AnyUIOutput" sourcePort="1" openCommBeforeOutput="true" verificationTimeoutSeconds="20" verificationIntervalSeconds="3" verificationTolerancePercent="0.03" voltage="220" current="5" currentAngleA="0" currentAngleB="0" currentAngleC="0" uab="120" uac="240" phase="H" powerFactor="1.0" pulse="2" description="三相默认升源配置，ABC 三相同电压同电流输出" />
+  </SourceControlConfigs>
+  <ControlPcbGroups>
+    <ControlPcbGroup name="控制PCB-1" enabled="true" ip="192.168.127.111" port="8080" protocolVersion="V2" stationStart="1" stationEnd="3" meterAddressStart="1" />
+    <ControlPcbGroup name="控制PCB-2" enabled="true" ip="192.168.127.112" port="8080" protocolVersion="V2" stationStart="4" stationEnd="6" meterAddressStart="4" />
+    <ControlPcbGroup name="控制PCB-3" enabled="true" ip="192.168.127.113" port="8080" protocolVersion="V2" stationStart="7" stationEnd="9" meterAddressStart="7" />
+    <ControlPcbGroup name="控制PCB-4" enabled="true" ip="192.168.127.114" port="8080" protocolVersion="V2" stationStart="10" stationEnd="12" meterAddressStart="10" />
+    <ControlPcbGroup name="控制PCB-5" enabled="false" ip="192.168.127.115" port="8080" protocolVersion="V2" stationStart="13" stationEnd="15" meterAddressStart="13" />
+    <ControlPcbGroup name="控制PCB-6" enabled="true" ip="192.168.127.121" port="8080" protocolVersion="V2" stationStart="16" stationEnd="17" meterAddressStart="1" />
+    <ControlPcbGroup name="控制PCB-7" enabled="true" ip="192.168.127.122" port="8080" protocolVersion="V2" stationStart="18" stationEnd="19" meterAddressStart="3" />
+    <ControlPcbGroup name="控制PCB-8" enabled="true" ip="192.168.127.123" port="8080" protocolVersion="V2" stationStart="20" stationEnd="21" meterAddressStart="5" />
+    <ControlPcbGroup name="控制PCB-9" enabled="false" ip="192.168.127.101" port="4009" protocolVersion="V2" stationStart="25" stationEnd="27" meterAddressStart="25" />
+    <ControlPcbGroup name="控制PCB-10" enabled="false" ip="192.168.127.101" port="4010" protocolVersion="V2" stationStart="28" stationEnd="30" meterAddressStart="28" />
+    <ControlPcbGroup name="控制PCB-11" enabled="false" ip="192.168.127.101" port="4011" protocolVersion="V2" stationStart="31" stationEnd="33" meterAddressStart="31" />
+    <ControlPcbGroup name="控制PCB-12" enabled="false" ip="192.168.127.101" port="4012" protocolVersion="V2" stationStart="34" stationEnd="36" meterAddressStart="34" />
+    <ControlPcbGroup name="控制PCB-13" enabled="false" ip="192.168.127.101" port="4013" protocolVersion="V2" stationStart="37" stationEnd="39" meterAddressStart="37" />
+    <ControlPcbGroup name="控制PCB-14" enabled="false" ip="192.168.127.101" port="4014" protocolVersion="V2" stationStart="40" stationEnd="42" meterAddressStart="40" />
+    <ControlPcbGroup name="控制PCB-15" enabled="false" ip="192.168.127.101" port="4015" protocolVersion="V2" stationStart="43" stationEnd="45" meterAddressStart="43" />
+    <ControlPcbGroup name="控制PCB-16" enabled="false" ip="192.168.127.101" port="4016" protocolVersion="V2" stationStart="46" stationEnd="48" meterAddressStart="46" />
+  </ControlPcbGroups>
+  <BluetoothTcpChannels>
+    <BluetoothTcpChannel station="1" enabled="true" ip="192.168.127.111" port="958" />
+    <BluetoothTcpChannel station="2" enabled="true" ip="192.168.127.111" port="953" />
+    <BluetoothTcpChannel station="3" enabled="true" ip="192.168.127.111" port="954" />
+    <BluetoothTcpChannel station="4" enabled="true" ip="192.168.127.112" port="958" />
+    <BluetoothTcpChannel station="5" enabled="true" ip="192.168.127.112" port="953" />
+    <BluetoothTcpChannel station="6" enabled="true" ip="192.168.127.112" port="954" />
+    <BluetoothTcpChannel station="7" enabled="true" ip="192.168.127.113" port="958" />
+    <BluetoothTcpChannel station="8" enabled="true" ip="192.168.127.113" port="953" />
+    <BluetoothTcpChannel station="9" enabled="true" ip="192.168.127.113" port="954" />
+    <BluetoothTcpChannel station="10" enabled="true" ip="192.168.127.114" port="958" />
+    <BluetoothTcpChannel station="11" enabled="true" ip="192.168.127.114" port="953" />
+    <BluetoothTcpChannel station="12" enabled="true" ip="192.168.127.114" port="954" />
+  </BluetoothTcpChannels>
+  <Station stationNo="1" ip="192.168.127.111" port="956" />
+  <Station stationNo="2" ip="192.168.127.111" port="952" />
+  <Station stationNo="3" ip="192.168.127.111" port="955" />
+  <Station stationNo="4" ip="192.168.127.112" port="956" />
+  <Station stationNo="5" ip="192.168.127.112" port="952" />
+  <Station stationNo="6" ip="192.168.127.112" port="955" />
+  <Station stationNo="7" ip="192.168.127.113" port="956" />
+  <Station stationNo="8" ip="192.168.127.113" port="952" />
+  <Station stationNo="9" ip="192.168.127.113" port="955" />
+  <Station stationNo="10" ip="192.168.127.114" port="956" />
+  <Station stationNo="11" ip="192.168.127.114" port="955" />
+  <Station stationNo="12" ip="192.168.127.114" port="955" />
+  <Station stationNo="13" ip="192.168.127.111" port="956" />
+  <Station stationNo="14" ip="192.168.127.111" port="956" />
+  <Station stationNo="15" ip="192.168.127.111" port="956" />
+  <Station stationNo="16" ip="192.168.127.111" port="956" />
+  <Station stationNo="17" ip="192.168.127.111" port="956" />
+  <Station stationNo="18" ip="192.168.127.111" port="956" />
+  <Station stationNo="19" ip="192.168.127.111" port="956" />
+  <Station stationNo="20" ip="192.168.127.111" port="956" />
   <Station stationNo="21" ip="127.0.0.1" port="4021" />
   <Station stationNo="22" ip="127.0.0.1" port="4022" />
   <Station stationNo="23" ip="127.0.0.1" port="4023" />
