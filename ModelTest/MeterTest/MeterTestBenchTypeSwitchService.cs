@@ -85,35 +85,61 @@ public sealed class MeterTestBenchTypeSwitchService
 
         try
         {
-            BenchTypeEndpointResult[] endpointResults = await Task.WhenAll(
-                    endpoints.Select(endpoint => ExecuteEndpointAsync(
+            List<BenchTypeEndpointResult> endpointResultList = new();
+            for (int index = 0; index < endpoints.Count; index++)
+            {
+                MeterTestBenchTypeSwitchEndpoint endpoint = endpoints[index];
+                LogMessage.Debug(
+                    $"[台体切换] 开始串行切换端点：序号={index + 1}/{endpoints.Count}，"
+                    + $"端点={endpoint.DisplayName}({endpoint.Ip.Trim()}:{endpoint.Port})。");
+
+                BenchTypeEndpointResult endpointResult = await ExecuteEndpointAsync(
                         endpoint,
                         request,
                         connectionType,
                         config.TimeoutMs,
                         connectionManager,
-                        cancellationToken)))
-                .ConfigureAwait(false);
+                        cancellationToken)
+                    .ConfigureAwait(false);
+                endpointResultList.Add(endpointResult);
+
+                if (!endpointResult.Success)
+                {
+                    LogMessage.Info(
+                        $"[台体切换] 当前端点切换失败，停止后续端点发送，避免后续回包继续串扰："
+                        + endpointResult.Message);
+                    break;
+                }
+
+                if (index < endpoints.Count - 1 && config.DelayAfterSuccessMs > 0)
+                {
+                    LogMessage.Debug(
+                        $"[台体切换] 当前端点已收到正式0x82应答，等待 {config.DelayAfterSuccessMs}ms 后发送下一个端点。");
+                    await Task.Delay(config.DelayAfterSuccessMs, cancellationToken).ConfigureAwait(false);
+                }
+            }
+
+            BenchTypeEndpointResult[] endpointResults = endpointResultList.ToArray();
 
             BenchTypeEndpointResult[] failedResults = endpointResults.Where(result => !result.Success).ToArray();
             if (failedResults.Length > 0)
             {
                 string failedDetail = string.Join("；", failedResults.Select(result => result.Message));
                 string failureMessage =
-                    $"台体类型切换未全部成功：成功{endpointResults.Length - failedResults.Length}/{endpointResults.Length}，"
+                    $"台体类型切换未全部成功：成功{endpointResults.Length - failedResults.Length}/{endpoints.Count}，"
                     + $"失败详情：{failedDetail}";
                 LogMessage.Info($"[台体切换] {failureMessage}");
                 return MeterTestBenchTypeSwitchResult.Fail(failureMessage, connectionType);
             }
 
             string successMessage =
-                $"{endpointResults.Length}个装置通信板均已切换为{typeDescription}，0x82应答正常；"
+                $"{endpointResults.Length}个装置通信板已按顺序切换为{typeDescription}，0x82应答正常；"
                 + $"实际发送端点={selectedEndpointText}，跳过端点={skippedEndpointText}。";
             LogMessage.Debug($"[台体切换] {successMessage}");
             if (config.DelayAfterSuccessMs > 0)
             {
                 LogMessage.Debug(
-                    $"[台体切换] 所有端点成功后统一等待 {config.DelayAfterSuccessMs}ms，再进入控源流程。");
+                    $"[台体切换] 最后一个端点成功后等待 {config.DelayAfterSuccessMs}ms，再进入控源流程。");
                 await Task.Delay(config.DelayAfterSuccessMs, cancellationToken).ConfigureAwait(false);
             }
 
@@ -162,9 +188,20 @@ public sealed class MeterTestBenchTypeSwitchService
                 new(TaskCreationOptions.RunContinuationsAsynchronously);
             using IDisposable responseSubscription = connection.Subscribe(frame =>
             {
-                if (protocol.TryValidateDeviceBoardConnectionModeResponse(frame, connectionType, out string parseMessage))
+                DeviceBoardConnectionModeResponseKind responseKind =
+                    protocol.ClassifyDeviceBoardConnectionModeResponse(frame, connectionType, out string parseMessage);
+                if (responseKind == DeviceBoardConnectionModeResponseKind.FormalResponse)
                 {
                     responseSource.TrySetResult(frame);
+                    return;
+                }
+
+                if (responseKind == DeviceBoardConnectionModeResponseKind.BroadcastReport)
+                {
+                    LogMessage.Debug(
+                        $"[台体切换][{displayName}] 收到0x82广播/状态帧，已确认设备开始同步，继续等待PC正式应答："
+                        + $"报文={DetectionBoardProtocolV2.ToHexString(frame)}，说明={parseMessage}。"
+                    );
                     return;
                 }
 

@@ -15,6 +15,9 @@ namespace ModelTest.MeterTest;
 public sealed class MeterTestBluetoothInterfaceService
 {
     private static readonly TimeSpan PreprocessPollInterval = TimeSpan.FromSeconds(2);
+    private const int MaximumSendAttempts = 4;
+    private static readonly TimeSpan SendRetryDelay = TimeSpan.FromMilliseconds(100);
+
     private readonly ConcurrentDictionary<string, BluetoothConnectionSession> connectionSessions =
         new(StringComparer.OrdinalIgnoreCase);
     private readonly MeterTestCommunicationAddressService communicationAddressService;
@@ -411,8 +414,14 @@ public sealed class MeterTestBluetoothInterfaceService
             station.StationNo,
             $"{FormatTimestamp()} - 发送698报文：{SgccBluetoothConverterProtocol.ToHexString(request)}，OAD=40010200。",
             stationLogger);
-        await stream.WriteAsync(request, cancellationToken).ConfigureAwait(false);
-        await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
+        await WriteWithRetryAsync(
+                stream,
+                request,
+                station.StationNo,
+                "蓝牙698地址读取",
+                stationLogger,
+                cancellationToken)
+            .ConfigureAwait(false);
         byte[] response = await Read698FrameAsync(stream, cancellationToken).ConfigureAwait(false);
         string responseHex = SgccBluetoothConverterProtocol.ToHexString(response);
         Trace(station.StationNo, $"{FormatTimestamp()} - 接收698报文：{responseHex}", stationLogger);
@@ -482,8 +491,14 @@ public sealed class MeterTestBluetoothInterfaceService
             stationNo,
             $"{FormatTimestamp()} - 发送报文：{SgccBluetoothConverterProtocol.ToHexString(request)}，{description}。",
             stationLogger);
-        await stream.WriteAsync(request, cancellationToken).ConfigureAwait(false);
-        await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
+        await WriteWithRetryAsync(
+                stream,
+                request,
+                stationNo,
+                description,
+                stationLogger,
+                cancellationToken)
+            .ConfigureAwait(false);
 
         List<byte> receiveBuffer = new();
         byte[] buffer = new byte[1024];
@@ -503,6 +518,56 @@ public sealed class MeterTestBluetoothInterfaceService
                 stationLogger);
             return frame!;
         }
+    }
+
+    /// <summary>
+    /// 蓝牙专用TCP写入重试。只在写入阶段失败时重试，写入成功后只读取一次应答，避免重复命令污染蓝牙转换器状态。
+    /// </summary>
+    private static async Task WriteWithRetryAsync(
+        NetworkStream stream,
+        byte[] request,
+        int stationNo,
+        string description,
+        Action<int, string>? stationLogger,
+        CancellationToken cancellationToken)
+    {
+        Exception? lastException = null;
+        for (int attempt = 1; attempt <= MaximumSendAttempts; attempt++)
+        {
+            try
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                await stream.WriteAsync(request, cancellationToken).ConfigureAwait(false);
+                await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
+                string successMessage = $"{FormatTimestamp()} - {description}发送完成：尝试={attempt}/{MaximumSendAttempts}。";
+                if (attempt > 1)
+                {
+                    Trace(stationNo, successMessage, stationLogger);
+                }
+                else
+                {
+                    LogMessage.Debug($"[蓝牙接口][工位{stationNo}] {successMessage}");
+                }
+
+                return;
+            }
+            catch (Exception ex) when (attempt < MaximumSendAttempts && ex is IOException or ObjectDisposedException or SocketException or InvalidOperationException)
+            {
+                lastException = ex;
+                Trace(
+                    stationNo,
+                    $"{FormatTimestamp()} - {description}发送失败，准备重试：尝试={attempt}/{MaximumSendAttempts}，原因={ex.Message}。",
+                    stationLogger);
+                await Task.Delay(SendRetryDelay, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                lastException = ex;
+                break;
+            }
+        }
+
+        throw new IOException($"{description}发送失败且重试耗尽。", lastException);
     }
 
     /// <summary>从蓝牙 TCP 字节流中按 698 长度域提取一帧，并保留其前导 FE。</summary>

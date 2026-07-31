@@ -835,7 +835,7 @@
             labelBasicErrorHint.Name = "labelBasicErrorHint";
             labelBasicErrorHint.Size = new Size(1330, 64);
             labelBasicErrorHint.TabIndex = 18;
-            labelBasicErrorHint.Text = "0x38/0x21 二选一，默认 0x38；0x38 需要填写脉冲数(1-99)和次数(1-10)。"
+            labelBasicErrorHint.Text = "0x38/0x21 二选一，默认 0x38；0x38 需要填写脉冲数(1-255)和次数(1-10)。"
                 + "\r\n若选择“有功+无功”，会分别按有功和无功发送并获取结果。";
             // 
             // groupBoxDeviceCommunicationBoard

@@ -19,6 +19,8 @@ public sealed class MeterTestSerialPortServerService
 
     /// <summary>单次管理命令等待应答的超时时间。</summary>
     public const int ResponseTimeoutMilliseconds = 5000;
+    private const int MaximumSendAttempts = 4;
+    private static readonly TimeSpan SendRetryDelay = TimeSpan.FromMilliseconds(100);
 
     private readonly SerialPortServerProtocolV2 protocol = new();
 
@@ -276,8 +278,7 @@ public sealed class MeterTestSerialPortServerService
         using CancellationTokenSource timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeoutCts.CancelAfter(ResponseTimeoutMilliseconds);
 
-        await stream.WriteAsync(request, timeoutCts.Token).ConfigureAwait(false);
-        await stream.FlushAsync(timeoutCts.Token).ConfigureAwait(false);
+        await WriteWithRetryAsync(stream, request, timeoutCts.Token).ConfigureAwait(false);
 
         List<byte> receiveBuffer = new();
         byte[] buffer = new byte[4096];
@@ -295,6 +296,42 @@ public sealed class MeterTestSerialPortServerService
                 return frame;
             }
         }
+    }
+
+    /// <summary>
+    /// 串口服务器管理端写入重试。适用于F3读取和F1设置，写入失败时最多额外重试3次。
+    /// </summary>
+    private static async Task WriteWithRetryAsync(
+        NetworkStream stream,
+        byte[] request,
+        CancellationToken cancellationToken)
+    {
+        Exception? lastException = null;
+        string requestHex = SerialPortServerProtocolV2.ToHexString(request);
+        for (int attempt = 1; attempt <= MaximumSendAttempts; attempt++)
+        {
+            try
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                await stream.WriteAsync(request, cancellationToken).ConfigureAwait(false);
+                await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
+                LogMessage.Debug($"[串口服务器接口] 管理命令发送完成：尝试={attempt}/{MaximumSendAttempts}，报文={requestHex}。");
+                return;
+            }
+            catch (Exception ex) when (attempt < MaximumSendAttempts && ex is IOException or ObjectDisposedException or SocketException or InvalidOperationException)
+            {
+                lastException = ex;
+                LogMessage.Error($"[串口服务器接口] 管理命令发送失败，准备重试：尝试={attempt}/{MaximumSendAttempts}，报文={requestHex}。", ex);
+                await Task.Delay(SendRetryDelay, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                lastException = ex;
+                break;
+            }
+        }
+
+        throw new IOException("串口服务器管理命令发送失败且重试耗尽。", lastException);
     }
 
     /// <summary>

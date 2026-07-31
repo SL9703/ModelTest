@@ -13,6 +13,9 @@ namespace ModelTest.MeterTest;
 /// </summary>
 internal sealed class MeterTestStationTcpSessionService : IDisposable
 {
+    private const int MaximumSendAttempts = 4;
+    private static readonly TimeSpan SendRetryDelay = TimeSpan.FromMilliseconds(100);
+
     private readonly ConcurrentDictionary<string, StationTcpConnectionHolder> connections =
         new(StringComparer.OrdinalIgnoreCase);
 
@@ -72,8 +75,13 @@ internal sealed class MeterTestStationTcpSessionService : IDisposable
                 trace,
                 $"{FormatTimestamp()} - [工位TCP接口][PC-->Meter] 端点={station.Ip}:{station.Port}，"
                 + $"工位={station.StationNo}，说明={requestDescription}，报文={NormalizeHex(requestHex)}");
-            await stream.WriteAsync(requestBytes, timeoutCts.Token).ConfigureAwait(false);
-            await stream.FlushAsync(timeoutCts.Token).ConfigureAwait(false);
+            await WriteWithRetryAsync(
+                    stream,
+                    requestBytes,
+                    $"[工位TCP接口][工位{station.StationNo}] {requestDescription}",
+                    trace,
+                    timeoutCts.Token)
+                .ConfigureAwait(false);
             string responseHex = await ReadResponseHexAsync(stream, timeoutCts.Token).ConfigureAwait(false);
             Trace(
                 trace,
@@ -161,8 +169,13 @@ internal sealed class MeterTestStationTcpSessionService : IDisposable
                 $"{FormatTimestamp()} - [工位TCP接口][PC-->Meter] 端点={station.Ip}:{station.Port}，"
                 + $"工位={station.StationNo}，PIID={expectedPiid}，说明={requestDescription}，"
                 + $"报文={NormalizeHex(requestHex)}");
-            await stream.WriteAsync(requestBytes, timeoutCts.Token).ConfigureAwait(false);
-            await stream.FlushAsync(timeoutCts.Token).ConfigureAwait(false);
+            await WriteWithRetryAsync(
+                    stream,
+                    requestBytes,
+                    $"[工位TCP接口][工位{station.StationNo}] {requestDescription}",
+                    trace,
+                    timeoutCts.Token)
+                .ConfigureAwait(false);
 
             while (true)
             {
@@ -302,6 +315,55 @@ internal sealed class MeterTestStationTcpSessionService : IDisposable
         }
 
         return BitConverter.ToString(memory.ToArray()).Replace("-", " ");
+    }
+
+    /// <summary>
+    /// 对普通工位TCP写入增加“原始发送+3次重试”。只在写入失败时重试；一旦写入成功，
+    /// 后续应答读取仍只执行一次，避免重复消费电表返回。
+    /// </summary>
+    private static async Task WriteWithRetryAsync(
+        NetworkStream stream,
+        byte[] requestBytes,
+        string description,
+        Action<string>? trace,
+        CancellationToken cancellationToken)
+    {
+        Exception? lastException = null;
+        for (int attempt = 1; attempt <= MaximumSendAttempts; attempt++)
+        {
+            try
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                await stream.WriteAsync(requestBytes, cancellationToken).ConfigureAwait(false);
+                await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
+                string successMessage = $"{FormatTimestamp()} - {description} 发送完成：尝试={attempt}/{MaximumSendAttempts}。";
+                if (attempt > 1)
+                {
+                    Trace(trace, successMessage);
+                }
+                else
+                {
+                    LogMessage.Debug(successMessage);
+                }
+
+                return;
+            }
+            catch (Exception ex) when (attempt < MaximumSendAttempts && ex is IOException or ObjectDisposedException or SocketException or InvalidOperationException)
+            {
+                lastException = ex;
+                Trace(
+                    trace,
+                    $"{FormatTimestamp()} - {description} 发送失败，准备重试：尝试={attempt}/{MaximumSendAttempts}，原因={ex.Message}。");
+                await Task.Delay(SendRetryDelay, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                lastException = ex;
+                break;
+            }
+        }
+
+        throw new IOException($"{description} 发送失败且重试耗尽。", lastException);
     }
 
     /// <summary>

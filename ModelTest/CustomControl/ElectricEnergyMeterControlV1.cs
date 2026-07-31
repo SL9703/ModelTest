@@ -1174,9 +1174,9 @@ namespace ModelTest.CustomControl
             pulseCount = 0;
             testCount = 0;
 
-            if (!byte.TryParse(tbxBasicErrorPulseCount.Text.Trim(), out pulseCount) || pulseCount < 1 || pulseCount > 99)
+            if (!byte.TryParse(tbxBasicErrorPulseCount.Text.Trim(), out pulseCount) || pulseCount < 1 || pulseCount > 255)
             {
-                PublishMeterMessage("[错误] 0x38脉冲数只能填写 1-99");
+                PublishMeterMessage("[错误] 0x38脉冲数只能填写 1-255");
                 return false;
             }
 

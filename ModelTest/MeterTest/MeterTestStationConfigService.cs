@@ -206,26 +206,24 @@ public sealed class MeterTestStationConfigService
         }
     }
 
-    /// <summary>补齐1-48工位的控制PCB三工位分组。</summary>
+    /// <summary>
+    /// 补齐控制 PCB 分组。
+    /// 现场可能存在“三相 PCB 每个 IP 只控制两个工位”的非默认映射；
+    /// 因此只在配置完全为空时生成默认三工位模板，已有配置一律保留，不自动扩展范围。
+    /// </summary>
     private static void EnsureControlPcbGroups(List<MeterTestControlPcbGroup> groups)
     {
+        if (groups.Count > 0)
+        {
+            groups.Sort((left, right) => left.StationStart.CompareTo(right.StationStart));
+            return;
+        }
+
         for (int stationStart = 1; stationStart <= MaximumStationCount; stationStart += StationsPerControlPcb)
         {
             int stationEnd = Math.Min(stationStart + StationsPerControlPcb - 1, MaximumStationCount);
             int groupIndex = (stationStart - 1) / StationsPerControlPcb + 1;
-            MeterTestControlPcbGroup? existingGroup = groups.FirstOrDefault(group =>
-                group.StationStart == stationStart ||
-                string.Equals(group.Name, $"控制PCB-{groupIndex}", StringComparison.OrdinalIgnoreCase));
-            if (existingGroup is null)
-            {
-                groups.Add(CreateControlPcbGroup(groupIndex, 4000 + groupIndex, stationStart, stationEnd));
-                continue;
-            }
-
-            if (existingGroup.StationEnd < stationEnd)
-            {
-                existingGroup.StationEnd = stationEnd;
-            }
+            groups.Add(CreateControlPcbGroup(groupIndex, 4000 + groupIndex, stationStart, stationEnd));
         }
 
         groups.Sort((left, right) => left.StationStart.CompareTo(right.StationStart));

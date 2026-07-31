@@ -498,6 +498,56 @@ public sealed class MeterTestAccessDatabaseService
     }
 
     /// <summary>
+    /// 批量保存工位通信配置。
+    /// 适合“保存资产信息”这类一次提交 48 个工位的场景，避免逐条开连接导致界面卡顿。
+    /// </summary>
+    public void SaveStationConfigs(IReadOnlyList<MeterTestStationCommunication> stations)
+    {
+        EnsureInitialized();
+
+        using SqliteConnection connection = CreateOpenConnection();
+        using SqliteTransaction transaction = connection.BeginTransaction();
+        foreach (MeterTestStationCommunication station in stations)
+        {
+            using SqliteCommand command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText =
+                """
+                INSERT INTO MeterTestStationConfig
+                (
+                    StationNo,
+                    Ip,
+                    Port,
+                    Enabled,
+                    UpdatedAt
+                )
+                VALUES
+                (
+                    $StationNo,
+                    $Ip,
+                    $Port,
+                    $Enabled,
+                    $UpdatedAt
+                )
+                ON CONFLICT(StationNo)
+                DO UPDATE SET
+                    Ip = excluded.Ip,
+                    Port = excluded.Port,
+                    Enabled = excluded.Enabled,
+                    UpdatedAt = excluded.UpdatedAt;
+                """;
+            AddParameter(command, "$StationNo", station.StationNo);
+            AddParameter(command, "$Ip", station.Ip);
+            AddParameter(command, "$Port", station.Port);
+            AddParameter(command, "$Enabled", 1);
+            AddParameter(command, "$UpdatedAt", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff"));
+            command.ExecuteNonQuery();
+        }
+
+        transaction.Commit();
+    }
+
+    /// <summary>
     /// 保存控制 PCB 配置。
     /// </summary>
     public void SaveControlPcbConfig(MeterTestControlPcbGroup group)
@@ -769,6 +819,79 @@ public sealed class MeterTestAccessDatabaseService
 
         AddMeterArchiveParameters(command, archive);
         command.ExecuteNonQuery();
+    }
+
+    /// <summary>
+    /// 批量保存工位电表档案。
+    /// 同一事务内一次性提交所有工位，显著减少重复开关连接和磁盘刷写。
+    /// </summary>
+    public void SaveMeterArchives(IReadOnlyList<MeterArchiveData> archives)
+    {
+        EnsureInitialized();
+
+        using SqliteConnection connection = CreateOpenConnection();
+        using SqliteTransaction transaction = connection.BeginTransaction();
+        foreach (MeterArchiveData archive in archives)
+        {
+            using SqliteCommand command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText =
+                """
+                INSERT INTO MeterTestMeterArchive
+                (
+                    StationNo,
+                    MeterType,
+                    AccessMode,
+                    Voltage,
+                    Current,
+                    CurrentSpecification,
+                    ActiveClass,
+                    ActiveConstant,
+                    ReactiveClass,
+                    ReactiveConstant,
+                    Barcode,
+                    MeterAddress,
+                    BaudRate,
+                    UpdatedAt
+                )
+                VALUES
+                (
+                    $StationNo,
+                    $MeterType,
+                    $AccessMode,
+                    $Voltage,
+                    $Current,
+                    $CurrentSpecification,
+                    $ActiveClass,
+                    $ActiveConstant,
+                    $ReactiveClass,
+                    $ReactiveConstant,
+                    $Barcode,
+                    $MeterAddress,
+                    $BaudRate,
+                    $UpdatedAt
+                )
+                ON CONFLICT(StationNo)
+                DO UPDATE SET
+                    MeterType = excluded.MeterType,
+                    AccessMode = excluded.AccessMode,
+                    Voltage = excluded.Voltage,
+                    Current = excluded.Current,
+                    CurrentSpecification = excluded.CurrentSpecification,
+                    ActiveClass = excluded.ActiveClass,
+                    ActiveConstant = excluded.ActiveConstant,
+                    ReactiveClass = excluded.ReactiveClass,
+                    ReactiveConstant = excluded.ReactiveConstant,
+                    Barcode = excluded.Barcode,
+                    MeterAddress = excluded.MeterAddress,
+                    BaudRate = excluded.BaudRate,
+                    UpdatedAt = excluded.UpdatedAt;
+                """;
+            AddMeterArchiveParameters(command, archive);
+            command.ExecuteNonQuery();
+        }
+
+        transaction.Commit();
     }
 
     /// <summary>
@@ -1381,8 +1504,10 @@ public sealed class MeterTestAccessDatabaseService
             ("BasicCurrent", "", "5A", 1, true),
             ("CurrentSpecification", "Direct", "0.25-0.5(60)A", 1, true),
             ("CurrentSpecification", "Direct", "0.25-0.5(100)A", 2, false),
-            ("CurrentSpecification", "Direct", "0.5-1(60)A", 3, false),
-            ("CurrentSpecification", "Direct", "0.5-1(100)A", 4, false),
+            ("CurrentSpecification", "Direct", "0.2-0.5(60)A", 3, false),
+            ("CurrentSpecification", "Direct", "0.2-0.5(100)A", 4, false),
+            ("CurrentSpecification", "Direct", "0.5-1(60)A", 5, false),
+            ("CurrentSpecification", "Direct", "0.5-1(100)A", 6, false),
             ("CurrentSpecification", "Transformer", "0.015-0.075(6)A", 1, true),
             ("CurrentSpecification", "Transformer", "0.003-0.015(6)A", 2, false),
             ("ActiveClass", "", "A", 1, true),

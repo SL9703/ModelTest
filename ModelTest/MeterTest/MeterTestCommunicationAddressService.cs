@@ -17,6 +17,8 @@ public sealed class MeterTestCommunicationAddressService
     private const int BaudRateApplyDelayMs = 150;
     private const int OptionalManagementResponseWaitMs = 300;
     private const int MaximumResponseBytes = 16 * 1024;
+    private const int MaximumSendAttempts = 4;
+    private static readonly TimeSpan SendRetryDelay = TimeSpan.FromMilliseconds(100);
 
     // 同一工位端点只允许存在一条地址读取流程，防止重复测试同时占用同一个TCP通道。
     private readonly ConcurrentDictionary<string, SemaphoreSlim> stationEndpointLocks =
@@ -145,6 +147,9 @@ public sealed class MeterTestCommunicationAddressService
         {
             string requestHex = SGCCTools.BuildMeterAddressReadRequest(requirement.MeterAddress);
             string actualAddress = NormalizeMeterAddress(requirement.MeterAddress);
+            trace?.Invoke(
+                $"[追加波特率组帧] 工位={requirement.StationNo}，资产地址={actualAddress}，"
+                + $"下行报文={GenericSerialPortServerProtocol.ToHexString(Convert.FromHexString(requestHex.Replace(" ", string.Empty)))}。");
             string lastResponseHex = string.Empty;
             string stopReason = string.Empty;
             List<string> attemptedBaudRates = new();
@@ -416,8 +421,13 @@ public sealed class MeterTestCommunicationAddressService
     {
         string commandHex = GenericSerialPortServerProtocol.ToHexString(command);
         trace?.Invoke($"{FormatTimestamp()} - 发送串口服务器{action}指令：{commandHex}");
-        await stream.WriteAsync(command, cancellationToken);
-        await stream.FlushAsync(cancellationToken);
+        await WriteWithRetryAsync(
+                stream,
+                command,
+                $"串口服务器{action}指令",
+                trace,
+                cancellationToken)
+            .ConfigureAwait(false);
 
         byte[] buffer = new byte[1024];
         using CancellationTokenSource timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -498,8 +508,13 @@ public sealed class MeterTestCommunicationAddressService
             }
 
             trace?.Invoke($"{FormatTimestamp()} - 发送报文：{requestHex}");
-            await stream.WriteAsync(requestBytes, cancellationToken);
-            await stream.FlushAsync(cancellationToken);
+            await WriteWithRetryAsync(
+                    stream,
+                    requestBytes,
+                    $"地址读取[端点={requirement.IpAddress}:{requirement.Port}, 波特率={baudRate}]",
+                    trace,
+                    cancellationToken)
+                .ConfigureAwait(false);
 
             using MemoryStream responseBuffer = new();
             try
@@ -676,6 +691,51 @@ public sealed class MeterTestCommunicationAddressService
     /// <summary>生成通信测试接口日志使用的毫秒时间戳。</summary>
     private static string FormatTimestamp() =>
         $"[{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss:fff", CultureInfo.InvariantCulture)}]";
+
+    /// <summary>
+    /// 通信测试TCP写入重试。适用于64444管理命令和工位地址读取命令；
+    /// 只重试写入失败场景，写入成功后响应读取仍按原流程执行。
+    /// </summary>
+    private static async Task WriteWithRetryAsync(
+        NetworkStream stream,
+        byte[] payload,
+        string description,
+        Action<string>? trace,
+        CancellationToken cancellationToken)
+    {
+        Exception? lastException = null;
+        for (int attempt = 1; attempt <= MaximumSendAttempts; attempt++)
+        {
+            try
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                await stream.WriteAsync(payload, cancellationToken).ConfigureAwait(false);
+                await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
+                string successMessage = $"{FormatTimestamp()} - {description}发送完成：尝试={attempt}/{MaximumSendAttempts}";
+                if (attempt > 1)
+                {
+                    trace?.Invoke(successMessage);
+                }
+
+                LogMessage.Debug($"[通信测试TCP接口] {description}发送完成：尝试={attempt}/{MaximumSendAttempts}。");
+                return;
+            }
+            catch (Exception ex) when (attempt < MaximumSendAttempts && ex is IOException or ObjectDisposedException or SocketException or InvalidOperationException)
+            {
+                lastException = ex;
+                trace?.Invoke($"{FormatTimestamp()} - {description}发送失败，准备重试：尝试={attempt}/{MaximumSendAttempts}，原因={ex.Message}");
+                LogMessage.Error($"[通信测试TCP接口] {description}发送失败，准备重试：尝试={attempt}/{MaximumSendAttempts}。", ex);
+                await Task.Delay(SendRetryDelay, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                lastException = ex;
+                break;
+            }
+        }
+
+        throw new IOException($"{description}发送失败且重试耗尽。", lastException);
+    }
 
     /// <summary>单一波特率下的一次 698 地址读取及解析结果。</summary>
     private sealed record MeterTestAddressReadAttempt(

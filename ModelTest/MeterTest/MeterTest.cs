@@ -86,7 +86,7 @@ namespace ModelTest.MeterTest
         private bool isLoadingMeterArchive;
         private bool isLoadingBarcodeSetting;
         private bool isApplyingBarcodeExtraction;
-        private int assetBarcodeStartIndex = 8;
+        private int assetBarcodeStartIndex = 9;
         private int assetBarcodeEndIndex = 20;
         private int assetBarcodeRule2FirstStart = 6;
         private int assetBarcodeRule2FirstLength = 2;
@@ -95,6 +95,13 @@ namespace ModelTest.MeterTest
         private string assetBarcodeRuleType = MeterTestBarcodeExtractor.Rule1Range;
         private MeterTestGridViewMode currentGridViewMode = MeterTestGridViewMode.TestPlan;
         private MeterTestResultUserControl? resultUserControl;
+        private bool initialDataLoadStarted;
+        private bool initialDataLoaded;
+        private bool schemeTreeStatusRefreshPending;
+        private bool stationDisplayRestorePending;
+        private DateTime? meterTestConfigLastWriteTimeUtc;
+        private DateTime? stationConfigLastWriteTimeUtc;
+        private readonly HashSet<string> loadedStationResultContextKeys = new(StringComparer.OrdinalIgnoreCase);
 
         /// <summary>
         /// 创建 MeterTest 主界面并装配所有流程服务。
@@ -140,36 +147,19 @@ namespace ModelTest.MeterTest
                 countdownService);
             bluetoothInterfaceService = new MeterTestBluetoothInterfaceService(communicationAddressService);
             ConfigureBufferedRendering();
-
-            // 首屏初始化期间隐藏并冻结根布局，避免数据库、表格和动态控件逐项显示。
-            mainLayout.Visible = false;
-            SuspendInitialLayout();
-            try
-            {
-                configFilePath = GetMeterTestConfigPath();
-                stationConfigFilePath = GetMeterTestStationConfigPath();
-                ConfigureDataGridViewSorting();
-                accessDatabaseService.EnsureInitialized();
-                LoadAssetOptionDefinitions();
-                InitializeStationProcessGrid();
-                InitializeResultUserControl();
-                LoadAssetBarcodeSettingToInputs();
-                InitializeHardwareCollectionGrid();
-                BindEvents();
-                LoadMeterArchivesToGrid();
-                InitializeSchemeStatusImages();
-                LoadMeterTestPlanConfig();
-                LoadHeaderLogo();
-                LoadOperationButtonImages();
-                ConfigureOperationButtonStyles();
-                ApplyTestPlanView();
-                ConfigureWindowBounds();
-            }
-            finally
-            {
-                ResumeInitialLayout();
-                mainLayout.Visible = true;
-            }
+            configFilePath = GetMeterTestConfigPath();
+            stationConfigFilePath = GetMeterTestStationConfigPath();
+            ConfigureDataGridViewSorting();
+            InitializeResultUserControl();
+            InitializeHardwareCollectionGrid();
+            BindEvents();
+            InitializeSchemeStatusImages();
+            LoadHeaderLogo();
+            LoadOperationButtonImages();
+            ConfigureOperationButtonStyles();
+            ConfigureStationSelectionControlStyles();
+            ConfigureWindowBounds();
+            SetInitialLoadingState();
         }
 
         /// <summary>
@@ -266,6 +256,91 @@ namespace ModelTest.MeterTest
         }
 
         /// <summary>
+        /// 首屏只显示界面骨架，把数据库、配置和控制PCB连接放到Shown之后懒加载。
+        /// 这样窗体能先显示出来，避免用户看到长时间白屏或控件逐项蹦出。
+        /// </summary>
+        private void SetInitialLoadingState()
+        {
+            btnStartTest.Enabled = false;
+            btnStopTest.Enabled = false;
+            btnTestPlan.Enabled = false;
+            btnAssetInfo.Enabled = false;
+            btnTestResults.Enabled = false;
+            btnSaveTestResults.Enabled = false;
+            btnSaveAssetInfo.Enabled = false;
+            btnBatchApplyAssetInfo.Enabled = false;
+            btnSelectAllStations.Enabled = false;
+            btnClearStationSelection.Enabled = false;
+            btnShutDownSource.Enabled = false;
+            groupProcess.Text = "测试过程区域（正在加载配置和本地数据...）";
+            lblTestCountdown.Text = "倒计时：未开始";
+        }
+
+        /// <summary>
+        /// 窗体显示后的延迟初始化入口。
+        /// 数据库创建、资产选项、工位配置、方案树和历史状态都在这里加载；
+        /// 控制PCB长连接只启动后台任务，不阻塞首屏和按钮刷新。
+        /// </summary>
+        private async Task InitializeMeterTestAfterShownAsync()
+        {
+            if (initialDataLoadStarted)
+                return;
+
+            initialDataLoadStarted = true;
+            Cursor previousCursor = Cursor;
+            Cursor = Cursors.WaitCursor;
+            AddProcessInfoLog("系统", "MeterTest初始化", "加载中", "正在加载本地数据库、资产档案和测试方案...");
+
+            try
+            {
+                // 让窗体先完成首帧绘制，再开始做本地数据库初始化。
+                await Task.Yield();
+                await Task.Run(accessDatabaseService.EnsureInitialized).ConfigureAwait(true);
+
+                SuspendInitialLayout();
+                try
+                {
+                    LoadAssetOptionDefinitions();
+                    InitializeStationProcessGrid();
+                    LoadAssetBarcodeSettingToInputs();
+                    LoadMeterArchivesToGrid();
+                    LoadMeterTestPlanConfig();
+                    ApplyTestPlanView();
+                }
+                finally
+                {
+                    ResumeInitialLayout();
+                }
+
+                initialDataLoaded = true;
+                groupProcess.Text = "测试过程区域";
+                AddProcessLog("系统", "MeterTest初始化", true, "MeterTest 本地数据加载完成，控制PCB连接将在后台初始化。", 0);
+
+                // 窗体首次显示后开始连接所有去重后的控制PCB端点；不await，避免继续卡住界面。
+                controlPcbInitializationTask = InitializeControlPcbConnectionsAsync();
+            }
+            catch (Exception ex)
+            {
+                string message = $"MeterTest 初始化失败：{ex.Message}";
+                LogMessage.Error("[MeterTest初始化] 初始化异常", ex);
+                AddProcessLog("系统", "MeterTest初始化", false, message, 0);
+                MessageBox.Show(message, "MeterTest", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                Cursor = previousCursor;
+                btnTestPlan.Enabled = initialDataLoaded;
+                btnAssetInfo.Enabled = initialDataLoaded;
+                btnTestResults.Enabled = initialDataLoaded;
+                btnSaveTestResults.Enabled = initialDataLoaded;
+                btnSelectAllStations.Enabled = initialDataLoaded;
+                btnClearStationSelection.Enabled = initialDataLoaded;
+                btnShutDownSource.Enabled = initialDataLoaded;
+                UpdateTestExecutionButtonState();
+            }
+        }
+
+        /// <summary>
         /// 绑定窗体事件。
         /// 这里统一把按钮、表格、方案树的交互行为连起来。
         /// </summary>
@@ -277,18 +352,18 @@ namespace ModelTest.MeterTest
             btnStopTest.Click += async (_, _) => await StopRunningTestAndShutDownAsync();
             btnTestPlan.Click += async (_, _) => await RefreshTestPlanAndMeterArchiveAsync();
             btnAssetInfo.Click += (_, _) => RefreshMeterArchiveDisplay();
-            btnTestResults.Click += (_, _) => ShowTestResults();
-            btnSaveTestResults.Click += (_, _) => SaveCurrentTestResultsManually();
-            btnSaveAssetInfo.Click += (_, _) => SaveAllAssetInfo();
-            btnBatchApplyAssetInfo.Click += (_, _) => BatchApplyFirstStationAssetInfo();
+            btnTestResults.Click += async (_, _) => await ShowTestResultsAsync();
+            btnSaveTestResults.Click += async (_, _) => await SaveCurrentTestResultsManuallyAsync();
+            btnSaveAssetInfo.Click += async (_, _) => await SaveAllAssetInfoAsync();
+            btnBatchApplyAssetInfo.Click += async (_, _) => await BatchApplyFirstStationAssetInfoAsync();
             btnSelectAllStations.Click += async (_, _) => await SetAllStationSelectionAsync(true);
             btnClearStationSelection.Click += async (_, _) => await SetAllStationSelectionAsync(false);
             btnShutDownSource.Click += async (_, _) => await ShutDownSourceAsync();
             rbSingleStation.CheckedChanged += async (_, _) => await ApplySingleStationSelectionRuleAsync();
-            tbxBarcodeStartIndex.TextChanged += (_, _) => SaveBarcodeSettingFromInputs();
-            tbxBarcodeEndIndex.TextChanged += (_, _) => SaveBarcodeSettingFromInputs();
-            tbxBarcodeSecondStart.TextChanged += (_, _) => SaveBarcodeSettingFromInputs();
-            tbxBarcodeSecondLength.TextChanged += (_, _) => SaveBarcodeSettingFromInputs();
+            tbxBarcodeStartIndex.Leave += (_, _) => SaveBarcodeSettingFromInputs();
+            tbxBarcodeEndIndex.Leave += (_, _) => SaveBarcodeSettingFromInputs();
+            tbxBarcodeSecondStart.Leave += (_, _) => SaveBarcodeSettingFromInputs();
+            tbxBarcodeSecondLength.Leave += (_, _) => SaveBarcodeSettingFromInputs();
             cbxBarcodeRule.SelectedIndexChanged += (_, _) => BarcodeRuleSelectionChanged();
             stationGrid.CurrentCellDirtyStateChanged += (_, _) =>
             {
@@ -325,7 +400,8 @@ namespace ModelTest.MeterTest
                 {
                     DataGridViewRow changedRow = stationGrid.Rows[e.RowIndex];
                     ApplyBarcodeExtractionToRow(changedRow);
-                    SaveMeterArchiveFromRow(changedRow);
+                    MeterArchiveData archiveSnapshot = CreateMeterArchiveSnapshot(changedRow);
+                    await Task.Run(() => accessDatabaseService.SaveMeterArchive(archiveSnapshot));
                     await DeselectStationWithoutCompleteAssetAsync(changedRow);
                     RefreshSchemeTreeStatusIcons();
                     return;
@@ -368,14 +444,13 @@ namespace ModelTest.MeterTest
                 UpdateStartButtonText();
                 if (currentGridViewMode == MeterTestGridViewMode.TestPlan)
                 {
-                    RestoreStationDisplayForSelectedNode();
+                    RestoreStationDisplayForSelectedNode(loadFromAccess: false);
+                    QueueSelectedNodeResultRestore();
                 }
             };
             Shown += async (_, _) =>
             {
-                // 窗体首次显示后立即连接所有去重后的控制PCB端点；测试步骤只等待此初始化任务，不再建连。
-                controlPcbInitializationTask = InitializeControlPcbConnectionsAsync();
-                await controlPcbInitializationTask;
+                await InitializeMeterTestAfterShownAsync();
             };
             FormClosed += async (_, _) =>
             {
@@ -431,15 +506,19 @@ namespace ModelTest.MeterTest
         private async Task RefreshTestPlanAndMeterArchiveAsync()
         {
             LoadMeterArchivesToGrid();
-            LoadMeterTestPlanConfig();
+            bool configReloaded = ReloadMeterTestPlanConfigIfChanged();
             ApplyTestPlanView();
-            // 方案文件可能刚被现场修改；初始化管理器只会为新增端点建连，已有端点不会重复连接。
-            controlPcbInitializationTask = InitializeControlPcbConnectionsAsync();
-            await controlPcbInitializationTask;
+            // 扫码成功即表示该工位进入本轮测试范围；这里仅更新勾选状态，不触发控制PCB上下电。
+            // 上下电仍由用户手动勾选/全选或执行测试前置流程负责，避免点击“测试方案”时卡住。
+            SelectEligibleStationsForTestPlanWithoutPower();
 
-            // 扫码成功即表示该工位进入本轮测试范围；切回方案视图时统一勾选并执行上电联动。
-            await SetAllStationSelectionAsync(true);
-            RestoreStationDisplayForSelectedNode();
+            if (configReloaded)
+            {
+                // 方案文件可能刚被现场修改；初始化管理器只会为新增端点建连，已有端点不会重复连接。
+                controlPcbInitializationTask = InitializeControlPcbConnectionsAsync();
+            }
+
+            await Task.CompletedTask;
         }
 
         /// <summary>
@@ -470,12 +549,40 @@ namespace ModelTest.MeterTest
             SaveControlPcbConfigToAccess();
             LoadAllStationResultsFromAccess();
             BuildSchemeTree();
+            meterTestConfigLastWriteTimeUtc = GetFileLastWriteTimeUtc(configFilePath);
+            stationConfigLastWriteTimeUtc = GetFileLastWriteTimeUtc(stationConfigFilePath);
             AddProcessLog(
                 "系统",
                 "配置加载",
                 true,
                 $"已加载测试方案：{configFilePath}\r\n已加载现场设备配置：{stationConfigFilePath}",
                 0);
+        }
+
+        /// <summary>
+        /// 测试方案按钮的轻量刷新入口。
+        /// 只有方案XML或现场设备XML发生变化时才重建树和控制PCB连接，避免每次切回测试方案都卡顿。
+        /// </summary>
+        private bool ReloadMeterTestPlanConfigIfChanged()
+        {
+            DateTime? currentPlanWriteTime = GetFileLastWriteTimeUtc(configFilePath);
+            DateTime? currentStationWriteTime = GetFileLastWriteTimeUtc(stationConfigFilePath);
+            bool shouldReload =
+                meterTestPlanConfig.Schemes.Count == 0 ||
+                currentPlanWriteTime != meterTestConfigLastWriteTimeUtc ||
+                currentStationWriteTime != stationConfigLastWriteTimeUtc;
+
+            if (!shouldReload)
+                return false;
+
+            LoadMeterTestPlanConfig();
+            return true;
+        }
+
+        /// <summary>读取文件最后修改时间；文件不存在时返回 null，方便和缓存时间戳比较。</summary>
+        private static DateTime? GetFileLastWriteTimeUtc(string path)
+        {
+            return File.Exists(path) ? File.GetLastWriteTimeUtc(path) : null;
         }
 
         /// <summary>
@@ -600,11 +707,11 @@ namespace ModelTest.MeterTest
                 schemeTreeView.Nodes.Add(schemeNode);
             }
 
-            schemeTreeView.ExpandAll();
-
             if (schemeTreeView.Nodes.Count > 0)
             {
-                schemeTreeView.SelectedNode = schemeTreeView.Nodes[0];
+                TreeNode firstSchemeNode = schemeTreeView.Nodes[0];
+                firstSchemeNode.Expand();
+                schemeTreeView.SelectedNode = firstSchemeNode;
             }
 
             schemeTreeView.EndUpdate();
@@ -699,6 +806,10 @@ namespace ModelTest.MeterTest
                     state.Time,
                     state.ResultColor,
                     state.Message);
+                loadedStationResultContextKeys.Add(CreateStationResultContextKey(
+                    storedResult.SchemeName,
+                    storedResult.TestItemName,
+                    storedResult.TestSubItemName));
             }
         }
 
@@ -727,6 +838,44 @@ namespace ModelTest.MeterTest
 
                 return;
             }
+
+            if (schemeTreeStatusRefreshPending)
+                return;
+
+            schemeTreeStatusRefreshPending = true;
+            if (!schemeTreeView.IsHandleCreated)
+            {
+                schemeTreeStatusRefreshPending = false;
+                RefreshSchemeTreeStatusIconsCore();
+                return;
+            }
+
+            try
+            {
+                schemeTreeView.BeginInvoke(new Action(() =>
+                {
+                    schemeTreeStatusRefreshPending = false;
+                    RefreshSchemeTreeStatusIconsCore();
+                }));
+            }
+            catch (ObjectDisposedException)
+            {
+                schemeTreeStatusRefreshPending = false;
+            }
+            catch (InvalidOperationException)
+            {
+                schemeTreeStatusRefreshPending = false;
+            }
+        }
+
+        /// <summary>
+        /// 实际执行方案树状态灯刷新。
+        /// 外层 RefreshSchemeTreeStatusIcons 会合并短时间内的多次刷新请求，降低 UI 线程重绘压力。
+        /// </summary>
+        private void RefreshSchemeTreeStatusIconsCore()
+        {
+            if (schemeTreeView.IsDisposed)
+                return;
 
             List<int> archivedEligibleStations = stationGrid.Rows
                 .Cast<DataGridViewRow>()
@@ -1122,6 +1271,14 @@ namespace ModelTest.MeterTest
                 stationResultCache.Remove(key);
             }
 
+            List<string> loadedContextKeys = loadedStationResultContextKeys
+                .Where(key => key.StartsWith($"{schemeName}\u001F", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            foreach (string loadedContextKey in loadedContextKeys)
+            {
+                loadedStationResultContextKeys.Remove(loadedContextKey);
+            }
+
             lock (measurementSyncRoot)
             {
                 currentRunMeasurements.Clear();
@@ -1136,7 +1293,7 @@ namespace ModelTest.MeterTest
         }
 
         /// <summary>手动将当前方案快照保存到测试结果库。</summary>
-        private void SaveCurrentTestResultsManually()
+        private async Task SaveCurrentTestResultsManuallyAsync()
         {
             List<SelectedSubItemContext> selectedContexts = lastExecutedContexts.Count > 0
                 ? lastExecutedContexts.ToList()
@@ -1155,24 +1312,40 @@ namespace ModelTest.MeterTest
                     .Where(row => !row.IsNewRow && HasCompleteAssetForTest(row))
                     .Select(row => Convert.ToInt32(row.Cells[colStationNo.Index].Value))
                     .ToList();
-            SaveCurrentTestResultSnapshot(
-                contexts,
-                stationNumbers,
-                "ManualSaved",
-                "手动保存",
-                showMessage: true);
+            btnSaveTestResults.Enabled = false;
+            Cursor previousCursor = Cursor;
+            Cursor = Cursors.WaitCursor;
+            try
+            {
+                bool saved = await Task.Run(() => SaveCurrentTestResultSnapshot(
+                    contexts,
+                    stationNumbers,
+                    "ManualSaved",
+                    "手动保存",
+                    showMessage: false));
+                MessageBox.Show(
+                    saved ? "测试结果已保存。" : "测试结果保存失败，详情请查看过程日志。",
+                    "数据保存",
+                    MessageBoxButtons.OK,
+                    saved ? MessageBoxIcon.Information : MessageBoxIcon.Warning);
+            }
+            finally
+            {
+                Cursor = previousCursor;
+                btnSaveTestResults.Enabled = true;
+            }
         }
 
         /// <summary>在MeterTest主界面切换到测试结果视图，不创建新窗体。</summary>
-        private void ShowTestResults()
+        private async Task ShowTestResultsAsync()
         {
             currentGridViewMode = MeterTestGridViewMode.TestResults;
             groupScheme.Visible = false;
             groupProcess.Visible = false;
             resultUserControl!.Visible = true;
             resultUserControl.BringToFront();
-            resultUserControl.RefreshData();
             UpdateTestExecutionButtonState();
+            await resultUserControl.RefreshDataAsync();
         }
 
         /// <summary>创建内嵌测试结果控件并铺满中间区域，避免以独立窗口展示结果。</summary>
@@ -1839,7 +2012,7 @@ namespace ModelTest.MeterTest
                     RunOnUiThread(() => ApplyStationExecutionResult(stationNo, resultContext, passed, message)),
                 (scope, name, passed, message, elapsed) => RunOnUiThread(() => AddProcessLog(scope, name, passed, message, elapsed)),
                 subItem => GetEnabledControlPcbGroups(subItem),
-                () => RunOnUiThread(RestoreStationDisplayForSelectedNode),
+                () => RunOnUiThread(() => RestoreStationDisplayForSelectedNode()),
                 measurement => RecordMeasurement(context.SchemeName, measurement),
                 cancellationToken);
         }
@@ -1944,8 +2117,8 @@ namespace ModelTest.MeterTest
             bool isTestPlanView = currentGridViewMode == MeterTestGridViewMode.TestPlan;
             bool isRunning = executionCts is not null;
 
-            btnStartTest.Enabled = isTestPlanView && !isRunning && !isSourceShutdownInProgress;
-            btnStopTest.Enabled = isTestPlanView && isRunning;
+            btnStartTest.Enabled = initialDataLoaded && isTestPlanView && !isRunning && !isSourceShutdownInProgress;
+            btnStopTest.Enabled = initialDataLoaded && isTestPlanView && isRunning;
         }
 
         /// <summary>
@@ -2194,57 +2367,78 @@ namespace ModelTest.MeterTest
         /// </summary>
         private void ApplyTestPlanView()
         {
-            currentGridViewMode = MeterTestGridViewMode.TestPlan;
-            resultUserControl?.Hide();
-            groupProcess.Visible = true;
-            groupProcess.Text = "测试过程区域";
-            SetSchemeAreaVisibility(true);
-            ApplyStationAssetVisibility(showAllStations: false);
+            SuspendLayout();
+            groupProcess.SuspendLayout();
+            processLayout.SuspendLayout();
+            stationSelectionPanel.SuspendLayout();
+            stationGrid.SuspendLayout();
+            try
+            {
+                currentGridViewMode = MeterTestGridViewMode.TestPlan;
+                resultUserControl?.Hide();
+                groupProcess.Visible = true;
+                groupProcess.Text = "测试过程区域";
+                SetSchemeAreaVisibility(true);
+                ApplyStationAssetVisibility(showAllStations: false);
 
-            rbMultiStation.Visible = true;
-            rbSingleStation.Visible = true;
-            btnSelectAllStations.Visible = true;
-            btnClearStationSelection.Visible = true;
-            btnShutDownSource.Visible = true;
-            btnSaveTestResults.Visible = true;
-            btnSaveAssetInfo.Visible = false;
-            btnBatchApplyAssetInfo.Visible = false;
-            lblBarcodeRule.Visible = false;
-            cbxBarcodeRule.Visible = false;
-            lblBarcodeStartIndex.Visible = false;
-            tbxBarcodeStartIndex.Visible = false;
-            lblBarcodeEndIndex.Visible = false;
-            tbxBarcodeEndIndex.Visible = false;
-            lblBarcodeSecondStart.Visible = false;
-            tbxBarcodeSecondStart.Visible = false;
-            lblBarcodeSecondLength.Visible = false;
-            tbxBarcodeSecondLength.Visible = false;
-            processGrid.Visible = true;
-            countdownPanel.Visible = true;
-            SetProcessLogVisibility(true);
+                rbMultiStation.Visible = true;
+                rbSingleStation.Visible = true;
+                btnSelectAllStations.Visible = true;
+                btnClearStationSelection.Visible = true;
+                btnShutDownSource.Visible = true;
+                btnSaveTestResults.Visible = true;
+                btnSaveAssetInfo.Visible = false;
+                btnBatchApplyAssetInfo.Visible = false;
+                btnSaveAssetInfo.Enabled = false;
+                btnBatchApplyAssetInfo.Enabled = false;
+                lblBarcodeRule.Visible = false;
+                cbxBarcodeRule.Visible = false;
+                lblBarcodeStartIndex.Visible = false;
+                tbxBarcodeStartIndex.Visible = false;
+                lblBarcodeEndIndex.Visible = false;
+                tbxBarcodeEndIndex.Visible = false;
+                lblBarcodeSecondStart.Visible = false;
+                tbxBarcodeSecondStart.Visible = false;
+                lblBarcodeSecondLength.Visible = false;
+                tbxBarcodeSecondLength.Visible = false;
+                processGrid.Visible = true;
+                countdownPanel.Visible = true;
+                SetProcessLogVisibility(true);
 
-            SetProcessLayoutRows(66F, 72F, 28F);
-            SetStationColumnVisibility(
-                showSelection: true,
-                showCommunication: false,
-                showAsset: false,
-                showBarcode: false,
-                showTest: true,
-                showMeterAddress: true,
-                showResult: true);
-            ApplyColumnDisplayOrder(
-                colStationSelected,
-                colStationNo,
-                colStationTestContent,
-                colStationMeterAddress,
-                colStationResult,
-                colStationTime);
-            ApplyTestPlanColumnWidths();
-            SetStationColumnEditState(assetEditable: false);
-            UpdateMeterAddressColumnHeader(false);
-            RestoreStationDisplayForSelectedNode();
-            UpdateStartButtonText();
-            UpdateTestExecutionButtonState();
+                SetProcessLayoutRows(66F, 72F, 28F);
+                SetStationColumnVisibility(
+                    showSelection: true,
+                    showCommunication: false,
+                    showAsset: false,
+                    showBarcode: false,
+                    showTest: true,
+                    showMeterAddress: true,
+                    showResult: true);
+                ApplyColumnDisplayOrder(
+                    colStationSelected,
+                    colStationNo,
+                    colStationTestContent,
+                    colStationMeterAddress,
+                    colStationResult,
+                    colStationTime);
+                ApplyTestPlanColumnWidths();
+                SetStationColumnEditState(assetEditable: false);
+                UpdateMeterAddressColumnHeader(false);
+                RestoreStationDisplayForSelectedNode(loadFromAccess: false);
+                UpdateStartButtonText();
+                UpdateTestExecutionButtonState();
+            }
+            finally
+            {
+                stationGrid.ResumeLayout();
+                stationSelectionPanel.ResumeLayout(true);
+                ResetStationSelectionPanelLayout();
+                processLayout.ResumeLayout(false);
+                groupProcess.ResumeLayout(false);
+                ResumeLayout(true);
+            }
+
+            QueueSelectedNodeResultRestore();
         }
 
         /// <summary>
@@ -2268,9 +2462,12 @@ namespace ModelTest.MeterTest
             btnSaveTestResults.Visible = false;
             btnSaveAssetInfo.Visible = true;
             btnBatchApplyAssetInfo.Visible = true;
+            btnSaveAssetInfo.Enabled = initialDataLoaded;
+            btnBatchApplyAssetInfo.Enabled = initialDataLoaded;
             lblBarcodeRule.Visible = true;
             cbxBarcodeRule.Visible = true;
             UpdateBarcodeRuleInputState();
+            ResetStationSelectionPanelLayout();
             processGrid.Visible = false;
             countdownPanel.Visible = false;
             SetProcessLogVisibility(false);
@@ -2305,6 +2502,30 @@ namespace ModelTest.MeterTest
             UpdateMeterAddressColumnHeader(true);
             UpdateStartButtonText();
             UpdateTestExecutionButtonState();
+        }
+
+        /// <summary>
+        /// 复位操作区 FlowLayoutPanel 的滚动位置并强制重新布局。
+        /// 资产信息视图会显示较多条码规则控件并产生横向滚动；切回测试方案时必须清零滚动，
+        /// 否则多工位/全选/降源等控件会被保留的滚动偏移挤到一起。
+        /// </summary>
+        private void ResetStationSelectionPanelLayout()
+        {
+            if (stationSelectionPanel.IsDisposed)
+                return;
+
+            try
+            {
+                stationSelectionPanel.AutoScrollPosition = Point.Empty;
+            }
+            catch (InvalidOperationException)
+            {
+                // 面板句柄销毁或布局正在释放时忽略，后续 PerformLayout 不再执行。
+                return;
+            }
+
+            stationSelectionPanel.PerformLayout();
+            stationSelectionPanel.Invalidate();
         }
 
         /// <summary>
@@ -2508,24 +2729,27 @@ namespace ModelTest.MeterTest
         /// <summary>
         /// 保存全部资产信息。
         /// </summary>
-        private void SaveAllAssetInfo()
+        private Task SaveAllAssetInfoAsync()
         {
-            SaveAllAssetInfo(showMessage: true);
+            return SaveAllAssetInfoAsync(showMessage: true);
         }
 
         /// <summary>
         /// 保存全部资产信息；是否弹出提示由调用方决定。
         /// </summary>
-        private void SaveAllAssetInfo(bool showMessage)
+        private async Task SaveAllAssetInfoAsync(bool showMessage)
         {
             stationGrid.EndEdit();
             SaveStationCommunicationConfig();
             SaveBarcodeSettingFromInputs();
 
-            foreach (DataGridViewRow row in stationGrid.Rows)
-            {
-                SaveMeterArchiveFromRow(row);
-            }
+            List<MeterArchiveData> archives = stationGrid.Rows
+                .Cast<DataGridViewRow>()
+                .Where(row => !row.IsNewRow)
+                .Select(CreateMeterArchiveSnapshot)
+                .ToList();
+
+            await Task.Run(() => accessDatabaseService.SaveMeterArchives(archives));
 
             AddProcessLog("系统", "资产信息保存", true, "资产信息已保存到本地数据库。", 0);
             if (showMessage)
@@ -2537,7 +2761,7 @@ namespace ModelTest.MeterTest
         /// <summary>
         /// 用 1 工位的参数批量覆盖 2-48 工位。
         /// </summary>
-        private void BatchApplyFirstStationAssetInfo()
+        private async Task BatchApplyFirstStationAssetInfoAsync()
         {
             stationGrid.EndEdit();
             if (stationGrid.Rows.Count == 0)
@@ -2553,8 +2777,6 @@ namespace ModelTest.MeterTest
                     if (row.IsNewRow || row.Index == 0)
                         continue;
 
-                    CopyCellValue(sourceRow, row, colStationIp);
-                    CopyCellValue(sourceRow, row, colStationPort);
                     CopyCellValue(sourceRow, row, colMeterType);
                     CopyCellValue(sourceRow, row, colMeterAccessMode);
                     CopyCellValue(sourceRow, row, colMeterVoltage);
@@ -2576,7 +2798,7 @@ namespace ModelTest.MeterTest
                 isLoadingMeterArchive = false;
             }
 
-            SaveAllAssetInfo(showMessage: false);
+            await SaveAllAssetInfoAsync(showMessage: false);
             AddProcessLog("系统", "资产批量修改", true, "已按1工位参数批量覆盖2-48工位资产信息。", 0);
             MessageBox.Show("已按1工位参数批量修改2-48工位。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
@@ -2622,8 +2844,17 @@ namespace ModelTest.MeterTest
             if (row.IsNewRow)
                 return;
 
+            accessDatabaseService.SaveMeterArchive(CreateMeterArchiveSnapshot(row));
+        }
+
+        /// <summary>
+        /// 从当前表格行构建一份可直接落库的电表档案快照。
+        /// 扫码枪录入时会先在 UI 中更新行内容，再把快照交给后台保存，避免阻塞界面线程。
+        /// </summary>
+        private MeterArchiveData CreateMeterArchiveSnapshot(DataGridViewRow row)
+        {
             int stationNo = Convert.ToInt32(row.Cells[colStationNo.Index].Value);
-            accessDatabaseService.SaveMeterArchive(new MeterArchiveData(
+            return new MeterArchiveData(
                 stationNo,
                 GetCellText(row, colMeterType, GetDefaultAssetOption("MeterType")),
                 GetCellText(row, colMeterAccessMode, GetDefaultAssetOption("AccessMode")),
@@ -2636,7 +2867,7 @@ namespace ModelTest.MeterTest
                 GetCellText(row, colMeterReactiveConstant, GetDefaultAssetOption("ReactiveConstant")),
                 GetCellText(row, colStationBarcode, string.Empty),
                 GetCellText(row, colStationMeterAddress, string.Empty),
-                GetCellText(row, colMeterBaudRate, GetDefaultAssetOption("BaudRate"))));
+                GetCellText(row, colMeterBaudRate, GetDefaultAssetOption("BaudRate")));
         }
 
         /// <summary>
@@ -3183,7 +3414,7 @@ namespace ModelTest.MeterTest
                     RunOnUiThread(() => ApplyStationExecutionResult(stationNo, context, passed, message)),
                 (scope, name, passed, message, elapsed) =>
                     RunOnUiThread(() => AddProcessLog(scope, name, passed, message, elapsed)),
-                () => RunOnUiThread(RestoreStationDisplayForSelectedNode),
+                () => RunOnUiThread(() => RestoreStationDisplayForSelectedNode()),
                 cancellationToken);
         }
 
@@ -3205,7 +3436,7 @@ namespace ModelTest.MeterTest
                     RunOnUiThread(() => ApplyStationExecutionResult(stationNo, context, passed, message)),
                 (scope, name, passed, message, elapsed) =>
                     RunOnUiThread(() => AddProcessLog(scope, name, passed, message, elapsed)),
-                () => RunOnUiThread(RestoreStationDisplayForSelectedNode),
+                () => RunOnUiThread(() => RestoreStationDisplayForSelectedNode()),
                 cancellationToken);
         }
 
@@ -3228,7 +3459,7 @@ namespace ModelTest.MeterTest
                     RunOnUiThread(() => ApplyStationExecutionResult(stationNo, context, passed, message)),
                 (scope, name, passed, message, elapsed) =>
                     RunOnUiThread(() => AddProcessLog(scope, name, passed, message, elapsed)),
-                () => RunOnUiThread(RestoreStationDisplayForSelectedNode),
+                () => RunOnUiThread(() => RestoreStationDisplayForSelectedNode()),
                 cancellationToken);
         }
 
@@ -3247,7 +3478,7 @@ namespace ModelTest.MeterTest
                     RunOnUiThread(() => ApplyStationExecutionResult(stationNo, context, passed, message)),
                 (scope, name, passed, message, elapsed) =>
                     RunOnUiThread(() => AddProcessLog(scope, name, passed, message, elapsed)),
-                () => RunOnUiThread(RestoreStationDisplayForSelectedNode),
+                () => RunOnUiThread(() => RestoreStationDisplayForSelectedNode()),
                 measurement => RecordMeasurement(context.SchemeName, measurement));
         }
 
@@ -4213,6 +4444,8 @@ namespace ModelTest.MeterTest
         {
             stationGrid.EndEdit();
             List<StationCommunicationConfig> stations = new();
+            IReadOnlyDictionary<int, MeterArchiveData> meterArchives =
+                accessDatabaseService.LoadOrCreateMeterArchives(MaxStationCount);
 
             foreach (DataGridViewRow row in stationGrid.Rows)
             {
@@ -4220,7 +4453,15 @@ namespace ModelTest.MeterTest
                     continue;
 
                 int stationNo = Convert.ToInt32(row.Cells[colStationNo.Index].Value);
-                if (!HasCompleteAssetForTest(row))
+                meterArchives.TryGetValue(stationNo, out MeterArchiveData? archive);
+                string barcode = ResolveArchiveText(
+                    archive?.Barcode,
+                    () => GetCellText(row, colStationBarcode, string.Empty));
+                string meterAddress = ResolveArchiveMeterAddress(
+                    archive,
+                    barcode,
+                    () => GetCellText(row, colStationMeterAddress, string.Empty));
+                if (string.IsNullOrWhiteSpace(barcode) || string.IsNullOrWhiteSpace(meterAddress))
                 {
                     LogMessage.Debug($"[资产联动] 工位{stationNo}未完成条形码扫码或电表地址提取，本次测试已跳过。");
                     continue;
@@ -4228,8 +4469,9 @@ namespace ModelTest.MeterTest
 
                 string ip = Convert.ToString(row.Cells[colStationIp.Index].Value)?.Trim() ?? string.Empty;
                 string portText = Convert.ToString(row.Cells[colStationPort.Index].Value)?.Trim() ?? string.Empty;
-                string meterAddress = Convert.ToString(row.Cells[colStationMeterAddress.Index].Value)?.Trim() ?? string.Empty;
-                string baudRate = Convert.ToString(row.Cells[colMeterBaudRate.Index].Value)?.Trim() ?? string.Empty;
+                string baudRate = ResolveArchiveText(
+                    archive?.BaudRate,
+                    () => GetCellText(row, colMeterBaudRate, string.Empty));
                 if (string.IsNullOrWhiteSpace(baudRate))
                 {
                     baudRate = GetDefaultAssetOption("BaudRate");
@@ -4240,10 +4482,59 @@ namespace ModelTest.MeterTest
                     throw new InvalidOperationException($"工位{stationNo} IP 或端口配置不正确。");
                 }
 
+                string uiMeterAddress = GetCellText(row, colStationMeterAddress, string.Empty).Trim();
+                if (!NormalizeAssetMeterAddress(uiMeterAddress).Equals(
+                        NormalizeAssetMeterAddress(meterAddress),
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    LogMessage.Debug(
+                        $"[资产联动] 工位{stationNo}测试下发地址使用资产库值：{meterAddress}；"
+                        + $"当前方案表格显示值={uiMeterAddress}，显示值不反向作为协议地址。");
+                }
+
                 stations.Add(new StationCommunicationConfig(stationNo, ip, port, meterAddress, baudRate));
             }
 
             return stations;
+        }
+
+        /// <summary>
+        /// 读取资产字段；数据库是协议参数来源，界面只在数据库字段为空时作为兼容兜底。
+        /// </summary>
+        private static string ResolveArchiveText(string? archiveValue, Func<string> fallbackFactory)
+        {
+            string value = archiveValue?.Trim() ?? string.Empty;
+            return !string.IsNullOrWhiteSpace(value) ? value : fallbackFactory().Trim();
+        }
+
+        /// <summary>
+        /// 获取当前工位用于协议组帧的电表地址。
+        /// 地址优先来自资产库，其次按资产库条形码和当前截取规则重新计算，最后才兼容界面列。
+        /// </summary>
+        private string ResolveArchiveMeterAddress(
+            MeterArchiveData? archive,
+            string barcode,
+            Func<string> fallbackFactory)
+        {
+            string archiveAddress = NormalizeAssetMeterAddress(archive?.MeterAddress);
+            if (!string.IsNullOrWhiteSpace(archiveAddress))
+                return archiveAddress;
+
+            if (TryExtractMeterAddressFromBarcode(barcode, out string extractedAddress))
+                return NormalizeAssetMeterAddress(extractedAddress);
+
+            return NormalizeAssetMeterAddress(fallbackFactory());
+        }
+
+        /// <summary>规范化资产电表地址为12位十六进制文本，防止空格或分隔符影响698组帧。</summary>
+        private static string NormalizeAssetMeterAddress(string? meterAddress)
+        {
+            string normalized = new(
+                (meterAddress ?? string.Empty)
+                    .Where(Uri.IsHexDigit)
+                    .Select(char.ToUpperInvariant)
+                    .ToArray());
+            return normalized.Length == 12 ? normalized : string.Empty;
         }
 
         /// <summary>
@@ -4261,6 +4552,7 @@ namespace ModelTest.MeterTest
                 DefaultStationStartPort,
                 meterTestPlanConfig);
             config.Stations.Clear();
+            List<MeterTestStationCommunication> stationSnapshots = new();
             foreach (DataGridViewRow row in stationGrid.Rows)
             {
                 if (row.IsNewRow)
@@ -4273,17 +4565,18 @@ namespace ModelTest.MeterTest
                 if (string.IsNullOrWhiteSpace(ip) || !int.TryParse(portText, out int port) || port < 1 || port > 65535)
                     continue;
 
-                config.Stations.Add(new MeterTestStationCommunication
+                MeterTestStationCommunication station = new()
                 {
                     StationNo = stationNo,
                     Ip = ip,
                     Port = port
-                });
-
-                accessDatabaseService.SaveStationConfig(stationNo, ip, port, true);
+                };
+                config.Stations.Add(station);
+                stationSnapshots.Add(station);
             }
 
             stationConfigService.Save(stationConfigFilePath, config);
+            accessDatabaseService.SaveStationConfigs(stationSnapshots);
         }
 
         /// <summary>
@@ -4334,6 +4627,40 @@ namespace ModelTest.MeterTest
             }
 
             await SynchronizeEnabledControlPcbStationPowerAsync();
+        }
+
+        /// <summary>
+        /// 切回测试方案视图时同步已扫码工位的勾选状态，但不触发控制PCB上下电。
+        /// 该方法只服务 UI 快速刷新；实际电源动作仍由手动选择、全选或执行测试流程统一处理。
+        /// </summary>
+        private void SelectEligibleStationsForTestPlanWithoutPower()
+        {
+            int firstEligibleRowIndex = stationGrid.Rows
+                .Cast<DataGridViewRow>()
+                .Where(row => !row.IsNewRow && row.Visible && HasCompleteAssetForTest(row))
+                .Select(row => row.Index)
+                .DefaultIfEmpty(-1)
+                .First();
+
+            stationGrid.SuspendLayout();
+            isUpdatingStationSelection = true;
+            try
+            {
+                foreach (DataGridViewRow row in stationGrid.Rows)
+                {
+                    if (row.IsNewRow)
+                        continue;
+
+                    bool eligible = row.Visible && HasCompleteAssetForTest(row);
+                    row.Cells[colStationSelected.Index].Value =
+                        eligible && (!rbSingleStation.Checked || row.Index == firstEligibleRowIndex);
+                }
+            }
+            finally
+            {
+                isUpdatingStationSelection = false;
+                stationGrid.ResumeLayout();
+            }
         }
 
         /// <summary>
@@ -4607,7 +4934,7 @@ namespace ModelTest.MeterTest
         /// <summary>
         /// 根据当前方案树节点，恢复对应的工位测试状态显示。
         /// </summary>
-        private void RestoreStationDisplayForSelectedNode()
+        private void RestoreStationDisplayForSelectedNode(bool loadFromAccess = true)
         {
             if (!TryGetSelectedDisplayContext(out SelectedSubItemContext context))
             {
@@ -4616,26 +4943,68 @@ namespace ModelTest.MeterTest
                 return;
             }
 
-            LoadStationResultsFromAccess(context);
-
-            foreach (DataGridViewRow row in stationGrid.Rows)
+            if (loadFromAccess)
             {
-                if (row.IsNewRow)
-                    continue;
+                LoadStationResultsFromAccess(context);
+            }
 
-                int stationNo = Convert.ToInt32(row.Cells[colStationNo.Index].Value);
-                StationResultKey key = CreateStationResultKey(context, stationNo);
-                if (stationResultCache.TryGetValue(key, out StationDisplayState? state))
+            stationGrid.SuspendLayout();
+            try
+            {
+                foreach (DataGridViewRow row in stationGrid.Rows)
                 {
-                    ApplyCachedStationDisplay(row, state);
-                    continue;
-                }
+                    if (row.IsNewRow)
+                        continue;
 
-                row.Cells[colStationTestContent.Index].Value = context.SubItem.Name;
-                row.Cells[colStationResult.Index].Value = "待测试";
-                row.Cells[colStationTime.Index].Value = string.Empty;
-                row.Cells[colStationResult.Index].Style.ForeColor = Color.FromArgb(31, 41, 55);
-                row.Cells[colStationResult.Index].ToolTipText = string.Empty;
+                    int stationNo = Convert.ToInt32(row.Cells[colStationNo.Index].Value);
+                    StationResultKey key = CreateStationResultKey(context, stationNo);
+                    if (stationResultCache.TryGetValue(key, out StationDisplayState? state))
+                    {
+                        ApplyCachedStationDisplay(row, state);
+                        continue;
+                    }
+
+                    row.Cells[colStationTestContent.Index].Value = context.SubItem.Name;
+                    row.Cells[colStationResult.Index].Value = "待测试";
+                    row.Cells[colStationTime.Index].Value = string.Empty;
+                    row.Cells[colStationResult.Index].Style.ForeColor = Color.FromArgb(31, 41, 55);
+                    row.Cells[colStationResult.Index].ToolTipText = string.Empty;
+                }
+            }
+            finally
+            {
+                stationGrid.ResumeLayout();
+            }
+        }
+
+        /// <summary>
+        /// 延迟恢复当前节点结果。
+        /// 测试方案视图先用内存缓存快速切换，数据库读取放到 UI 空闲后执行，避免点击按钮时卡住。
+        /// </summary>
+        private void QueueSelectedNodeResultRestore()
+        {
+            if (stationDisplayRestorePending || IsDisposed || !IsHandleCreated)
+                return;
+
+            stationDisplayRestorePending = true;
+            try
+            {
+                BeginInvoke(new Action(() =>
+                {
+                    stationDisplayRestorePending = false;
+                    if (currentGridViewMode == MeterTestGridViewMode.TestPlan && !IsDisposed)
+                    {
+                        RestoreStationDisplayForSelectedNode(loadFromAccess: true);
+                    }
+                }));
+            }
+            catch (ObjectDisposedException)
+            {
+                stationDisplayRestorePending = false;
+            }
+            catch (InvalidOperationException)
+            {
+                stationDisplayRestorePending = false;
             }
         }
 
@@ -4726,6 +5095,7 @@ namespace ModelTest.MeterTest
             StationResultKey key = CreateStationResultKey(context, stationNo);
             StationDisplayState state = new(testContent, meterAddress, result, time, resultColor, toolTip);
             stationResultCache[key] = state;
+            loadedStationResultContextKeys.Add(CreateStationResultContextKey(context));
             SaveStationDisplayStateToAccess(context, stationNo, state);
             RefreshSchemeTreeStatusIcons();
         }
@@ -4749,6 +5119,10 @@ namespace ModelTest.MeterTest
         /// </summary>
         private void LoadStationResultsFromAccess(SelectedSubItemContext context)
         {
+            string contextKey = CreateStationResultContextKey(context);
+            if (!loadedStationResultContextKeys.Add(contextKey))
+                return;
+
             Dictionary<int, StationDisplayStateData> persistedResults = accessDatabaseService.LoadStationResults(
                 context.SchemeName,
                 context.TestItemName,
@@ -4899,6 +5273,18 @@ namespace ModelTest.MeterTest
         private static StationResultKey CreateStationResultKey(SelectedSubItemContext context, int stationNo)
         {
             return new StationResultKey(context.SchemeName, context.TestItemName, context.SubItem.Name, stationNo);
+        }
+
+        /// <summary>按方案、测试项和测试小项构造数据库结果加载缓存键。</summary>
+        private static string CreateStationResultContextKey(SelectedSubItemContext context)
+        {
+            return CreateStationResultContextKey(context.SchemeName, context.TestItemName, context.SubItem.Name);
+        }
+
+        /// <summary>按方案、测试项和测试小项构造数据库结果加载缓存键。</summary>
+        private static string CreateStationResultContextKey(string schemeName, string testItemName, string testSubItemName)
+        {
+            return string.Join('\u001F', schemeName, testItemName, testSubItemName);
         }
 
         /// <summary>
@@ -5145,6 +5531,152 @@ namespace ModelTest.MeterTest
         }
 
         /// <summary>
+        /// 优化测试过程区域顶部的工位选择控件。
+        /// 多工位/单工位仍使用 RadioButton 互斥逻辑，只把外观改成分段切换；
+        /// 右侧命令按钮复用圆角自绘按钮，去掉 WinForms 原生质感。
+        /// </summary>
+        private void ConfigureStationSelectionControlStyles()
+        {
+            stationSelectionPanel.BackColor = Color.FromArgb(232, 239, 236);
+            stationSelectionPanel.Padding = new Padding(12, 9, 0, 0);
+            stationSelectionPanel.AutoScroll = true;
+            stationSelectionPanel.WrapContents = false;
+
+            groupTestLog.Margin = new Padding(8, 0, 0, 4);
+            groupTestLog.Padding = new Padding(8, 5, 8, 8);
+            groupTestLog.Font = new Font("Microsoft YaHei UI", 9.5F, FontStyle.Regular, GraphicsUnit.Point);
+            rtbTestProcessLog.Margin = new Padding(0);
+            rtbTestProcessLog.BorderStyle = BorderStyle.FixedSingle;
+
+            ApplyStationModeToggleStyle(rbMultiStation, isLeftSegment: true);
+            ApplyStationModeToggleStyle(rbSingleStation, isLeftSegment: false);
+            UpdateStationModeToggleVisualState();
+
+            rbMultiStation.CheckedChanged -= StationModeToggle_CheckedChanged;
+            rbMultiStation.CheckedChanged += StationModeToggle_CheckedChanged;
+            rbSingleStation.CheckedChanged -= StationModeToggle_CheckedChanged;
+            rbSingleStation.CheckedChanged += StationModeToggle_CheckedChanged;
+
+            ApplyStationActionButtonStyle(
+                btnSelectAllStations,
+                baseColor: Color.FromArgb(43, 119, 174),
+                hoverColor: Color.FromArgb(54, 137, 199),
+                pressedColor: Color.FromArgb(35, 96, 143),
+                borderColor: Color.FromArgb(31, 85, 126));
+            ApplyStationActionButtonStyle(
+                btnClearStationSelection,
+                baseColor: Color.FromArgb(96, 113, 129),
+                hoverColor: Color.FromArgb(112, 132, 151),
+                pressedColor: Color.FromArgb(75, 90, 105),
+                borderColor: Color.FromArgb(68, 82, 96));
+            ApplyStationActionButtonStyle(
+                btnShutDownSource,
+                baseColor: Color.FromArgb(185, 28, 28),
+                hoverColor: Color.FromArgb(211, 47, 47),
+                pressedColor: Color.FromArgb(145, 24, 24),
+                borderColor: Color.FromArgb(127, 29, 29));
+            ApplyStationActionButtonStyle(
+                btnSaveTestResults,
+                baseColor: Color.FromArgb(86, 92, 154),
+                hoverColor: Color.FromArgb(105, 112, 181),
+                pressedColor: Color.FromArgb(68, 73, 124),
+                borderColor: Color.FromArgb(61, 66, 112));
+            btnSaveTestResults.Size = new Size(172, 46);
+            btnSaveTestResults.MinimumSize = new Size(172, 46);
+            ApplyStationActionButtonStyle(
+                btnSaveAssetInfo,
+                baseColor: Color.FromArgb(31, 132, 92),
+                hoverColor: Color.FromArgb(37, 151, 106),
+                pressedColor: Color.FromArgb(21, 105, 74),
+                borderColor: Color.FromArgb(19, 100, 70));
+            ApplyStationActionButtonStyle(
+                btnBatchApplyAssetInfo,
+                baseColor: Color.FromArgb(88, 125, 112),
+                hoverColor: Color.FromArgb(103, 144, 130),
+                pressedColor: Color.FromArgb(70, 101, 90),
+                borderColor: Color.FromArgb(63, 93, 82));
+        }
+
+        /// <summary>
+        /// 将工位模式 RadioButton 设置为分段按钮外观，保留 CheckedChanged 互斥行为。
+        /// </summary>
+        private void ApplyStationModeToggleStyle(RadioButton radioButton, bool isLeftSegment)
+        {
+            radioButton.Appearance = Appearance.Button;
+            radioButton.AutoSize = false;
+            radioButton.Size = new Size(130, 46);
+            radioButton.Margin = isLeftSegment
+                ? new Padding(0, 0, 0, 0)
+                : new Padding(0, 0, 14, 0);
+            radioButton.TextAlign = ContentAlignment.MiddleCenter;
+            radioButton.FlatStyle = FlatStyle.Flat;
+            radioButton.FlatAppearance.BorderSize = 1;
+            radioButton.FlatAppearance.BorderColor = Color.FromArgb(81, 115, 104);
+            radioButton.FlatAppearance.MouseOverBackColor = Color.FromArgb(226, 241, 236);
+            radioButton.FlatAppearance.MouseDownBackColor = Color.FromArgb(190, 219, 209);
+            radioButton.Font = new Font(radioButton.Font.FontFamily, 9.5F, FontStyle.Bold, GraphicsUnit.Point);
+            radioButton.Cursor = Cursors.Hand;
+            radioButton.Resize -= StationModeToggle_Resize;
+            radioButton.Resize += StationModeToggle_Resize;
+            ApplyRoundedRegion(radioButton, 10);
+        }
+
+        /// <summary>
+        /// 统一测试过程区域命令按钮尺寸、间距和自绘状态。
+        /// </summary>
+        private void ApplyStationActionButtonStyle(
+            Button button,
+            Color baseColor,
+            Color hoverColor,
+            Color pressedColor,
+            Color borderColor)
+        {
+            button.Size = new Size(150, 46);
+            button.MinimumSize = new Size(150, 46);
+            button.Margin = new Padding(10, 0, 0, 0);
+            button.TextAlign = ContentAlignment.MiddleCenter;
+            ApplyOperationButtonStyle(button, baseColor, hoverColor, pressedColor, borderColor);
+            button.Padding = new Padding(8, 0, 8, 0);
+        }
+
+        /// <summary>工位模式分段切换状态变化后刷新选中/未选中配色。</summary>
+        private void StationModeToggle_CheckedChanged(object? sender, EventArgs e)
+        {
+            UpdateStationModeToggleVisualState();
+        }
+
+        /// <summary>工位模式分段控件尺寸变化后同步圆角区域。</summary>
+        private void StationModeToggle_Resize(object? sender, EventArgs e)
+        {
+            if (sender is RadioButton radioButton)
+                ApplyRoundedRegion(radioButton, 10);
+        }
+
+        /// <summary>
+        /// 刷新多工位/单工位分段切换按钮的选中和未选中颜色。
+        /// </summary>
+        private void UpdateStationModeToggleVisualState()
+        {
+            ApplyStationModeToggleState(rbMultiStation);
+            ApplyStationModeToggleState(rbSingleStation);
+        }
+
+        /// <summary>刷新单个工位模式按钮视觉状态。</summary>
+        private static void ApplyStationModeToggleState(RadioButton radioButton)
+        {
+            bool selected = radioButton.Checked;
+            radioButton.BackColor = selected
+                ? Color.FromArgb(31, 132, 92)
+                : Color.FromArgb(245, 249, 247);
+            radioButton.ForeColor = selected
+                ? Color.White
+                : Color.FromArgb(44, 75, 65);
+            radioButton.FlatAppearance.BorderColor = selected
+                ? Color.FromArgb(19, 100, 70)
+                : Color.FromArgb(107, 138, 128);
+        }
+
+        /// <summary>
         /// 绑定单个操作按钮的现代化视觉状态和交互反馈。
         /// </summary>
         private void ApplyOperationButtonStyle(
@@ -5228,8 +5760,8 @@ namespace ModelTest.MeterTest
         private static void DrawOperationButtonContent(Button button, Graphics graphics, Rectangle bounds, Color textColor)
         {
             const int iconSize = 24;
-            const int iconTextGap = 10;
-            const int horizontalPadding = 28;
+            const int iconTextGap = 8;
+            const int horizontalPadding = 16;
             int iconPartWidth = button.Image is null ? 0 : iconSize + iconTextGap;
             int maxTextWidth = Math.Max(20, bounds.Width - horizontalPadding * 2 - iconPartWidth);
             Size preferredTextSize = TextRenderer.MeasureText(button.Text, button.Font);

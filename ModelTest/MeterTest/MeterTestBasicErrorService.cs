@@ -201,7 +201,7 @@ public sealed class MeterTestBasicErrorService
         }
 
         ConcurrentDictionary<int, MeterTestBasicErrorStationResult> stationResults = new();
-        List<MeterTestControlPcbGroup> groups = ResolveControlPcbGroups(planConfig, subItem);
+        List<MeterTestControlPcbGroup> groups = ResolveControlPcbGroups(planConfig, subItem, selectedStations);
         if (groups.Count == 0)
         {
             return CreateFailureResult(selectedStations, "未找到可用控制PCB分组，请检查 ControlPcbGroups。", stationLogger, sourceResult.StandValues);
@@ -217,8 +217,7 @@ public sealed class MeterTestBasicErrorService
                      station => !mappedStations.Contains(station.StationNo)))
         {
             string message = "当前工位未映射到可用控制PCB分组。";
-            stationResults[station.StationNo] = MeterTestBasicErrorStationResult.Fail(station.StationNo, message);
-            Trace(station.StationNo, message, stationLogger);
+            SetStationFailureUnlessSucceeded(stationResults, station.StationNo, message, stationLogger);
         }
 
         ConcurrentDictionary<int, bool> startedStations = new();
@@ -506,6 +505,7 @@ public sealed class MeterTestBasicErrorService
     {
         List<BasicErrorTarget> targets = GetTargets(group, selectedStations)
             .Where(target => startedStations.ContainsKey(target.StationNo))
+            .Where(target => !HasSucceeded(stationResults, target.StationNo))
             .ToList();
         if (targets.Count == 0)
             return;
@@ -550,8 +550,7 @@ public sealed class MeterTestBasicErrorService
                 if (!responses.TryGetValue(target.MeterAddress, out byte[]? response))
                 {
                     string message = "[步骤4/5 读取误差] 未收到0x38+AA基本误差结果应答。";
-                    stationResults[target.StationNo] = MeterTestBasicErrorStationResult.Fail(target.StationNo, message);
-                    Trace(target.StationNo, message, stationLogger);
+                    SetStationFailureUnlessSucceeded(stationResults, target.StationNo, message, stationLogger);
                     continue;
                 }
 
@@ -564,8 +563,7 @@ public sealed class MeterTestBasicErrorService
                         out string parseMessage))
                 {
                     string message = $"[步骤4/5 读取误差] 结果解析失败：{parseMessage}";
-                    stationResults[target.StationNo] = MeterTestBasicErrorStationResult.Fail(target.StationNo, message);
-                    Trace(target.StationNo, message, stationLogger);
+                    SetStationFailureUnlessSucceeded(stationResults, target.StationNo, message, stationLogger);
                     continue;
                 }
 
@@ -591,10 +589,7 @@ public sealed class MeterTestBasicErrorService
                         string timeoutMessage =
                             $"[步骤4/5 读取误差] 已补等允许的{completedSupplementalWaits}轮后结果仍未完成：{parseMessage}"
                             + (pendingValueCount > 0 ? $"，其中{pendingValueCount}个结果为2.0（尚未计算完成）。" : string.Empty);
-                        stationResults[target.StationNo] = MeterTestBasicErrorStationResult.Fail(
-                            target.StationNo,
-                            timeoutMessage);
-                        Trace(target.StationNo, timeoutMessage, stationLogger);
+                        SetStationFailureUnlessSucceeded(stationResults, target.StationNo, timeoutMessage, stationLogger);
                         continue;
                     }
 
@@ -614,8 +609,7 @@ public sealed class MeterTestBasicErrorService
                 if (errors.Any(value => Math.Abs(value - 1.0f) < 0.000001f))
                 {
                     const string message = "[步骤5/5 判定] 误差结果为1.0，表示待测表未输出一个完整脉冲，结论：不合格";
-                    stationResults[target.StationNo] = MeterTestBasicErrorStationResult.Fail(target.StationNo, message);
-                    Trace(target.StationNo, message, stationLogger);
+                    SetStationFailureUnlessSucceeded(stationResults, target.StationNo, message, stationLogger);
                     continue;
                 }
 
@@ -827,25 +821,59 @@ public sealed class MeterTestBasicErrorService
                 continue;
             }
 
-            stationResults[target.StationNo] = MeterTestBasicErrorStationResult.Fail(target.StationNo, failureMessage);
-            Trace(target.StationNo, failureMessage, stationLogger);
+            SetStationFailureUnlessSucceeded(stationResults, target.StationNo, failureMessage, stationLogger);
         }
 
         return responded;
     }
 
-    /// <summary>从方案配置中筛选当前基本误差点启用且端点有效的控制 PCB 分组。</summary>
+    /// <summary>
+    /// 从方案配置中筛选当前基本误差点实际会操作的控制 PCB 分组。
+    /// 运行时配置可能由方案配置和工位配置合并而来，这里按端点和工位映射去重，避免同一 PCB 组重复发送 A2/A0/0x38。
+    /// </summary>
     private static List<MeterTestControlPcbGroup> ResolveControlPcbGroups(
         MeterTestPlanConfig planConfig,
-        MeterTestSubItem subItem)
+        MeterTestSubItem subItem,
+        IReadOnlyList<MeterTestStationCommunication> selectedStations)
     {
         string configuredGroup = subItem.ControlPcbGroup?.Trim() ?? string.Empty;
-        return planConfig.ControlPcbGroups
+        List<MeterTestControlPcbGroup> matchedGroups = planConfig.ControlPcbGroups
             .Where(group => group.Enabled)
             .Where(group => string.IsNullOrWhiteSpace(configuredGroup) ||
                             group.Name.Equals(configuredGroup, StringComparison.OrdinalIgnoreCase))
             .Where(group => !string.IsNullOrWhiteSpace(group.Ip) && group.Port is >= 1 and <= 65535)
+            .Where(group => GetTargets(group, selectedStations).Count > 0)
             .ToList();
+
+        List<MeterTestControlPcbGroup> deduplicatedGroups = new();
+        foreach (IGrouping<string, MeterTestControlPcbGroup> groupSet in matchedGroups.GroupBy(BuildControlPcbGroupRuntimeKey))
+        {
+            MeterTestControlPcbGroup first = groupSet.First();
+            deduplicatedGroups.Add(first);
+            int duplicateCount = groupSet.Count() - 1;
+            if (duplicateCount <= 0)
+                continue;
+
+            string duplicateNames = string.Join("、", groupSet.Skip(1).Select(group => group.Name));
+            LogMessage.Debug(
+                $"[基本误差][控制PCB组去重] 已忽略{duplicateCount}个重复分组：保留={first.Name}，"
+                + $"忽略={duplicateNames}，Key={groupSet.Key}。");
+        }
+
+        return deduplicatedGroups;
+    }
+
+    /// <summary>生成控制 PCB 分组运行时唯一键，用于避免同一端点和同一工位映射被重复调度。</summary>
+    private static string BuildControlPcbGroupRuntimeKey(MeterTestControlPcbGroup group)
+    {
+        return string.Join(
+            "|",
+            group.Ip.Trim(),
+            group.Port.ToString(CultureInfo.InvariantCulture),
+            group.ProtocolVersion.Trim(),
+            group.StationStart.ToString(CultureInfo.InvariantCulture),
+            group.StationEnd.ToString(CultureInfo.InvariantCulture),
+            group.MeterAddressStart.ToString(CultureInfo.InvariantCulture));
     }
 
     /// <summary>把当前选中工位映射成指定控制 PCB 分组的表位地址和基本误差计划。</summary>
@@ -1029,9 +1057,40 @@ public sealed class MeterTestBasicErrorService
     {
         foreach (BasicErrorTarget target in targets)
         {
-            stationResults[target.StationNo] = MeterTestBasicErrorStationResult.Fail(target.StationNo, message);
-            Trace(target.StationNo, message, stationLogger);
+            SetStationFailureUnlessSucceeded(stationResults, target.StationNo, message, stationLogger);
         }
+    }
+
+    /// <summary>判断指定工位是否已经得到合格判定；后续重复分支不应再覆盖为失败。</summary>
+    private static bool HasSucceeded(
+        IDictionary<int, MeterTestBasicErrorStationResult> stationResults,
+        int stationNo)
+    {
+        return stationResults.TryGetValue(stationNo, out MeterTestBasicErrorStationResult? existing) &&
+            existing.Success;
+    }
+
+    /// <summary>
+    /// 写入失败结果前先检查是否已经合格。
+    /// 这层保护用于防止重复调度、晚到超时或重复读取把已经完成的合格结果覆盖成不合格。
+    /// </summary>
+    private static void SetStationFailureUnlessSucceeded(
+        IDictionary<int, MeterTestBasicErrorStationResult> stationResults,
+        int stationNo,
+        string message,
+        Action<int, string>? stationLogger)
+    {
+        if (HasSucceeded(stationResults, stationNo))
+        {
+            Trace(
+                stationNo,
+                $"[重复结果保护] 当前工位已有合格判定，忽略后续失败覆盖：{message}",
+                stationLogger);
+            return;
+        }
+
+        stationResults[stationNo] = MeterTestBasicErrorStationResult.Fail(stationNo, message);
+        Trace(stationNo, message, stationLogger);
     }
 
     /// <summary>创建包含测试点、工位、耗时和失败原因的基本误差执行结果。</summary>

@@ -695,37 +695,67 @@ public sealed class DetectionBoardProtocolV2
         DeviceBoardConnectionMode expectedMode,
         out string error)
     {
+        DeviceBoardConnectionModeResponseKind responseKind =
+            ClassifyDeviceBoardConnectionModeResponse(frame, expectedMode, out error);
+        return responseKind == DeviceBoardConnectionModeResponseKind.FormalResponse;
+    }
+
+    /// <summary>
+    /// 分类0x82切换相关报文。
+    /// 三相直接式/互感式切换时，装置通信板通常会先上传一条转发给表位控制板的广播帧：
+    /// 55 44 ... 00 AA 02 82 02 模式 ... AA BB；
+    /// 随后再上传对PC命令的正式响应：
+    /// 55 44 ... 01 00 02 82 01 模式 ... AA BB。
+    /// 调用方应记录广播帧但继续等待正式响应。
+    /// </summary>
+    public DeviceBoardConnectionModeResponseKind ClassifyDeviceBoardConnectionModeResponse(
+        ReadOnlySpan<byte> frame,
+        DeviceBoardConnectionMode expectedMode,
+        out string error)
+    {
         error = string.Empty;
         if (!TryParseFrame(frame, out DetectionBoardProtocolV2Frame? parsed, out error) || parsed is null)
         {
-            return false;
+            return DeviceBoardConnectionModeResponseKind.Invalid;
         }
 
-        if (parsed.Direction != UplinkDirection || parsed.ProtocolType != 0x02 || parsed.CommandCode != 0x82)
+        if (parsed.ProtocolType != 0x02 || parsed.CommandCode != 0x82)
         {
-            error = $"不是期望的0x82上行应答，方向={parsed.Direction:X2}，协议={parsed.ProtocolType:X2}，命令={parsed.CommandCode:X2}。";
-            return false;
+            error = $"不是0x82装置通信板报文，方向={parsed.Direction:X2}，协议={parsed.ProtocolType:X2}，命令={parsed.CommandCode:X2}。";
+            return DeviceBoardConnectionModeResponseKind.OtherFrame;
         }
 
         if (parsed.Data.Length != 2)
         {
-            error = $"0x82应答数据项长度错误，期望2字节，实际{parsed.Data.Length}字节。";
-            return false;
-        }
-
-        if (parsed.Data[0] is not ((byte)DeviceBoardControlSource.PcControl or (byte)DeviceBoardControlSource.DeviceBoardReport))
-        {
-            error = $"0x82应答来源错误，期望01或02，实际{parsed.Data[0]:X2}。";
-            return false;
+            error = $"0x82数据项长度错误，期望2字节，实际{parsed.Data.Length}字节。";
+            return DeviceBoardConnectionModeResponseKind.Invalid;
         }
 
         if (parsed.Data[1] != (byte)expectedMode)
         {
-            error = $"0x82应答模式不一致，期望{(byte)expectedMode:X2}，实际{parsed.Data[1]:X2}。";
-            return false;
+            error = $"0x82模式不一致，期望{(byte)expectedMode:X2}，实际{parsed.Data[1]:X2}。";
+            return DeviceBoardConnectionModeResponseKind.Invalid;
         }
 
-        return true;
+        if (parsed.Direction == UplinkDirection &&
+            parsed.Address == 0x00 &&
+            parsed.Data[0] == (byte)DeviceBoardControlSource.PcControl)
+        {
+            return DeviceBoardConnectionModeResponseKind.FormalResponse;
+        }
+
+        if (parsed.Direction == DownlinkDirection &&
+            parsed.Address is 0xAA or BroadcastAddress &&
+            parsed.Data[0] == (byte)DeviceBoardControlSource.DeviceBoardReport)
+        {
+            error = "0x82切换广播/状态帧，已收到但不是PC正式应答。";
+            return DeviceBoardConnectionModeResponseKind.BroadcastReport;
+        }
+
+        error =
+            $"不是期望的0x82正式应答，方向={parsed.Direction:X2}，地址={parsed.Address:X2}，"
+            + $"来源={parsed.Data[0]:X2}，模式={parsed.Data[1]:X2}。";
+        return DeviceBoardConnectionModeResponseKind.OtherFrame;
     }
 
     /// <summary>
@@ -1237,6 +1267,22 @@ public sealed record DetectionBoardProtocolV2Frame(
     byte Checksum,
     bool IsTransparentProtocol,
     byte DeviceType);
+
+/// <summary>装置通信板0x82切换报文分类结果。</summary>
+public enum DeviceBoardConnectionModeResponseKind
+{
+    /// <summary>不是合法协议帧或0x82数据项非法。</summary>
+    Invalid,
+
+    /// <summary>合法协议帧，但不是当前等待的0x82切换报文。</summary>
+    OtherFrame,
+
+    /// <summary>装置通信板先发出的广播/状态帧，说明设备正在向下级板卡同步模式。</summary>
+    BroadcastReport,
+
+    /// <summary>装置通信板对PC下发0x82命令的正式响应，可以作为切换成功依据。</summary>
+    FormalResponse
+}
 
 public sealed record CarrierModuleDcMeasureData(
     byte ModuleType,

@@ -301,33 +301,25 @@ public sealed class MeterTestConfigService
     }
 
     /// <summary>
-    /// 确保控制 PCB 映射覆盖1-48工位。
-    /// 已存在的组保留现场 IP、Port 和协议版本，只扩展不完整范围或添加缺失分组。
+    /// 确保控制 PCB 映射存在默认模板。
+    /// 已配置的现场分组可能采用两工位一组等非默认范围，不能按默认三工位规则扩展或覆盖。
     /// </summary>
     private static bool EnsureControlPcbGroups(MeterTestPlanConfig config)
     {
+        if (config.ControlPcbGroups.Count > 0)
+        {
+            config.ControlPcbGroups.Sort((left, right) => left.StationStart.CompareTo(right.StationStart));
+            return false;
+        }
+
         bool changed = false;
         for (int stationStart = 1; stationStart <= MaximumStationCount; stationStart += StationsPerControlPcb)
         {
             int stationEnd = Math.Min(stationStart + StationsPerControlPcb - 1, MaximumStationCount);
             int groupIndex = (stationStart - 1) / StationsPerControlPcb + 1;
-
-            MeterTestControlPcbGroup? existingGroup = config.ControlPcbGroups.FirstOrDefault(group =>
-                group.StationStart == stationStart ||
-                string.Equals(group.Name, $"控制PCB-{groupIndex}", StringComparison.OrdinalIgnoreCase));
-            if (existingGroup is null)
-            {
-                config.ControlPcbGroups.Add(
-                    CreateControlPcbGroup(groupIndex, 4000 + groupIndex, stationStart, stationEnd));
-                changed = true;
-                continue;
-            }
-
-            if (existingGroup.StationEnd < stationEnd)
-            {
-                existingGroup.StationEnd = stationEnd;
-                changed = true;
-            }
+            config.ControlPcbGroups.Add(
+                CreateControlPcbGroup(groupIndex, 4000 + groupIndex, stationStart, stationEnd));
+            changed = true;
         }
 
         return changed;

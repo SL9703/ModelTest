@@ -15,7 +15,7 @@ public partial class MeterTestResultUserControl : UserControl
         this.databaseService = databaseService ?? throw new ArgumentNullException(nameof(databaseService));
         InitializeComponent();
         ConfigureColumns();
-        btnRefresh.Click += (_, _) => RefreshData();
+        btnRefresh.Click += async (_, _) => await RefreshDataAsync();
         btnExport.Click += (_, _) => ExportSelectedTask();
         dgvTasks.SelectionChanged += (_, _) => LoadSelectedTaskStations();
         dgvStations.SelectionChanged += (_, _) => LoadSelectedStationDetails();
@@ -25,6 +25,31 @@ public partial class MeterTestResultUserControl : UserControl
     public void RefreshData()
     {
         tasks = databaseService.LoadTestResultTasks();
+        BindTaskRows();
+    }
+
+    /// <summary>异步加载任务列表，避免历史结果较多时阻塞 MeterTest 主界面。</summary>
+    public async Task RefreshDataAsync()
+    {
+        btnRefresh.Enabled = false;
+        Cursor previousCursor = Cursor;
+        Cursor = Cursors.WaitCursor;
+        try
+        {
+            tasks = await Task.Run(databaseService.LoadTestResultTasks);
+        }
+        finally
+        {
+            Cursor = previousCursor;
+            btnRefresh.Enabled = true;
+        }
+
+        BindTaskRows();
+    }
+
+    /// <summary>把已加载的测试任务绑定到界面，避免同步和异步刷新重复维护两套UI逻辑。</summary>
+    private void BindTaskRows()
+    {
         dgvTasks.Rows.Clear();
         foreach (MeterTestResultTaskData task in tasks)
         {

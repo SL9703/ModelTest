@@ -267,6 +267,9 @@ public sealed class MeterTestControlPcbConnectionManager : IAsyncDisposable
 /// </summary>
 public sealed class MeterTestControlPcbConnection : IAsyncDisposable
 {
+    private const int MaximumSendAttempts = 4;
+    private static readonly TimeSpan SendRetryDelay = TimeSpan.FromMilliseconds(100);
+
     private readonly BatchTcpClientManager batchManager;
     private readonly MeterTestControlPcbConnectionManager.ControlPcbEndpoint endpoint;
     private readonly Action<string>? statusLogger;
@@ -391,16 +394,48 @@ public sealed class MeterTestControlPcbConnection : IAsyncDisposable
                 cancellationToken.ThrowIfCancellationRequested();
                 byte[] packet = packets[index];
                 beforeSend?.Invoke(index, packet);
-                bool sent = await batchManager.SendBytesAsync(connectionId, packet);
+                bool sent = false;
+                for (int attempt = 1; attempt <= MaximumSendAttempts; attempt++)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    sent = await batchManager.SendBytesAsync(connectionId, packet);
+                    if (sent)
+                    {
+                        if (attempt > 1)
+                        {
+                            LogMessage.Debug(
+                                $"[控制PCB连接接口] 发送重试成功：端点={DisplayName}，协议={ProtocolVersion}，"
+                                + $"序号={index + 1}/{packets.Count}，尝试={attempt}/{MaximumSendAttempts}。");
+                        }
+
+                        break;
+                    }
+
+                    LogMessage.Error(
+                        $"[控制PCB连接接口] 发送失败，准备重试：端点={DisplayName}，协议={ProtocolVersion}，"
+                        + $"序号={index + 1}/{packets.Count}，尝试={attempt}/{MaximumSendAttempts}，"
+                        + $"报文={BitConverter.ToString(packet).Replace("-", " ")}。",
+                        null);
+                    if (attempt < MaximumSendAttempts)
+                    {
+                        await Task.Delay(SendRetryDelay, cancellationToken);
+                    }
+                }
+
                 if (!sent)
                 {
                     LogMessage.Error(
-                        $"[控制PCB连接接口] 发送失败：端点={DisplayName}，协议={ProtocolVersion}，"
-                        + $"序号={index + 1}/{packets.Count}，"
+                        $"[控制PCB连接接口] 发送失败且重试耗尽：端点={DisplayName}，协议={ProtocolVersion}，"
+                        + $"序号={index + 1}/{packets.Count}，尝试={MaximumSendAttempts}/{MaximumSendAttempts}，"
                         + $"报文={BitConverter.ToString(packet).Replace("-", " ")}。",
                         null);
                     throw new IOException($"BatchTcpClientManager 发送失败：{DisplayName}");
                 }
+
+                LogMessage.Debug(
+                    $"[控制PCB连接接口] 发送完成：端点={DisplayName}，协议={ProtocolVersion}，"
+                    + $"序号={index + 1}/{packets.Count}，字节数={packet.Length}，"
+                    + $"报文={BitConverter.ToString(packet).Replace("-", " ")}。");
 
                 if (index < packets.Count - 1 && packetInterval > TimeSpan.Zero)
                 {
