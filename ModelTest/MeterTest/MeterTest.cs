@@ -2566,7 +2566,7 @@ namespace ModelTest.MeterTest
         }
 
         /// <summary>
-        /// 判断工位是否具备测试资格：必须已经扫码，并按当前截取规则得到电表地址。
+        /// 判断工位是否具备测试资格：只要已经有电表地址，或能从条形码按当前规则提取地址，就允许参与测试。
         /// </summary>
         private bool HasCompleteAssetForTest(DataGridViewRow row)
         {
@@ -2575,7 +2575,8 @@ namespace ModelTest.MeterTest
 
             string barcode = GetCellText(row, colStationBarcode, string.Empty).Trim();
             string meterAddress = GetCellText(row, colStationMeterAddress, string.Empty).Trim();
-            return !string.IsNullOrWhiteSpace(barcode) && !string.IsNullOrWhiteSpace(meterAddress);
+            return !string.IsNullOrWhiteSpace(meterAddress)
+                || TryExtractMeterAddressFromBarcode(barcode, out _);
         }
 
         /// <summary>
@@ -3130,7 +3131,7 @@ namespace ModelTest.MeterTest
         private async Task DeselectStationWithoutCompleteAssetAsync(DataGridViewRow row)
         {
             if (HasCompleteAssetForTest(row) ||
-                !Convert.ToBoolean(row.Cells[colStationSelected.Index].Value ?? false))
+                !IsStationRowSelected(row))
             {
                 return;
             }
@@ -4442,6 +4443,11 @@ namespace ModelTest.MeterTest
         /// </summary>
         private List<StationCommunicationConfig> GetSelectedStations()
         {
+            if (stationGrid.IsCurrentCellDirty)
+            {
+                stationGrid.CommitEdit(DataGridViewDataErrorContexts.Commit);
+            }
+
             stationGrid.EndEdit();
             List<StationCommunicationConfig> stations = new();
             IReadOnlyDictionary<int, MeterArchiveData> meterArchives =
@@ -4449,7 +4455,7 @@ namespace ModelTest.MeterTest
 
             foreach (DataGridViewRow row in stationGrid.Rows)
             {
-                if (row.IsNewRow || !Convert.ToBoolean(row.Cells[colStationSelected.Index].Value ?? false))
+                if (row.IsNewRow || !IsStationRowSelected(row))
                     continue;
 
                 int stationNo = Convert.ToInt32(row.Cells[colStationNo.Index].Value);
@@ -4461,9 +4467,9 @@ namespace ModelTest.MeterTest
                     archive,
                     barcode,
                     () => GetCellText(row, colStationMeterAddress, string.Empty));
-                if (string.IsNullOrWhiteSpace(barcode) || string.IsNullOrWhiteSpace(meterAddress))
+                if (string.IsNullOrWhiteSpace(meterAddress))
                 {
-                    LogMessage.Debug($"[资产联动] 工位{stationNo}未完成条形码扫码或电表地址提取，本次测试已跳过。");
+                    LogMessage.Debug($"[资产联动] 工位{stationNo}未配置有效电表地址，本次测试已跳过。");
                     continue;
                 }
 
@@ -4496,6 +4502,21 @@ namespace ModelTest.MeterTest
             }
 
             return stations;
+        }
+
+        /// <summary>
+        /// 读取工位选择列的真实值，兼容 bool、CheckState 和字符串值。
+        /// </summary>
+        private bool IsStationRowSelected(DataGridViewRow row)
+        {
+            object? value = row.Cells[colStationSelected.Index].Value;
+            return value switch
+            {
+                bool selected => selected,
+                CheckState checkState => checkState == CheckState.Checked,
+                string text => bool.TryParse(text, out bool selected) && selected,
+                _ => false
+            };
         }
 
         /// <summary>
@@ -4614,7 +4635,7 @@ namespace ModelTest.MeterTest
                     bool eligible = row.Visible && HasCompleteAssetForTest(row);
                     bool targetSelected = selected && eligible &&
                         (!rbSingleStation.Checked || row.Index == firstEligibleRowIndex);
-                    bool currentSelected = Convert.ToBoolean(row.Cells[colStationSelected.Index].Value ?? false);
+                    bool currentSelected = IsStationRowSelected(row);
                     if (currentSelected == targetSelected)
                         continue;
 
@@ -4677,7 +4698,7 @@ namespace ModelTest.MeterTest
                 ? stationGrid.Rows
                     .Cast<DataGridViewRow>()
                     .Where(row => !row.IsNewRow &&
-                                  Convert.ToBoolean(row.Cells[colStationSelected.Index].Value ?? false) &&
+                                  IsStationRowSelected(row) &&
                                   HasCompleteAssetForTest(row))
                     .Select(row => Convert.ToInt32(row.Cells[colStationNo.Index].Value))
                     .ToHashSet()
@@ -4731,7 +4752,7 @@ namespace ModelTest.MeterTest
                     if (row.IsNewRow || row.Index == selectedRowIndex)
                         continue;
 
-                    bool currentSelected = Convert.ToBoolean(row.Cells[colStationSelected.Index].Value ?? false);
+                    bool currentSelected = IsStationRowSelected(row);
                     if (!currentSelected)
                         continue;
 
@@ -4764,7 +4785,7 @@ namespace ModelTest.MeterTest
             if (changedRow.IsNewRow)
                 return;
 
-            bool isSelected = Convert.ToBoolean(changedRow.Cells[colStationSelected.Index].Value ?? false);
+            bool isSelected = IsStationRowSelected(changedRow);
             int stationNo = Convert.ToInt32(changedRow.Cells[colStationNo.Index].Value);
             if (isSelected && !HasCompleteAssetForTest(changedRow))
             {
@@ -4795,7 +4816,7 @@ namespace ModelTest.MeterTest
                     foreach (DataGridViewRow row in stationGrid.Rows)
                     {
                         if (row.IsNewRow || row.Index == rowIndex ||
-                            !Convert.ToBoolean(row.Cells[colStationSelected.Index].Value ?? false))
+                            !IsStationRowSelected(row))
                         {
                             continue;
                         }
@@ -4897,7 +4918,7 @@ namespace ModelTest.MeterTest
             foreach (DataGridViewRow row in stationGrid.Rows)
             {
                 if (row.Visible && HasCompleteAssetForTest(row) &&
-                    Convert.ToBoolean(row.Cells[colStationSelected.Index].Value ?? false))
+                    IsStationRowSelected(row))
                 {
                     return row.Index;
                 }
@@ -5416,7 +5437,7 @@ namespace ModelTest.MeterTest
                 Font = new Font("Consolas", 10.5F, FontStyle.Bold, GraphicsUnit.Point),
                 ForeColor = metricColor,
                 Radius = 6,
-                Text = "000.0000",
+                Text = "000.000000",
                 TextAlign = ContentAlignment.MiddleCenter,
                 Margin = new Padding(3, 0, 0, 0)
             };
@@ -5436,7 +5457,7 @@ namespace ModelTest.MeterTest
             if (!hardwareValueLabels.TryGetValue(metricName, out Label? valueLabel))
                 return;
 
-            valueLabel.Text = string.IsNullOrWhiteSpace(value) ? "000.0000" : value;
+            valueLabel.Text = FormatHardwareMetricValue(value);
         }
 
         /// <summary>
@@ -5449,6 +5470,20 @@ namespace ModelTest.MeterTest
             {
                 UpdateHardwareMetric(item.Key, item.Value);
             }
+        }
+
+        /// <summary>
+        /// 台体信息采集区域统一展示为 6 位小数，保持界面数值风格一致。
+        /// </summary>
+        private static string FormatHardwareMetricValue(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return "000.000000";
+
+            if (decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out decimal numericValue))
+                return numericValue.ToString("0.000000", CultureInfo.InvariantCulture);
+
+            return value.Trim();
         }
 
         /// <summary>

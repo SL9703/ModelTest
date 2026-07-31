@@ -1122,9 +1122,9 @@ internal sealed class MeterTestStartingErrorService
         packetIntervalMs = Math.Max(0, subItem.PacketIntervalMs);
         errorMessage = null;
 
-        if (subItem.BasicErrorPulseCount is < 1 or > 99)
+        if (subItem.BasicErrorPulseCount is < 1 or > 255)
         {
-            errorMessage = "0x38脉冲数必须在1-99之间。";
+            errorMessage = "0x38脉冲数必须在1-255之间。";
             return false;
         }
 
@@ -1158,9 +1158,9 @@ internal sealed class MeterTestStartingErrorService
         testCount = 0;
         packetIntervalMs = Math.Max(0, subItem.PacketIntervalMs);
         errorMessage = null;
-        if (subItem.BasicErrorPulseCount is < 1 or > 99)
+        if (subItem.BasicErrorPulseCount is < 1 or > 255)
         {
-            errorMessage = "0x38结果查询脉冲数必须在1-99之间。";
+            errorMessage = "0x38结果查询脉冲数必须在1-255之间。";
             return false;
         }
 

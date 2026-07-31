@@ -9,6 +9,7 @@ namespace ModelTest.Tools
     public static class SGCCTools
     {
         private const int FixedFrameBytesWithoutServerAddressAndApdu = 9;
+        private static readonly object FrameStateSyncRoot = new();
 
         private static readonly IReadOnlyDictionary<string, string> ApduServiceTypes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
@@ -104,9 +105,15 @@ namespace ModelTest.Tools
             string fcs = CalculateFcs(frameForFcs);
             string message = start + frameForFcs + fcs + end;
 
-            UpdateLastFrameState(start, length, control, serverAddressSign, serverAddress, clientAddress, hcs, apdu, fcs, end, message);
-            LogMessage.Debug("国网单元-准备发送消息：" + SGCC_698);
-            return SGCC_698;
+            // SGCC_* 字段是为了兼容旧界面展示保留的全局状态。
+            // 多工位并发组帧时必须返回本次局部 message，不能返回可能已被其他线程覆盖的 SGCC_698。
+            lock (FrameStateSyncRoot)
+            {
+                UpdateLastFrameState(start, length, control, serverAddressSign, serverAddress, clientAddress, hcs, apdu, fcs, end, message);
+            }
+
+            LogMessage.Debug("国网单元-准备发送消息：" + message);
+            return message;
         }
 
         /// <summary>

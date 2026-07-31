@@ -73,9 +73,9 @@ public static class MeterTestBasicErrorCalculator
             return false;
         }
 
-        if (subItem.BasicErrorPulseCount is < 0 or > 99)
+        if (subItem.BasicErrorPulseCount is < 0 or > MeterTestBasicErrorDefaults.MaxPulseCount)
         {
-            errorMessage = $"0x38脉冲数只能为0（自动）或1-99：{subItem.BasicErrorPulseCount}。";
+            errorMessage = $"0x38脉冲数只能为0（自动）或1-{MeterTestBasicErrorDefaults.MaxPulseCount}：{subItem.BasicErrorPulseCount}。";
             return false;
         }
 
@@ -283,9 +283,9 @@ public static class MeterTestBasicErrorCalculator
                 (int)Math.Ceiling(minimumWaitSeconds * meterConstant * power / EnergyConversionFactor));
         }
 
-        if (pulseCount > 99)
+        if (pulseCount > MeterTestBasicErrorDefaults.MaxPulseCount)
         {
-            errorMessage = $"保证不少于{minimumWaitSeconds}s需要{pulseCount}个脉冲，超过0x38协议上限99个。";
+            errorMessage = $"保证不少于{minimumWaitSeconds}s需要{pulseCount}个脉冲，超过0x38协议上限{MeterTestBasicErrorDefaults.MaxPulseCount}个。";
             return false;
         }
 

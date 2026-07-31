@@ -1596,24 +1596,116 @@ public sealed class MeterTestSourceControlService : IDisposable
     {
         Dictionary<string, string> values = new(StringComparer.OrdinalIgnoreCase)
         {
-            ["Ua"] = standParts[0],
-            ["Ub"] = standParts[1],
-            ["Uc"] = standParts[2],
-            ["Ia"] = standParts[3],
-            ["Ib"] = standParts[4],
-            ["Ic"] = standParts[5],
-            ["Φa"] = standParts[6],
-            ["Φb"] = standParts[7],
-            ["Φc"] = standParts[8],
-            ["Pa"] = standParts[9],
-            ["Pb"] = standParts[10],
-            ["Pc"] = standParts[11],
-            ["Qa"] = standParts[12],
-            ["Qb"] = standParts[13],
-            ["Qc"] = standParts[14]
+            ["Ua"] = FormatStandValue(standParts[0]),
+            ["Ub"] = FormatStandValue(standParts[1]),
+            ["Uc"] = FormatStandValue(standParts[2]),
+            ["Ia"] = FormatStandValue(standParts[3]),
+            ["Ib"] = FormatStandValue(standParts[4]),
+            ["Ic"] = FormatStandValue(standParts[5]),
+            ["Φa"] = FormatStandValue(standParts[6]),
+            ["Φb"] = FormatStandValue(standParts[7]),
+            ["Φc"] = FormatStandValue(standParts[8]),
+            ["Pa"] = FormatStandValue(standParts[9]),
+            ["Pb"] = FormatStandValue(standParts[10]),
+            ["Pc"] = FormatStandValue(standParts[11]),
+            ["Qa"] = FormatStandValue(standParts[12]),
+            ["Qb"] = FormatStandValue(standParts[13]),
+            ["Qc"] = FormatStandValue(standParts[14])
         };
 
+        AddDerivedStandValues(values);
+
         return values;
+    }
+
+    /// <summary>
+    /// 把标准表原始数值统一整理为 6 位小数。
+    /// </summary>
+    private static string FormatStandValue(string value)
+    {
+        if (decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out decimal numericValue))
+        {
+            return FormatStandValue(numericValue);
+        }
+
+        return value.Trim();
+    }
+
+    /// <summary>
+    /// 把标准表计算值统一整理为 6 位小数。
+    /// </summary>
+    private static string FormatStandValue(decimal value)
+    {
+        return value.ToString("0.000000", CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>
+    /// 根据标准表的 P/Q 原始数据计算 Sa/Sb/Sc、PFa/PFb/PFc、ΣP/ΣQ/ΣS。
+    /// </summary>
+    private static void AddDerivedStandValues(IDictionary<string, string> values)
+    {
+        decimal pa = ParseStandDecimal(values, "Pa");
+        decimal pb = ParseStandDecimal(values, "Pb");
+        decimal pc = ParseStandDecimal(values, "Pc");
+        decimal qa = ParseStandDecimal(values, "Qa");
+        decimal qb = ParseStandDecimal(values, "Qb");
+        decimal qc = ParseStandDecimal(values, "Qc");
+
+        decimal sa = CalculateApparentPower(pa, qa);
+        decimal sb = CalculateApparentPower(pb, qb);
+        decimal sc = CalculateApparentPower(pc, qc);
+
+        values["Sa"] = FormatStandValue(sa);
+        values["Sb"] = FormatStandValue(sb);
+        values["Sc"] = FormatStandValue(sc);
+        values["Pfa"] = FormatStandValue(CalculatePowerFactor(pa, sa));
+        values["Pfb"] = FormatStandValue(CalculatePowerFactor(pb, sb));
+        values["Pfc"] = FormatStandValue(CalculatePowerFactor(pc, sc));
+
+        decimal sumP = pa + pb + pc;
+        decimal sumQ = qa + qb + qc;
+        decimal sumS = CalculateApparentPower(sumP, sumQ);
+
+        values["ΣP"] = FormatStandValue(sumP);
+        values["ΣQ"] = FormatStandValue(sumQ);
+        values["ΣS"] = FormatStandValue(sumS);
+    }
+
+    /// <summary>
+    /// 从标准表字典里安全解析数值，缺失时按 0 处理。
+    /// </summary>
+    private static decimal ParseStandDecimal(IDictionary<string, string> values, string key)
+    {
+        if (values.TryGetValue(key, out string? text)
+            && decimal.TryParse(text, NumberStyles.Number, CultureInfo.InvariantCulture, out decimal numericValue))
+        {
+            return numericValue;
+        }
+
+        return 0m;
+    }
+
+    /// <summary>
+    /// 计算视在功率 S = sqrt(P^2 + Q^2)。
+    /// </summary>
+    private static decimal CalculateApparentPower(decimal activePower, decimal reactivePower)
+    {
+        double p = (double)activePower;
+        double q = (double)reactivePower;
+        return (decimal)Math.Sqrt(p * p + q * q);
+    }
+
+    /// <summary>
+    /// 计算功率因数 PF = P / S。
+    /// </summary>
+    private static decimal CalculatePowerFactor(decimal activePower, decimal apparentPower)
+    {
+        if (apparentPower == 0m)
+        {
+            return 0m;
+        }
+
+        return activePower / apparentPower;
     }
 
     /// <summary>

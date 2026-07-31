@@ -162,6 +162,11 @@ public sealed class MeterTestBasicErrorService
             Trace(stationPlan.StationNo, $"[批次源控制] {batchSummary}", stationLogger);
             Trace(
                 stationPlan.StationNo,
+                $"[参数版本] 0x38脉冲数协议上限={MeterTestBasicErrorDefaults.MaxPulseCount}，"
+                + $"结果等待余量={MeterTestBasicErrorDefaults.WaitPaddingSeconds}s。",
+                stationLogger);
+            Trace(
+                stationPlan.StationNo,
                 $"[步骤1/5 升源] FA角度配置：{point.Direction}/{point.PowerFactorText} "
                 + $"=> {point.CurrentAngle:0.######}°（数据库MeterTestPowerFactorAngle）。",
                 stationLogger);

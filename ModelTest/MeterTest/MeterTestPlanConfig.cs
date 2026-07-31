@@ -369,7 +369,7 @@ public class MeterTestSubItem
     [XmlAttribute("startingTimeMultiplier")]
     public int StartingTimeMultiplier { get; set; } = 2;
 
-    /// <summary>0x38基本误差试验使用的被测表脉冲数；0表示按不少于10秒自动计算，1-99表示固定值。</summary>
+    /// <summary>0x38基本误差试验使用的被测表脉冲数；0表示按不少于10秒自动计算，1-255表示固定值。</summary>
     [XmlAttribute("basicErrorPulseCount")]
     public int BasicErrorPulseCount { get; set; } = 2;
 

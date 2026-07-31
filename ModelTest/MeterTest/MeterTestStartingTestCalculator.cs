@@ -137,9 +137,9 @@ public static class MeterTestStartingTestCalculator
             errorMessage = $"起动时间等待倍率必须大于0，当前={waitMultiplier}。";
             return false;
         }
-        if (pulseCount is < 1 or > 99)
+        if (pulseCount is < 1 or > 255)
         {
-            errorMessage = $"起动试验脉冲数必须在1-99之间，当前={pulseCount}。";
+            errorMessage = $"起动试验脉冲数必须在1-255之间，当前={pulseCount}。";
             return false;
         }
 
