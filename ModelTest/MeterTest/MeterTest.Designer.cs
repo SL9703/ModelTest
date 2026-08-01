@@ -566,7 +566,7 @@
             tbxBarcodeStartIndex.Name = "tbxBarcodeStartIndex";
             tbxBarcodeStartIndex.Size = new Size(52, 34);
             tbxBarcodeStartIndex.TabIndex = 7;
-            tbxBarcodeStartIndex.Text = "8";
+            tbxBarcodeStartIndex.Text = "9";
             tbxBarcodeStartIndex.Visible = false;
             // 
             // lblBarcodeEndIndex
@@ -576,7 +576,7 @@
             lblBarcodeEndIndex.Name = "lblBarcodeEndIndex";
             lblBarcodeEndIndex.Size = new Size(88, 32);
             lblBarcodeEndIndex.TabIndex = 8;
-            lblBarcodeEndIndex.Text = "条码结束位";
+            lblBarcodeEndIndex.Text = "截取长度";
             lblBarcodeEndIndex.TextAlign = ContentAlignment.MiddleLeft;
             lblBarcodeEndIndex.Visible = false;
             // 
@@ -587,7 +587,7 @@
             tbxBarcodeEndIndex.Name = "tbxBarcodeEndIndex";
             tbxBarcodeEndIndex.Size = new Size(52, 34);
             tbxBarcodeEndIndex.TabIndex = 9;
-            tbxBarcodeEndIndex.Text = "20";
+            tbxBarcodeEndIndex.Text = "12";
             tbxBarcodeEndIndex.Visible = false;
             // 
             // lblBarcodeSecondStart

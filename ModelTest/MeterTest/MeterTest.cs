@@ -2401,7 +2401,7 @@ namespace ModelTest.MeterTest
                 tbxBarcodeSecondStart.Visible = false;
                 lblBarcodeSecondLength.Visible = false;
                 tbxBarcodeSecondLength.Visible = false;
-                processGrid.Visible = true;
+                    processGrid.Visible = true;
                 countdownPanel.Visible = true;
                 SetProcessLogVisibility(true);
 
@@ -2928,6 +2928,22 @@ namespace ModelTest.MeterTest
                     StringComparison.OrdinalIgnoreCase)
                         ? MeterTestBarcodeExtractor.Rule2Composite
                         : MeterTestBarcodeExtractor.Rule1Range;
+                if (assetBarcodeRuleType == MeterTestBarcodeExtractor.Rule1Range &&
+                    assetBarcodeStartIndex == 8 &&
+                    assetBarcodeEndIndex == 20)
+                {
+                    assetBarcodeStartIndex = 9;
+                    assetBarcodeEndIndex = 20;
+                    accessDatabaseService.SaveAssetBarcodeSetting(
+                        assetBarcodeStartIndex,
+                        assetBarcodeEndIndex,
+                        assetBarcodeRuleType,
+                        setting.Rule2FirstStart,
+                        setting.Rule2FirstLength,
+                        setting.Rule2SecondStart,
+                        setting.Rule2SecondLength);
+                }
+
                 assetBarcodeRule2FirstStart = setting.Rule2FirstStart;
                 assetBarcodeRule2FirstLength = setting.Rule2FirstLength;
                 assetBarcodeRule2SecondStart = setting.Rule2SecondStart;
@@ -2940,6 +2956,7 @@ namespace ModelTest.MeterTest
             {
                 isLoadingBarcodeSetting = false;
             }
+
         }
 
         /// <summary>
@@ -3000,7 +3017,7 @@ namespace ModelTest.MeterTest
         }
 
         /// <summary>
-        /// 读取条码截取规则输入。
+        /// 读取规则1的起始位和截取长度，并换算为内部使用的起止位。
         /// </summary>
         private bool TryReadBarcodeRangeFromInputs(out int startIndex, out int endIndex)
         {
@@ -3010,10 +3027,14 @@ namespace ModelTest.MeterTest
             if (!int.TryParse(tbxBarcodeStartIndex.Text.Trim(), out startIndex))
                 return false;
 
-            if (!int.TryParse(tbxBarcodeEndIndex.Text.Trim(), out endIndex))
+            if (!int.TryParse(tbxBarcodeEndIndex.Text.Trim(), out int length))
                 return false;
 
-            return startIndex >= 0 && endIndex >= startIndex;
+            if (startIndex < 0 || length <= 0)
+                return false;
+
+            endIndex = startIndex + length - 1;
+            return true;
         }
 
         /// <summary>读取规则2的两段起始位置和长度，并验证所有索引均可用于条码截取。</summary>
@@ -3079,7 +3100,9 @@ namespace ModelTest.MeterTest
         {
             bool composite = assetBarcodeRuleType == MeterTestBarcodeExtractor.Rule2Composite;
             tbxBarcodeStartIndex.Text = (composite ? assetBarcodeRule2FirstStart : assetBarcodeStartIndex).ToString();
-            tbxBarcodeEndIndex.Text = (composite ? assetBarcodeRule2FirstLength : assetBarcodeEndIndex).ToString();
+            tbxBarcodeEndIndex.Text = (composite
+                ? assetBarcodeRule2FirstLength
+                : Math.Max(1, assetBarcodeEndIndex - assetBarcodeStartIndex + 1)).ToString();
             tbxBarcodeSecondStart.Text = assetBarcodeRule2SecondStart.ToString();
             tbxBarcodeSecondLength.Text = assetBarcodeRule2SecondLength.ToString();
         }
@@ -3090,7 +3113,7 @@ namespace ModelTest.MeterTest
             bool assetView = currentGridViewMode == MeterTestGridViewMode.AssetInfo;
             bool composite = assetBarcodeRuleType == MeterTestBarcodeExtractor.Rule2Composite;
             lblBarcodeStartIndex.Text = composite ? "段1起始" : "条码起始位";
-            lblBarcodeEndIndex.Text = composite ? "段1长度" : "条码结束位";
+            lblBarcodeEndIndex.Text = composite ? "段1长度" : "截取长度";
             lblBarcodeStartIndex.Visible = assetView;
             tbxBarcodeStartIndex.Visible = assetView;
             lblBarcodeEndIndex.Visible = assetView;

@@ -10,7 +10,7 @@ public static class MeterTestBarcodeExtractor
     public const string Rule1Range = "Rule1Range";
     public const string Rule2Composite = "Rule2Composite";
 
-    /// <summary>根据当前规则将条形码转换成12位电表地址。</summary>
+    /// <summary>根据当前规则将条形码转换成电表地址。</summary>
     public static bool TryExtract(
         string? barcode,
         string? ruleType,

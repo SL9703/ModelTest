@@ -628,7 +628,7 @@ public sealed class MeterTestAccessDatabaseService
         if (reader.Read())
         {
             return new MeterTestAssetBarcodeSettingData(
-                reader.IsDBNull(0) ? 8 : reader.GetInt32(0),
+                reader.IsDBNull(0) ? 9 : reader.GetInt32(0),
                 reader.IsDBNull(1) ? 20 : reader.GetInt32(1),
                 reader.IsDBNull(2) ? MeterTestBarcodeExtractor.Rule1Range : reader.GetString(2),
                 reader.IsDBNull(3) ? 6 : reader.GetInt32(3),
@@ -637,8 +637,8 @@ public sealed class MeterTestAccessDatabaseService
                 reader.IsDBNull(6) ? 10 : reader.GetInt32(6));
         }
 
-        SaveAssetBarcodeSetting(8, 20, MeterTestBarcodeExtractor.Rule1Range, 6, 2, 10, 10);
-        return new MeterTestAssetBarcodeSettingData(8, 20, MeterTestBarcodeExtractor.Rule1Range, 6, 2, 10, 10);
+        SaveAssetBarcodeSetting(9, 20, MeterTestBarcodeExtractor.Rule1Range, 6, 2, 10, 10);
+        return new MeterTestAssetBarcodeSettingData(9, 20, MeterTestBarcodeExtractor.Rule1Range, 6, 2, 10, 10);
     }
 
     /// <summary>
@@ -1421,7 +1421,7 @@ public sealed class MeterTestAccessDatabaseService
             command.ExecuteNonQuery();
         }
 
-        EnsureColumnExists(connection, "MeterTestAssetBarcodeSetting", "BarcodeStartIndex", "INTEGER NOT NULL DEFAULT 8");
+        EnsureColumnExists(connection, "MeterTestAssetBarcodeSetting", "BarcodeStartIndex", "INTEGER NOT NULL DEFAULT 9");
         EnsureColumnExists(connection, "MeterTestAssetBarcodeSetting", "BarcodeEndIndex", "INTEGER NOT NULL DEFAULT 20");
         EnsureColumnExists(connection, "MeterTestAssetBarcodeSetting", "RuleType", "TEXT NOT NULL DEFAULT 'Rule1Range'");
         EnsureColumnExists(connection, "MeterTestAssetBarcodeSetting", "Rule2FirstStart", "INTEGER NOT NULL DEFAULT 6");
