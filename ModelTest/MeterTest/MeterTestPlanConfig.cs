@@ -39,6 +39,14 @@ public class MeterTestPlanConfig
     [XmlArrayItem("BluetoothTcpChannel")]
     public List<MeterTestBluetoothTcpChannel> BluetoothTcpChannels { get; set; } = new();
 
+    /// <summary>
+    /// 工位指示灯控制板配置集合。
+    /// 现场连接参数统一从 MeterTestStationConfig.xml 注入，测试方案文件不再保存该节点。
+    /// </summary>
+    [XmlArray("IndicatorLightGroups")]
+    [XmlArrayItem("IndicatorLightGroup")]
+    public List<MeterTestIndicatorLightGroup> IndicatorLightGroups { get; set; } = new();
+
     /// <summary>现场台体切换配置已迁移到 MeterTestStationConfig.xml，测试方案序列化时不再写回。</summary>
     public bool ShouldSerializeBenchTypeSwitchConfig() => false;
 
@@ -50,6 +58,9 @@ public class MeterTestPlanConfig
 
     /// <summary>现场蓝牙TCP通道配置已迁移到 MeterTestStationConfig.xml，测试方案序列化时不再写回。</summary>
     public bool ShouldSerializeBluetoothTcpChannels() => false;
+
+    /// <summary>现场指示灯配置已迁移到 MeterTestStationConfig.xml，测试方案序列化时不再写回。</summary>
+    public bool ShouldSerializeIndicatorLightGroups() => false;
 
     /// <summary>
     /// 测试方案集合。界面左侧 TreeView 按此集合生成方案树。
@@ -239,6 +250,45 @@ public class MeterTestBluetoothTcpChannel
 }
 
 /// <summary>
+/// 工位指示灯控制板与工位/灯光地址的映射。
+/// 单相控制板通常控制3个工位，三相控制板通常控制2个工位；这里只保存用户配置，不做固定假设。
+/// </summary>
+public class MeterTestIndicatorLightGroup
+{
+    /// <summary>配置名称，用于日志输出。</summary>
+    [XmlAttribute("name")]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>是否启用该灯光控制分组。</summary>
+    [XmlAttribute("enabled")]
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>灯光控制板 IP。</summary>
+    [XmlAttribute("ip")]
+    public string Ip { get; set; } = string.Empty;
+
+    /// <summary>灯光控制板端口。</summary>
+    [XmlAttribute("port")]
+    public int Port { get; set; }
+
+    /// <summary>协议版本，当前按 V2 控制帧发送。</summary>
+    [XmlAttribute("protocolVersion")]
+    public string ProtocolVersion { get; set; } = MeterControlPcbProtocolVersion.V2.ToString();
+
+    /// <summary>该灯光板映射的起始工位。</summary>
+    [XmlAttribute("stationStart")]
+    public int StationStart { get; set; }
+
+    /// <summary>该灯光板映射的结束工位。</summary>
+    [XmlAttribute("stationEnd")]
+    public int StationEnd { get; set; }
+
+    /// <summary>起始工位对应的灯光板地址。</summary>
+    [XmlAttribute("lightAddressStart")]
+    public int LightAddressStart { get; set; }
+}
+
+/// <summary>
 /// 测试方案节点，对应 TreeView 第一层。
 /// </summary>
 public class MeterTestScheme
@@ -321,11 +371,53 @@ public class MeterTestSubItem
     public string BluetoothStep { get; set; } = string.Empty;
 
     /// <summary>
+    /// StationTcp类流程指定的485通信通道，例如485-1、485-2。
+    /// 为空时继续使用测试过程区域/默认485-2通道的IP和端口。
+    /// </summary>
+    [XmlAttribute("stationTcpChannel")]
+    public string StationTcpChannel { get; set; } = string.Empty;
+
+    /// <summary>
     /// 设备自检步骤：ShortCircuit、OpenCircuit、TemperatureHumidity。
     /// 仅在 ControlPcbDeviceSelfCheck 模式下生效。
     /// </summary>
     [XmlAttribute("deviceSelfCheckStep")]
     public string DeviceSelfCheckStep { get; set; } = string.Empty;
+
+    /// <summary>
+    /// LED效果灯测试步骤：Marquee 表示跑马灯，Blink 表示闪烁/长亮/熄灭组合测试。
+    /// 仅在 LedEffectTest 模式下生效。
+    /// </summary>
+    [XmlAttribute("ledEffectStep")]
+    public string LedEffectStep { get; set; } = string.Empty;
+
+    /// <summary>跑马灯测试总时长，单位秒，默认1分钟。</summary>
+    [XmlAttribute("ledMarqueeDurationSeconds")]
+    public int LedMarqueeDurationSeconds { get; set; } = 60;
+
+    /// <summary>跑马灯每个状态保持时长，单位秒，默认2秒发送一次。</summary>
+    [XmlAttribute("ledMarqueeIntervalSeconds")]
+    public int LedMarqueeIntervalSeconds { get; set; } = 2;
+
+    /// <summary>闪烁测试每个状态保持时长，单位秒，默认15秒。</summary>
+    [XmlAttribute("ledEffectHoldSeconds")]
+    public int LedEffectHoldSeconds { get; set; } = 15;
+
+    /// <summary>闪烁测试中“闪烁”状态保持时长，单位秒，默认15秒。</summary>
+    [XmlAttribute("ledBlinkHoldSeconds")]
+    public int LedBlinkHoldSeconds { get; set; } = 15;
+
+    /// <summary>闪烁测试中“长亮”状态保持时长，单位秒，默认15秒。</summary>
+    [XmlAttribute("ledSteadyHoldSeconds")]
+    public int LedSteadyHoldSeconds { get; set; } = 15;
+
+    /// <summary>闪烁测试中“熄灭”状态保持时长，单位秒，默认15秒。</summary>
+    [XmlAttribute("ledOffHoldSeconds")]
+    public int LedOffHoldSeconds { get; set; } = 15;
+
+    /// <summary>LED闪烁模式的闪烁周期，单位毫秒，默认500ms。</summary>
+    [XmlAttribute("ledBlinkTimeMs")]
+    public int LedBlinkTimeMs { get; set; } = 500;
 
     /// <summary>0x84/0x86启动应答成功后，读取检测结果前的等待时间，单位毫秒。</summary>
     [XmlAttribute("selfCheckDelayMs")]
@@ -537,6 +629,10 @@ public enum MeterTestExecutionMode
     /// 通过V2控制PCB按工位执行0x86短路检测、0x84断路检测或0xCA温度读取。
     /// </summary>
     ControlPcbDeviceSelfCheck,
+    /// <summary>
+    /// 通过检测板0x2F指示灯协议执行LED跑马灯和闪烁效果测试。
+    /// </summary>
+    LedEffectTest,
     /// <summary>通过工位485 TCP通道读取正向有功开始电量。</summary>
     ConstantEnergyReadStart,
     /// <summary>通过控制PCB发送0x37+00启动走字试验。</summary>

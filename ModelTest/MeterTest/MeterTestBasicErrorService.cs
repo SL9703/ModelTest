@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 using ModelTest.CustomControl;
+using ModelTest.Protocol;
 
 namespace ModelTest.MeterTest;
 
@@ -168,7 +169,10 @@ public sealed class MeterTestBasicErrorService
             Trace(
                 stationPlan.StationNo,
                 $"[步骤1/5 升源] FA角度配置：{point.Direction}/{point.PowerFactorText} "
-                + $"=> {point.CurrentAngle:0.######}°（数据库MeterTestPowerFactorAngle）。",
+                + $"=> {point.CurrentAngle:0.######}°"
+                + (point.EnergyType == MeterTestErrorEnergyType.Reactive
+                    ? "（无功按sinφ换算）。"
+                    : "（数据库MeterTestPowerFactorAngle）。"),
                 stationLogger);
             Trace(stationPlan.StationNo, $"[步骤1/5 升源] 参数计算：{stationPlan.CalculationNote}", stationLogger);
         }
@@ -423,13 +427,21 @@ public sealed class MeterTestBasicErrorService
             .ToList();
         TimeSpan timeout = TimeSpan.FromMilliseconds(Math.Max(100, subItem.TimeoutMs));
         TimeSpan interval = TimeSpan.FromMilliseconds(Math.Max(0, subItem.PacketIntervalMs));
+        bool isReactive = subItem.BasicErrorPulseType == MeterControlPcbProtocol.ReactivePulseType;
+        byte standardCommand = isReactive
+            ? MeterControlPcbProtocol.StandardReactiveConstantCommand
+            : MeterControlPcbProtocol.StandardActiveConstantCommand;
+        byte meterCommand = isReactive
+            ? MeterControlPcbProtocol.ReactiveConstantCommand
+            : MeterControlPcbProtocol.ActiveConstantCommand;
+        string energyTypeText = isReactive ? "无功" : "有功";
         byte[] standardPayload = ToLittleEndianBytes(standardConstant);
         Dictionary<byte, byte[]> a2Responses = await SendAndCollectAsync(
             connection,
             activeTargets,
-            target => ElectricEnergyMeterControlV2.BuildBasicErrorStandardConstantPacket(target.MeterAddress, standardConstant),
-            target => $"[步骤2/5 启动误差] A2设置标准表有功常数={standardConstant}",
-            frame => ResolveSettingResponse(frame, activeTargets, 0xA2, _ => standardPayload),
+            target => ElectricEnergyMeterControlV2.BuildBasicErrorStandardConstantPacket(target.MeterAddress, standardConstant, isReactive),
+            target => $"[步骤2/5 启动误差] {standardCommand:X2}设置标准表{energyTypeText}常数={standardConstant}",
+            frame => ResolveSettingResponse(frame, activeTargets, standardCommand, _ => standardPayload),
             timeout,
             interval,
             stationLogger,
@@ -448,12 +460,13 @@ public sealed class MeterTestBasicErrorService
                 activeTargets,
                 target => ElectricEnergyMeterControlV2.BuildBasicErrorMeterConstantPacket(
                     target.MeterAddress,
-                    ToMeterConstant(planByStation[target.StationNo].MeterConstant)),
-                target => $"[步骤2/5 启动误差] A0设置电能表有功常数={planByStation[target.StationNo].MeterConstant:0}",
+                    ToMeterConstant(planByStation[target.StationNo].MeterConstant),
+                    isReactive),
+                target => $"[步骤2/5 启动误差] {meterCommand:X2}设置电能表{energyTypeText}常数={planByStation[target.StationNo].MeterConstant:0}",
                 frame => ResolveSettingResponse(
                     frame,
                     activeTargets,
-                    0xA0,
+                    meterCommand,
                     target => ToLittleEndianBytes(ToMeterConstant(planByStation[target.StationNo].MeterConstant))),
                 timeout,
                 interval,
@@ -475,9 +488,10 @@ public sealed class MeterTestBasicErrorService
                 target => ElectricEnergyMeterControlV2.BuildBasicError38StartPacket(
                     target.MeterAddress,
                     planByStation[target.StationNo].PulseCount,
-                    planByStation[target.StationNo].TestCount),
-                target => $"[步骤2/5 启动误差] 0x38+00启动，脉冲数={planByStation[target.StationNo].PulseCount}，次数={planByStation[target.StationNo].TestCount}",
-                frame => ResolveStartResponse(frame, activeTargets, planByStation),
+                    planByStation[target.StationNo].TestCount,
+                    (byte)subItem.BasicErrorPulseType),
+                target => $"[步骤2/5 启动误差] 0x38+00启动，脉冲数={planByStation[target.StationNo].PulseCount}，次数={planByStation[target.StationNo].TestCount}，类型={energyTypeText}",
+                frame => ResolveStartResponse(frame, activeTargets, planByStation, (byte)subItem.BasicErrorPulseType),
                 timeout,
                 interval,
                 stationLogger,
@@ -763,7 +777,8 @@ public sealed class MeterTestBasicErrorService
     private static byte? ResolveStartResponse(
         byte[] frame,
         IReadOnlyList<BasicErrorTarget> targets,
-        IReadOnlyDictionary<int, MeterTestBasicErrorStationPlan> planByStation)
+        IReadOnlyDictionary<int, MeterTestBasicErrorStationPlan> planByStation,
+        byte pulseType)
     {
         if (frame.Length <= 5)
             return null;
@@ -778,7 +793,8 @@ public sealed class MeterTestBasicErrorService
             frame,
             address,
             stationPlan.PulseCount,
-            stationPlan.TestCount)
+            stationPlan.TestCount,
+            pulseType)
             ? address
             : null;
     }

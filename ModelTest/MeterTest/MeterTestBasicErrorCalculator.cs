@@ -31,7 +31,11 @@ public static class MeterTestBasicErrorCalculator
             return false;
         }
 
-        if (!TryParseDirection(subItem.BasicErrorDirection, out bool reverseActive, out string directionText))
+        if (!TryParseDirection(
+                subItem.BasicErrorDirection,
+                out MeterTestErrorEnergyType energyType,
+                out bool reverseActive,
+                out string directionText))
         {
             errorMessage = $"基本误差方向不支持：{subItem.BasicErrorDirection}。";
             return false;
@@ -39,6 +43,7 @@ public static class MeterTestBasicErrorCalculator
 
         if (!TryParsePowerFactor(
                 subItem.BasicErrorPowerFactor,
+                energyType,
                 reverseActive,
                 powerFactorAngles,
                 out decimal powerFactor,
@@ -94,6 +99,7 @@ public static class MeterTestBasicErrorCalculator
             if (!TryCreateStationPlan(
                     subItem,
                     archive,
+                    energyType,
                     phase,
                     directionText,
                     powerFactorText,
@@ -161,6 +167,7 @@ public static class MeterTestBasicErrorCalculator
             subItem.BasicErrorVoltageMultiplier * 100m,
             currentPercentages[0],
             (byte)subItem.BasicErrorTestCount,
+            energyType,
             stationPlans);
         return true;
     }
@@ -169,6 +176,7 @@ public static class MeterTestBasicErrorCalculator
     private static bool TryCreateStationPlan(
         MeterTestSubItem subItem,
         MeterArchiveData archive,
+        MeterTestErrorEnergyType energyType,
         string phase,
         string directionText,
         string powerFactorText,
@@ -193,6 +201,7 @@ public static class MeterTestBasicErrorCalculator
         }
 
         string activeClass = NormalizeActiveClass(archive.ActiveClass);
+        string reactiveClass = NormalizeReactiveClass(archive.ReactiveClass);
         if (!TryParsePositiveNumber(archive.Current, out decimal basicCurrent))
         {
             errorMessage = $"基本电流无法解析：{archive.Current}。";
@@ -212,6 +221,7 @@ public static class MeterTestBasicErrorCalculator
         if (!TryResolveTestCurrent(
                 subItem.BasicErrorCurrentPoint,
                 currentSpecification!,
+                basicCurrent,
                 out decimal testCurrent,
                 out string currentPointText))
         {
@@ -219,28 +229,40 @@ public static class MeterTestBasicErrorCalculator
             return false;
         }
 
-        if (!TryParsePositiveNumber(archive.ActiveConstant, out decimal meterConstant))
+        string meterConstantText = energyType == MeterTestErrorEnergyType.Reactive
+            ? archive.ReactiveConstant
+            : archive.ActiveConstant;
+        string meterConstantName = energyType == MeterTestErrorEnergyType.Reactive ? "无功常数" : "有功常数";
+        if (!TryParsePositiveNumber(meterConstantText, out decimal meterConstant))
         {
-            errorMessage = $"有功常数无效：{archive.ActiveConstant}。";
+            errorMessage = $"{meterConstantName}无效：{meterConstantText}。";
             return false;
         }
 
         if (meterConstant != decimal.Truncate(meterConstant) || meterConstant > uint.MaxValue)
         {
-            errorMessage = $"有功常数必须是1-{uint.MaxValue}之间的整数：{archive.ActiveConstant}。";
+            errorMessage = $"{meterConstantName}必须是1-{uint.MaxValue}之间的整数：{meterConstantText}。";
             return false;
         }
 
         decimal sourcePhaseVoltage = phaseVoltage * subItem.BasicErrorVoltageMultiplier;
         // 电流点由独立电流规格解析。百分比仅用于日志和数据追溯，实际升源使用绝对电流值。
         decimal currentPercentage = testCurrent / basicCurrent * 100m;
-        decimal power = CalculateActivePower(
-            phaseMode,
-            phase,
-            sourcePhaseVoltage,
-            lineVoltage * subItem.BasicErrorVoltageMultiplier,
-            testCurrent,
-            powerFactor);
+        decimal power = energyType == MeterTestErrorEnergyType.Reactive
+            ? CalculateReactivePower(
+                phaseMode,
+                phase,
+                sourcePhaseVoltage,
+                lineVoltage * subItem.BasicErrorVoltageMultiplier,
+                testCurrent,
+                powerFactor)
+            : CalculateActivePower(
+                phaseMode,
+                phase,
+                sourcePhaseVoltage,
+                lineVoltage * subItem.BasicErrorVoltageMultiplier,
+                testCurrent,
+                powerFactor);
         if (power <= 0)
         {
             errorMessage = "基本误差功率计算结果无效。";
@@ -259,8 +281,8 @@ public static class MeterTestBasicErrorCalculator
 
         MeterTestErrorLimitResult errorLimitResult = MeterTestErrorResultComparer.CalculateLimit(
             new MeterTestErrorLimitRequest(
-                MeterTestErrorEnergyType.Active,
-                activeClass,
+                energyType,
+                energyType == MeterTestErrorEnergyType.Reactive ? reactiveClass : activeClass,
                 archive.AccessMode,
                 powerFactorText,
                 testCurrent,
@@ -268,7 +290,8 @@ public static class MeterTestBasicErrorCalculator
                 currentSpecification!.Imin,
                 currentSpecification.Itr,
                 currentSpecification.Imax,
-                basicCurrent));
+                basicCurrent,
+                phase));
         if (!errorLimitResult.IsValid || !errorLimitResult.IsApplicable)
         {
             errorMessage = $"测试点 {subItem.Name} 无法计算规程误差限：{errorLimitResult.Message}";
@@ -310,7 +333,8 @@ public static class MeterTestBasicErrorCalculator
             + $"电流规格={currentSpecification!.Description}，测试电流={testCurrent:0.#########}A，"
             + $"AnyUIOutput电压={sourcePhaseVoltage:0.######}V，"
             + $"AnyUIOutput电流={testCurrent:0.#########}A（相对基本电流{currentPercentage:0.#########}%），"
-            + $"功率={power:0.######}W，表常数={meterConstant:0.######}，"
+            + $"{(energyType == MeterTestErrorEnergyType.Reactive ? "无功功率" : "有功功率")}={power:0.######}W，"
+            + $"{meterConstantName}={meterConstant:0.######}，"
             + $"脉冲数={pulseCount}，次数={subItem.BasicErrorTestCount}，"
             + $"单次理论时间={singleTestSeconds:0.###}s，向上取整并保证不少于{minimumWaitSeconds}s后={singleRoundWaitSeconds}s，"
             + $"总理论时间={totalTestSeconds:0.###}s，"
@@ -325,6 +349,7 @@ public static class MeterTestBasicErrorCalculator
             testCurrent,
             basicCurrent,
             currentPercentage,
+            energyType,
             power,
             meterConstant,
             (byte)pulseCount,
@@ -361,12 +386,18 @@ public static class MeterTestBasicErrorCalculator
     private static bool TryResolveTestCurrent(
         string currentPoint,
         MeterTestBasicErrorCurrentSpecification specification,
+        decimal ratedCurrent,
         out decimal current,
         out string normalizedPoint)
     {
         normalizedPoint = currentPoint?.Trim() ?? string.Empty;
         current = normalizedPoint.ToUpperInvariant() switch
         {
+            "0.05IN" => ratedCurrent * 0.05m,
+            "0.1IN" => ratedCurrent * 0.1m,
+            "0.2IN" => ratedCurrent * 0.2m,
+            "0.5IN" => ratedCurrent * 0.5m,
+            "1IN" or "IN" => ratedCurrent,
             "IMIN" => specification.Imin,
             "ITR" => specification.Itr,
             "10ITR" => specification.Itr * 10m,
@@ -396,9 +427,28 @@ public static class MeterTestBasicErrorCalculator
         return phaseVoltage * current * powerFactor;
     }
 
+    /// <summary>按单相或三相测量单元、相电压、电流和无功功率因数计算当前点无功功率。</summary>
+    private static decimal CalculateReactivePower(
+        MeterTestSourcePhaseMode phaseMode,
+        string phase,
+        decimal phaseVoltage,
+        decimal lineVoltage,
+        decimal current,
+        decimal reactiveFactor)
+    {
+        if (phaseMode == MeterTestSourcePhaseMode.SinglePhase)
+            return phaseVoltage * current * reactiveFactor;
+
+        if (phase == "H")
+            return (decimal)Math.Sqrt(3d) * lineVoltage * current * reactiveFactor;
+
+        return phaseVoltage * current * reactiveFactor;
+    }
+
     /// <summary>解析 1.0、0.5L、0.8C 等功率因数文本，并返回数值及负载性质。</summary>
     private static bool TryParsePowerFactor(
         string value,
+        MeterTestErrorEnergyType energyType,
         bool reverseActive,
         IReadOnlyList<MeterTestPowerFactorAngleData> powerFactorAngles,
         out decimal powerFactor,
@@ -423,6 +473,19 @@ public static class MeterTestBasicErrorCalculator
         }
 
         normalized = normalized is "1" ? "1.0" : normalized;
+        if (energyType == MeterTestErrorEnergyType.Reactive)
+        {
+            // 无功点的“功率因数”按 sinφ 使用：1.0=>90°，0.5L=>+30°，0.5C=>-30°。
+            double angle = Math.Asin((double)powerFactor) * 180d / Math.PI;
+            if (normalized.EndsWith("C", StringComparison.OrdinalIgnoreCase))
+            {
+                angle = -angle;
+            }
+
+            currentAngle = decimal.Round((decimal)angle, 6, MidpointRounding.AwayFromZero);
+            return true;
+        }
+
         string direction = reverseActive ? "ReverseActive" : "ForwardActive";
         string normalizedPowerFactor = normalized;
         MeterTestPowerFactorAngleData? angleConfiguration = powerFactorAngles.FirstOrDefault(item =>
@@ -439,26 +502,53 @@ public static class MeterTestBasicErrorCalculator
         return true;
     }
 
-    /// <summary>解析正有或反有方向标记，并返回是否为反向有功及可读说明。</summary>
-    private static bool TryParseDirection(string value, out bool reverseActive, out string directionText)
+    /// <summary>解析正有、反有或正无方向标记，并返回能量类型、反向标记及可读说明。</summary>
+    private static bool TryParseDirection(
+        string value,
+        out MeterTestErrorEnergyType energyType,
+        out bool reverseActive,
+        out string directionText)
     {
         string normalized = value?.Trim() ?? string.Empty;
+        if (normalized.Equals("ForwardReactive", StringComparison.OrdinalIgnoreCase) ||
+            normalized.Contains("正无", StringComparison.Ordinal))
+        {
+            energyType = MeterTestErrorEnergyType.Reactive;
+            reverseActive = false;
+            directionText = "正向无功";
+            return true;
+        }
+
+        if (normalized.Equals("ReverseReactive", StringComparison.OrdinalIgnoreCase) ||
+            normalized.Contains("反无", StringComparison.Ordinal))
+        {
+            energyType = MeterTestErrorEnergyType.Reactive;
+            reverseActive = true;
+            directionText = "反向无功";
+            return true;
+        }
+
         if (normalized.Equals("ForwardActive", StringComparison.OrdinalIgnoreCase) ||
+            normalized.Contains("正有", StringComparison.Ordinal) ||
             normalized.Contains("正", StringComparison.Ordinal))
         {
+            energyType = MeterTestErrorEnergyType.Active;
             reverseActive = false;
             directionText = "正向有功";
             return true;
         }
 
         if (normalized.Equals("ReverseActive", StringComparison.OrdinalIgnoreCase) ||
+            normalized.Contains("反有", StringComparison.Ordinal) ||
             normalized.Contains("反", StringComparison.Ordinal))
         {
+            energyType = MeterTestErrorEnergyType.Active;
             reverseActive = true;
             directionText = "反向有功";
             return true;
         }
 
+        energyType = MeterTestErrorEnergyType.Active;
         reverseActive = false;
         directionText = string.Empty;
         return false;
@@ -531,6 +621,28 @@ public static class MeterTestBasicErrorCalculator
         return match.Success ? match.Value : string.Empty;
     }
 
+    /// <summary>规范化无功准确度等级，支持3、2、1、1S和0.5S。</summary>
+    private static string NormalizeReactiveClass(string value)
+    {
+        string normalized = (value ?? string.Empty)
+            .Trim()
+            .ToUpperInvariant()
+            .Replace("级", string.Empty, StringComparison.OrdinalIgnoreCase)
+            .Replace(" ", string.Empty, StringComparison.OrdinalIgnoreCase);
+        if (normalized.Contains("0.5S", StringComparison.OrdinalIgnoreCase))
+            return "0.5S";
+        if (normalized.Contains("1S", StringComparison.OrdinalIgnoreCase))
+            return "1S";
+
+        Match match = Regex.Match(normalized, @"(?:^|[^0-9.])(3(?:\.0)?|2(?:\.0)?|1(?:\.0)?)(?:$|[^0-9.])");
+        if (!match.Success)
+        {
+            match = Regex.Match(normalized, @"^(3(?:\.0)?|2(?:\.0)?|1(?:\.0)?)$");
+        }
+
+        return match.Success ? match.Groups[1].Value.TrimEnd('0').TrimEnd('.') : string.Empty;
+    }
+
     /// <summary>从带单位文本中提取首个正十进制数。</summary>
     private static bool TryParsePositiveNumber(string value, out decimal number)
     {
@@ -558,6 +670,7 @@ public sealed record MeterTestBasicErrorExecutionPlan(
     decimal VoltagePercentage,
     decimal CurrentPercentage,
     byte TestCount,
+    MeterTestErrorEnergyType EnergyType,
     IReadOnlyList<MeterTestBasicErrorStationPlan> Stations);
 
 /// <summary>单个工位的基本误差计算结果和协议参数。</summary>
@@ -568,7 +681,8 @@ public sealed record MeterTestBasicErrorStationPlan(
     decimal TestCurrent,
     decimal BasicCurrent,
     decimal CurrentPercentage,
-    decimal ActivePower,
+    MeterTestErrorEnergyType EnergyType,
+    decimal Power,
     decimal MeterConstant,
     byte PulseCount,
     byte TestCount,

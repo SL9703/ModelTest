@@ -45,6 +45,8 @@ public interface ITerminalTypeDefinitions
         [Description("南网-配变监测计量终端")]
         Terminal8 = 0x08,
         [Description("南网-13集中器")]
-        Terminal9 = 0x09
+        Terminal9 = 0x09,
+        [Description("智能融合终端-IFT")]
+        Terminal10 = 0x0A
     }
 }

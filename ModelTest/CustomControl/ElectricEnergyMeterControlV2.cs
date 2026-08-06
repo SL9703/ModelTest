@@ -2199,32 +2199,32 @@ namespace ModelTest.CustomControl
             }
         }
 
-        /// <summary>构造V2电表A2标准表有功常数设置报文，常数按8字节小端编码。</summary>
-        public static byte[] BuildBasicErrorStandardConstantPacket(byte meterAddress, ulong standardConstant)
+        /// <summary>构造V2电表标准表常数设置报文，常数按8字节小端编码；有功使用A2，无功使用A3。</summary>
+        public static byte[] BuildBasicErrorStandardConstantPacket(byte meterAddress, ulong standardConstant, bool reactive = false)
         {
             byte[] payload = new byte[sizeof(ulong)];
             BinaryPrimitives.WriteUInt64LittleEndian(payload, standardConstant);
             return BuildMeterPacket(
                 MeterDirectionPcToMcu,
                 meterAddress,
-                0xA2,
+                reactive ? (byte)0xA3 : (byte)0xA2,
                 payload);
         }
 
-        /// <summary>构造V2电表A0被测表有功常数设置报文，常数按4字节小端编码。</summary>
-        public static byte[] BuildBasicErrorMeterConstantPacket(byte meterAddress, uint meterConstant)
+        /// <summary>构造V2电表被测表常数设置报文，常数按4字节小端编码；有功使用A0，无功使用A1。</summary>
+        public static byte[] BuildBasicErrorMeterConstantPacket(byte meterAddress, uint meterConstant, bool reactive = false)
         {
             byte[] payload = new byte[sizeof(uint)];
             BinaryPrimitives.WriteUInt32LittleEndian(payload, meterConstant);
             return BuildMeterPacket(
                 MeterDirectionPcToMcu,
                 meterAddress,
-                0xA0,
+                reactive ? (byte)0xA1 : (byte)0xA0,
                 payload);
         }
 
-        /// <summary>构造V2电表0x38基本误差启动报文：00+脉冲数+次数+有功脉冲类型00。</summary>
-        public static byte[] BuildBasicError38StartPacket(byte meterAddress, byte pulseCount, byte testCount)
+        /// <summary>构造V2电表0x38基本误差启动报文：00+脉冲数+次数+脉冲类型。</summary>
+        public static byte[] BuildBasicError38StartPacket(byte meterAddress, byte pulseCount, byte testCount, byte pulseType = 0x00)
         {
             return BuildMeterPacket(
                 MeterDirectionPcToMcu,
@@ -2233,7 +2233,7 @@ namespace ModelTest.CustomControl
                 OperationStart,
                 pulseCount,
                 testCount,
-                0x00);
+                pulseType);
         }
 
         /// <summary>构造V2电表0x38基本误差结果读取报文：AA+脉冲数+次数。</summary>
@@ -2259,15 +2259,16 @@ namespace ModelTest.CustomControl
                 dataItems.SequenceEqual(expectedDataItems);
         }
 
-        /// <summary>校验0x38启动应答是否完整回显操作码、脉冲数、次数和有功脉冲类型。</summary>
+        /// <summary>校验0x38启动应答是否完整回显操作码、脉冲数、次数和脉冲类型。</summary>
         public static bool IsExpectedBasicError38StartResponse(
             byte[] rawData,
             byte meterAddress,
             byte pulseCount,
-            byte testCount)
+            byte testCount,
+            byte pulseType = 0x00)
         {
             return TryGetMeterPacketDataItems(rawData, meterAddress, MeterBasicErrorCommand38, out byte[] dataItems) &&
-                dataItems.SequenceEqual(new[] { OperationStart, pulseCount, testCount, (byte)0x00 });
+                dataItems.SequenceEqual(new[] { OperationStart, pulseCount, testCount, pulseType });
         }
 
         /// <summary>

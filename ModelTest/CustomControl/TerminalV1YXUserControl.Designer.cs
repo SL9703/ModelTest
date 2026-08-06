@@ -70,6 +70,18 @@
             cbxYXCan = new CheckBox();
             cbxYX485 = new CheckBox();
             btnChangeCAN485 = new Button();
+            btnReadClosingState = new Button();
+            btnSoeResolutionTest = new Button();
+            labelDebounceWidth = new Label();
+            tbxDebounceWidth = new TextBox();
+            btnSetDebounceWidth = new Button();
+            labelAvalanche = new Label();
+            tbxAvalancheSeconds = new TextBox();
+            tbxAvalancheCount = new TextBox();
+            btnAvalancheTest = new Button();
+            cbxCanBaudRate = new ComboBox();
+            btnChangeCanBaudRate = new Button();
+            btnReadTemperatureHumidity = new Button();
             groupBox1.SuspendLayout();
             groupBox2.SuspendLayout();
             tableLayoutPanel1.SuspendLayout();
@@ -478,6 +490,18 @@
             groupBox3.Controls.Add(cbxYX485);
             groupBox3.Controls.Add(btnChange232485);
             groupBox3.Controls.Add(cbxChange232And485);
+            groupBox3.Controls.Add(btnReadClosingState);
+            groupBox3.Controls.Add(btnSoeResolutionTest);
+            groupBox3.Controls.Add(labelDebounceWidth);
+            groupBox3.Controls.Add(tbxDebounceWidth);
+            groupBox3.Controls.Add(btnSetDebounceWidth);
+            groupBox3.Controls.Add(labelAvalanche);
+            groupBox3.Controls.Add(tbxAvalancheSeconds);
+            groupBox3.Controls.Add(tbxAvalancheCount);
+            groupBox3.Controls.Add(btnAvalancheTest);
+            groupBox3.Controls.Add(cbxCanBaudRate);
+            groupBox3.Controls.Add(btnChangeCanBaudRate);
+            groupBox3.Controls.Add(btnReadTemperatureHumidity);
             groupBox3.Dock = DockStyle.Fill;
             groupBox3.Location = new Point(3, 469);
             groupBox3.Name = "groupBox3";
@@ -536,6 +560,94 @@
             btnChangeCAN485.Text = "切换CAN485";
             btnChangeCAN485.UseVisualStyleBackColor = true;
             btnChangeCAN485.Click += btnChangeCAN485_Click;
+            // btnReadClosingState
+            btnReadClosingState.Location = new Point(480, 48);
+            btnReadClosingState.Name = "btnReadClosingState";
+            btnReadClosingState.Size = new Size(180, 40);
+            btnReadClosingState.TabIndex = 21;
+            btnReadClosingState.Text = "读取合闸状态";
+            btnReadClosingState.UseVisualStyleBackColor = true;
+            btnReadClosingState.Click += btnReadClosingState_Click;
+            // btnSoeResolutionTest
+            btnSoeResolutionTest.Location = new Point(680, 48);
+            btnSoeResolutionTest.Name = "btnSoeResolutionTest";
+            btnSoeResolutionTest.Size = new Size(180, 40);
+            btnSoeResolutionTest.TabIndex = 22;
+            btnSoeResolutionTest.Text = "SOE分辨率测试";
+            btnSoeResolutionTest.UseVisualStyleBackColor = true;
+            btnSoeResolutionTest.Click += btnSoeResolutionTest_Click;
+            // labelDebounceWidth
+            labelDebounceWidth.AutoSize = true;
+            labelDebounceWidth.Location = new Point(480, 116);
+            labelDebounceWidth.Name = "labelDebounceWidth";
+            labelDebounceWidth.Size = new Size(120, 28);
+            labelDebounceWidth.TabIndex = 23;
+            labelDebounceWidth.Text = "防抖脉宽(ms)";
+            // tbxDebounceWidth
+            tbxDebounceWidth.Location = new Point(610, 112);
+            tbxDebounceWidth.Name = "tbxDebounceWidth";
+            tbxDebounceWidth.Size = new Size(100, 34);
+            tbxDebounceWidth.TabIndex = 24;
+            tbxDebounceWidth.Text = "98";
+            // btnSetDebounceWidth
+            btnSetDebounceWidth.Location = new Point(730, 110);
+            btnSetDebounceWidth.Name = "btnSetDebounceWidth";
+            btnSetDebounceWidth.Size = new Size(180, 40);
+            btnSetDebounceWidth.TabIndex = 25;
+            btnSetDebounceWidth.Text = "设置防抖并测试";
+            btnSetDebounceWidth.UseVisualStyleBackColor = true;
+            btnSetDebounceWidth.Click += btnSetDebounceWidth_Click;
+            // labelAvalanche
+            labelAvalanche.AutoSize = true;
+            labelAvalanche.Location = new Point(21, 236);
+            labelAvalanche.Name = "labelAvalanche";
+            labelAvalanche.Size = new Size(250, 28);
+            labelAvalanche.TabIndex = 26;
+            labelAvalanche.Text = "雪崩测试：时间/次数";
+            // tbxAvalancheSeconds
+            tbxAvalancheSeconds.Location = new Point(280, 232);
+            tbxAvalancheSeconds.Name = "tbxAvalancheSeconds";
+            tbxAvalancheSeconds.Size = new Size(90, 34);
+            tbxAvalancheSeconds.TabIndex = 27;
+            tbxAvalancheSeconds.Text = "60";
+            // tbxAvalancheCount
+            tbxAvalancheCount.Location = new Point(380, 232);
+            tbxAvalancheCount.Name = "tbxAvalancheCount";
+            tbxAvalancheCount.Size = new Size(90, 34);
+            tbxAvalancheCount.TabIndex = 28;
+            tbxAvalancheCount.Text = "60";
+            // btnAvalancheTest
+            btnAvalancheTest.Location = new Point(480, 230);
+            btnAvalancheTest.Name = "btnAvalancheTest";
+            btnAvalancheTest.Size = new Size(180, 40);
+            btnAvalancheTest.TabIndex = 29;
+            btnAvalancheTest.Text = "开始雪崩测试";
+            btnAvalancheTest.UseVisualStyleBackColor = true;
+            btnAvalancheTest.Click += btnAvalancheTest_Click;
+            // cbxCanBaudRate
+            cbxCanBaudRate.FormattingEnabled = true;
+            cbxCanBaudRate.Items.AddRange(new object[] { "50K", "100K", "125K", "250K", "500K", "1000K" });
+            cbxCanBaudRate.Location = new Point(680, 230);
+            cbxCanBaudRate.Name = "cbxCanBaudRate";
+            cbxCanBaudRate.Size = new Size(130, 36);
+            cbxCanBaudRate.TabIndex = 30;
+            cbxCanBaudRate.Text = "250K";
+            // btnChangeCanBaudRate
+            btnChangeCanBaudRate.Location = new Point(830, 228);
+            btnChangeCanBaudRate.Name = "btnChangeCanBaudRate";
+            btnChangeCanBaudRate.Size = new Size(180, 40);
+            btnChangeCanBaudRate.TabIndex = 31;
+            btnChangeCanBaudRate.Text = "修改CAN波特率";
+            btnChangeCanBaudRate.UseVisualStyleBackColor = true;
+            btnChangeCanBaudRate.Click += btnChangeCanBaudRate_Click;
+            // btnReadTemperatureHumidity
+            btnReadTemperatureHumidity.Location = new Point(21, 300);
+            btnReadTemperatureHumidity.Name = "btnReadTemperatureHumidity";
+            btnReadTemperatureHumidity.Size = new Size(220, 40);
+            btnReadTemperatureHumidity.TabIndex = 32;
+            btnReadTemperatureHumidity.Text = "读取温湿度";
+            btnReadTemperatureHumidity.UseVisualStyleBackColor = true;
+            btnReadTemperatureHumidity.Click += btnReadTemperatureHumidity_Click;
             // 
             // TerminalV1YXUserControl
             // 
@@ -599,5 +711,17 @@
         private CheckBox cbxYXCan;
         private CheckBox cbxYX485;
         private Button btnChangeCAN485;
+        private Button btnReadClosingState;
+        private Button btnSoeResolutionTest;
+        private Label labelDebounceWidth;
+        private TextBox tbxDebounceWidth;
+        private Button btnSetDebounceWidth;
+        private Label labelAvalanche;
+        private TextBox tbxAvalancheSeconds;
+        private TextBox tbxAvalancheCount;
+        private Button btnAvalancheTest;
+        private ComboBox cbxCanBaudRate;
+        private Button btnChangeCanBaudRate;
+        private Button btnReadTemperatureHumidity;
     }
 }

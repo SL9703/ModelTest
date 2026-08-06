@@ -1,0 +1,448 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  MeterTest 测试方案配置说明
+  1. 本文件只维护测试方案树和测试小项判定参数。
+     现场设备连接配置已迁移到 MeterTestStationConfig.xml，包括：
+     - BenchTypeSwitchConfig：升源前台体类型切换装置通信板；
+     - SourceControlConfigs：源控制和降源配置；
+     - ControlPcbGroups：控制 PCB 与工位/表位映射；
+     - BluetoothTcpChannels：蓝牙转换器专用 TCP 通道。
+  2.1 StartingSource 起动试验启动电流升源：
+     - 直接式：Ist=基本电流/10×系数；A级系数0.05，B/C/D级系数0.04。
+     - 互感式：Ist=基本电流/20×系数；A级0.05，B级0.04，C/D/E级0.02。
+     - Ini命令使用资产信息中的基本电流Ib/In；计算出的Ist仅作为AnyUIOutput实际输出电流。
+     - 多个工位的基本电流或计算结果不一致时停止升源。
+  2.2 StartingTimeWait 起动时间等待：
+     - Est按百分数参与公式，A级2.5%、B级1.5%、C级1.0%、D级0.4%。
+     - Pst=U×Ist×d；单相d=1、三相三线d=2、三相四线d=3，Ki和Ku固定为1。
+     - Tst上限=(1+Est/100)×3.6×10^6/(C×Pst×Ki×Ku)。
+     - 多工位同时试验时，等待时间=ceil(所有有效工位最大Tst上限)×startingTimeMultiplier×起动配置脉冲数；默认倍率为2。
+  3. Scheme/TestItem/TestSubItem 对应界面左侧方案树：方案 -> 测试项 -> 测试小项。
+     通信测试保留原流程：连接、读取、校验、修改、地址读取；只有地址读取失败后才追加其他波特率尝试。
+  4. executionMode 决定测试小项的执行目标：
+     - StationTcp：使用界面工位表格中的 IP/Port，一工位一连接，适合 698 地址读取。
+     - ControlPcbDailyTiming：不使用界面工位 IP/Port，改用 ControlPcbGroups 中的控制 PCB 关系，适合台体日计时。
+     - SerialPortServerBaudRateSync：执行通信测试原有的连接、读取、校验和修改串口服务器波特率步骤。
+     - StartingSource：按资产信息计算起动电流 Ist，并将 Ist 作为电表初始化电流后升源。
+     - CreepingSource：按资产额定电压的1.1倍升源；单相只输出Ua，三相输出Ua/Ub/Uc，电流保持0。
+     - ControlPcbStartingError：读取标准表脉冲常数，按工位下发A2、A0和0x38开始试验。
+     - ControlPcbCreepingStart：按工位通过V2控制PCB发送0x25+01，只有收到数据项01启动应答的工位继续。
+     - CreepingWait：按资产信息中的等级、常数、类型、电压和Imin自动计算等待时间。
+     - StartingTimeWait：按资产信息计算各工位单脉冲Tst上限，再乘startingTimeMultiplier和起动配置脉冲数统一等待。
+     - ControlPcbStartingErrorRead：发送38 AA 01 01并解析小端float误差结果。
+     - StartingErrorJudge：按资产等级、接入方式、Ist/Imin和功率因数计算规程最大允许误差，并以其60%作为判定上下限。
+     - BasicErrorPoint：每个基本误差小项内部执行升源、A2/A0/0x38启动、等待、0x38读取和JJG596误差判定。
+       该模式固定调用AnyUIOutput：电压和电流使用资产信息计算的绝对值；IAJ/IBJ/ICJ按
+       basicErrorDirection + basicErrorPowerFactor 从SQLite表MeterTestPowerFactorAngle读取有符号FA角度。
+       basicErrorLimit/basicErrorLimits 仅用于兼容旧版XML；当前误差限由资产等级、电流区间和功率因数实时计算，
+       并将规程最大允许误差乘以60%后与实测误差比较。
+     - BluetoothStationTcp：先通过同IP的64444管理端将BluetoothTcpChannel设为9600-8-E-1，再按工位使用BluetoothTcpChannels中的专用IP/Port；同一轮蓝牙步骤复用连接。
+       资产信息IP/Port仅用于485通信，蓝牙流程不复用、不回退使用StationTcp或控制PCB连接。
+       最后一步在蓝牙TCP通道上复用通信测试的698地址读取组帧和解析（OAD=40010200），不发送F1010200安全模式读取。
+     - ControlPcbDeviceSelfCheck：在升源前通过V2控制PCB执行0x86短路、0x84断路和0xCA温度读取。
+       0x86执行前会检查源输出状态和最近标准表Ua/Ub/Uc；发现带电时先调用ShutPowerSource(0)，复核无压后再弹出红色人工确认框。
+     - Planned：仅在方案树中预置尚未接入执行器的流程节点，默认不执行。
+  5. ControlPcbDailyTiming 日计时流程：
+     - 日计时方案树固定展示三轮：开始日计时实验 -> 延迟等待倒计时 -> 读取日计时结果。
+     - 每轮发送 0x36 + 0x00 + dailyTimingTime + dailyTimingCount 开始日计时。
+     - 每条报文按 packetIntervalMs 间隔发送，默认 100ms。
+     - 等待 ceil(dailyTimingTime * dailyTimingCount * 1.1) 秒后，发送 0x36 + 0xAA + dailyTimingTime + dailyTimingCount 获取结果。
+     - 倒计时日志只记录“开始倒计时”和“倒计时结束”，不再每秒输出。
+     - 结果数据从 AA 0A 0A 后按 4 字节小端 float 解析；每轮先计算该轮结果平均值，三轮再计算最终平均误差。
+     - 最终平均误差绝对值小于 0.5 判定合格，否则判定不合格。
+  6. StationTcp 地址读取：
+     - requestHex 是 698 地址读取报文模板；实际执行时会把其中 6 字节地址替换为当前工位“电表地址”列的地址。
+     - 地址替换后会重新计算 HCS 和 FCS，timeoutMs 是等待响应超时时间。
+     - responseParser=Sgcc698BroadcastAddress 时，会校验起止符、长度、HCS、APDU、OAD、数据类型、数据长度和 FCS，并提取表位地址。
+     - 前四步按原V2流程读取并同步资产波特率；第五步先直接按同步后的资产波特率读取地址。
+     - 首次未解析到地址时，连接同IP的64444管理端，使用GenericSerialPortServerProtocol解锁并设置当前工位Port对应通道。
+     - 同一IP的64444在本轮只连接一次；连接失败会缓存，其他工位不再重复连接。设置成功后重新连接工位IP/Port读取地址。
+     - 候选波特率从SQLite的MeterTestAssetOption表读取；任一波特率解析出地址后立即停止当前工位的后续尝试。
+-->
+<MeterTestPlanConfig xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <!-- 现场设备连接配置已迁移到 MeterTestStationConfig.xml。 -->
+
+  <Scheme name="单相方案" description="MeterTest 默认测试方案，所有测试内容从本配置文件加载">
+    <TestItem name="设备自检测试" description="在通信测试和升源前，通过V2控制PCB执行短路、断路和温度传感器检查。">
+      <TestSubItem
+        name="检测单元短路检测"
+        enabled="true"
+        protocol="MeterControlPcbV2"
+        executionMode="ControlPcbDeviceSelfCheck"
+        controlPcbGroup=""
+        deviceSelfCheckStep="ShortCircuit"
+        selfCheckDelayMs="1000"
+        selfCheckMaximumSafeVoltage="5"
+        packetIntervalMs="100"
+        description="发现带电时先ShutPowerSource(0)降源并复核；用户确认无压后按工位发送0x86启动和结果读取。"
+        timeoutMs="5000" />
+      <TestSubItem
+        name="检测单元断路检测"
+        enabled="true"
+        protocol="MeterControlPcbV2"
+        executionMode="ControlPcbDeviceSelfCheck"
+        controlPcbGroup=""
+        deviceSelfCheckStep="OpenCircuit"
+        selfCheckDelayMs="1000"
+        packetIntervalMs="100"
+        description="按工位发送0x84启动和结果读取，结果码01表示电流线路正常。"
+        timeoutMs="5000" />
+      <TestSubItem
+        name="检测单元温湿度检测"
+        enabled="true"
+        protocol="MeterControlPcbV2"
+        executionMode="ControlPcbDeviceSelfCheck"
+        controlPcbGroup=""
+        deviceSelfCheckStep="TemperatureHumidity"
+        temperatureSensorIndex="1"
+        packetIntervalMs="100"
+        description="按工位发送0xCA+传感器序号+AA，解析4字节有符号小端温度原始值。"
+        timeoutMs="5000" />
+    </TestItem>
+
+    <TestItem name="LED效果灯测试" description="通过0x2F指示灯协议执行LED1-LED4跑马灯和闪烁效果测试。">
+      <TestSubItem
+        name="led1-led4灯的做跑马灯测试"
+        enabled="true"
+        protocol="DetectionBoardV2"
+        executionMode="LedEffectTest"
+        ledEffectStep="Marquee"
+        ledMarqueeDurationSeconds="60"
+        ledMarqueeIntervalSeconds="2"
+        description="LED1-LED4按红、绿、黄顺序逐灯亮灭；总时长和间隔可配置，默认1分钟、2秒一帧。"
+        timeoutMs="0" />
+      <TestSubItem
+        name="led1-led4灯闪烁测试"
+        enabled="true"
+        protocol="DetectionBoardV2"
+        executionMode="LedEffectTest"
+        ledEffectStep="Blink"
+        ledEffectHoldSeconds="15"
+        ledBlinkHoldSeconds="15"
+        ledSteadyHoldSeconds="15"
+        ledOffHoldSeconds="15"
+        ledBlinkTimeMs="500"
+        description="LED1-LED4分别执行红、绿、黄的闪烁、长亮、熄灭；闪烁、长亮、熄灭时长均可配置，默认15秒。"
+        timeoutMs="0" />
+    </TestItem>
+
+    <TestItem name="通信测试" description="先执行原串口服务器波特率同步流程；地址读取失败后追加数据库候选波特率循环。">
+      <TestSubItem
+        name="串口服务器连接"
+        enabled="true"
+        protocol="MeterControlPcbV2"
+        executionMode="SerialPortServerBaudRateSync"
+        serialPortServerStep="Connect"
+        stationTcpChannel="485-2"
+        description="连接各 IP 的串口服务器管理端 64444；失败后继续后续步骤。"
+        requestHex=""
+        responseParser="HexMatch"
+        expectedResponse=""
+        responseMatchMode="Contains"
+        timeoutMs="5000"
+        mockResponse="" />
+      <TestSubItem
+        name="读取串口参数"
+        enabled="true"
+        protocol="MeterControlPcbV2"
+        executionMode="SerialPortServerBaudRateSync"
+        serialPortServerStep="ReadParameters"
+        stationTcpChannel="485-2"
+        description="读取串口服务器全部 COM 参数，并映射到 951 起始的端口。"
+        requestHex=""
+        responseParser="HexMatch"
+        expectedResponse=""
+        responseMatchMode="Contains"
+        timeoutMs="5000"
+        mockResponse="" />
+      <TestSubItem
+        name="校验工位波特率"
+        enabled="true"
+        protocol="MeterControlPcbV2"
+        executionMode="SerialPortServerBaudRateSync"
+        serialPortServerStep="Compare"
+        stationTcpChannel="485-2"
+        description="逐工位比对串口服务器读取结果与资产信息中的 IP、Port、波特率。"
+        requestHex=""
+        responseParser="HexMatch"
+        expectedResponse=""
+        responseMatchMode="Contains"
+        timeoutMs="5000"
+        mockResponse="" />
+      <TestSubItem
+        name="修改不一致波特率"
+        enabled="true"
+        protocol="MeterControlPcbV2"
+        executionMode="SerialPortServerBaudRateSync"
+        serialPortServerStep="Apply"
+        stationTcpChannel="485-2"
+        description="仅修改不一致端口，设置为立即生效，不发送保存重启报文。"
+        requestHex=""
+        responseParser="HexMatch"
+        expectedResponse=""
+        responseMatchMode="Contains"
+        timeoutMs="5000"
+        mockResponse="" />
+      <TestSubItem
+        name="地址读取"
+        enabled="true"
+        protocol="DLT698.45"
+        executionMode="StationTcp"
+        sourceControlConfig="单相默认源"
+        stationTcpChannel="485-2"
+        description="先按原流程同步后的资产波特率读取；无地址响应时追加切换数据库候选波特率并重试。"
+        requestHex="68 17 00 43 05 AA AA AA AA AA AA 10 2B 3A 05 01 71 40 01 02 00 00 C7 C2 16"
+        responseParser="Sgcc698BroadcastAddress"
+        expectedApdu="85 01"
+        expectedOad="40 01 02 00"
+        expectedDataType="09"
+        expectedDataLength="6"
+        resultField="MeterAddress"
+        expectedResponse=""
+        responseMatchMode="Contains"
+        timeoutMs="5000"
+        mockResponse="68 21 00 C3 05 96 81 32 02 00 90 A0 F5 F6 85 01 00 40 01 02 00 01 09 06 90 00 02 32 81 96 00 00 BA 13 16" />
+    </TestItem>
+
+    <TestItem name="蓝牙接口检测" description="先通过同IP的64444管理端设置蓝牙通道9600-8-E-1，再复用蓝牙TCP连接执行复位、连接、检定预处理和通信地址读取。">
+      <TestSubItem name="修改串口波特率 9600-8-E-1" enabled="true" protocol="GenericSerialPortServer" executionMode="BluetoothStationTcp" bluetoothStep="SetBaudRate" description="连接当前蓝牙通道所属IP的64444管理端，将BluetoothTcpChannel端口设置为9600-8-E-1。" timeoutMs="5000" />
+      <TestSubItem name="复位蓝牙" enabled="true" protocol="SgccBluetoothConverter" executionMode="BluetoothStationTcp" bluetoothStep="Reset" description="通过当前工位的专用蓝牙TCP连接发送0x00复位指令。" timeoutMs="5000" />
+      <TestSubItem name="连接电表" enabled="true" protocol="SgccBluetoothConverter" executionMode="BluetoothStationTcp" bluetoothStep="ConnectMeter" description="使用资产信息中的电表地址发送0x01自动连接指令。" timeoutMs="5000" />
+      <TestSubItem name="检定预处理" enabled="true" protocol="SgccBluetoothConverter" executionMode="BluetoothStationTcp" bluetoothStep="Preprocess" description="发送0x07后轮询0x08，最长等待40秒获取预处理结果。" timeoutMs="40000" />
+      <TestSubItem name="读取通信地址40010200" enabled="true" protocol="SgccBluetoothConverter" executionMode="BluetoothStationTcp" bluetoothStep="ReadAddress" description="在当前工位蓝牙TCP会话中读取OAD=40010200并解析通信地址。" responseParser="Sgcc698BroadcastAddress" expectedApdu="85 01" expectedOad="40 01 02 00" expectedDataType="09" expectedDataLength="6" resultField="MeterAddress" timeoutMs="5000" />
+    </TestItem>
+
+    <TestItem name="日计时" description="通过控制PCB执行三轮多表位日计时并计算平均误差">
+      <TestSubItem
+        name="开始日计时实验-第1次"
+        enabled="true"
+        protocol="MeterControlPcb"
+        executionMode="ControlPcbDailyTiming"
+        controlPcbGroup=""
+        dailyTimingStep="Start"
+        dailyTimingRound="1"
+        description="开始第1轮日计时试验；为空表示使用所有启用的 ControlPcbGroup"
+        requestHex=""
+        responseParser="MeterControlDailyTiming"
+        expectedApdu=""
+        expectedOad=""
+        expectedDataType=""
+        expectedDataLength="0"
+        resultField=""
+        expectedResponse=""
+        responseMatchMode="Contains"
+        dailyTimingTime="60"
+        dailyTimingCount="1"
+        packetIntervalMs="100"
+        timeoutMs="5000"
+        mockResponse="" />
+      <TestSubItem
+        name="延迟等待"
+        enabled="true"
+        protocol="MeterControlPcb"
+        executionMode="ControlPcbDailyTiming"
+        controlPcbGroup=""
+        dailyTimingStep="Wait"
+        dailyTimingRound="1"
+        description="等待第1轮日计时完成，显示66秒倒计时。"
+        requestHex=""
+        responseParser="MeterControlDailyTiming"
+        dailyTimingTime="60"
+        dailyTimingCount="1"
+        packetIntervalMs="100"
+        timeoutMs="5000"
+        mockResponse="" />
+      <TestSubItem
+        name="读取日计时结果-第1次"
+        enabled="true"
+        protocol="MeterControlPcb"
+        executionMode="ControlPcbDailyTiming"
+        controlPcbGroup=""
+        dailyTimingStep="Read"
+        dailyTimingRound="1"
+        description="读取并解析第1轮日计时 float 误差结果。"
+        requestHex=""
+        responseParser="MeterControlDailyTiming"
+        dailyTimingTime="60"
+        dailyTimingCount="1"
+        packetIntervalMs="100"
+        timeoutMs="5000"
+        mockResponse="" />
+      <TestSubItem
+        name="开始日计时实验-第2次"
+        enabled="true"
+        protocol="MeterControlPcb"
+        executionMode="ControlPcbDailyTiming"
+        controlPcbGroup=""
+        dailyTimingStep="Start"
+        dailyTimingRound="2"
+        description="开始第2轮日计时试验。"
+        requestHex=""
+        responseParser="MeterControlDailyTiming"
+        dailyTimingTime="60"
+        dailyTimingCount="1"
+        packetIntervalMs="100"
+        timeoutMs="5000"
+        mockResponse="" />
+      <TestSubItem
+        name="延迟等待"
+        enabled="true"
+        protocol="MeterControlPcb"
+        executionMode="ControlPcbDailyTiming"
+        controlPcbGroup=""
+        dailyTimingStep="Wait"
+        dailyTimingRound="2"
+        description="等待第2轮日计时完成，显示66秒倒计时。"
+        requestHex=""
+        responseParser="MeterControlDailyTiming"
+        dailyTimingTime="60"
+        dailyTimingCount="1"
+        packetIntervalMs="100"
+        timeoutMs="5000"
+        mockResponse="" />
+      <TestSubItem
+        name="读取日计时结果-第2次"
+        enabled="true"
+        protocol="MeterControlPcb"
+        executionMode="ControlPcbDailyTiming"
+        controlPcbGroup=""
+        dailyTimingStep="Read"
+        dailyTimingRound="2"
+        description="读取并解析第2轮日计时 float 误差结果。"
+        requestHex=""
+        responseParser="MeterControlDailyTiming"
+        dailyTimingTime="60"
+        dailyTimingCount="1"
+        packetIntervalMs="100"
+        timeoutMs="5000"
+        mockResponse="" />
+      <TestSubItem
+        name="开始日计时实验-第3次"
+        enabled="true"
+        protocol="MeterControlPcb"
+        executionMode="ControlPcbDailyTiming"
+        controlPcbGroup=""
+        dailyTimingStep="Start"
+        dailyTimingRound="3"
+        description="开始第3轮日计时试验。"
+        requestHex=""
+        responseParser="MeterControlDailyTiming"
+        dailyTimingTime="60"
+        dailyTimingCount="1"
+        packetIntervalMs="100"
+        timeoutMs="5000"
+        mockResponse="" />
+      <TestSubItem
+        name="延迟等待"
+        enabled="true"
+        protocol="MeterControlPcb"
+        executionMode="ControlPcbDailyTiming"
+        controlPcbGroup=""
+        dailyTimingStep="Wait"
+        dailyTimingRound="3"
+        description="等待第3轮日计时完成，显示66秒倒计时。"
+        requestHex=""
+        responseParser="MeterControlDailyTiming"
+        dailyTimingTime="60"
+        dailyTimingCount="1"
+        packetIntervalMs="100"
+        timeoutMs="5000"
+        mockResponse="" />
+      <TestSubItem
+        name="读取日计时结果-第3次"
+        enabled="true"
+        protocol="MeterControlPcb"
+        executionMode="ControlPcbDailyTiming"
+        controlPcbGroup=""
+        dailyTimingStep="Read"
+        dailyTimingRound="3"
+        description="读取并解析第3轮日计时 float 误差结果，并计算三轮平均误差。"
+        requestHex=""
+        responseParser="MeterControlDailyTiming"
+        dailyTimingTime="60"
+        dailyTimingCount="1"
+        packetIntervalMs="100"
+        timeoutMs="5000"
+        mockResponse="" />
+    </TestItem>
+
+    <!--
+      起动试验在方案树中按测试点展示，内部仍复用原五步流程：
+      升源(Ist) -> A2/A0/0x38启动 -> 起动时间等待 -> 0x38+AA读取 -> JJG596判定。
+    -->
+    <TestItem name="起动试验" description="按启动电流升源后，通过控制PCB设置常数并启动0x38起动误差试验。">
+      <TestSubItem name="正有-H-1.0-1U-Ist" enabled="true" protocol="JJG596-2026+MeterControlPcbV2+XYCtr" executionMode="StartingErrorPoint" sourceControlConfig="单相默认源" controlPcbGroup="" basicErrorDirection="ForwardActive" basicErrorPhase="H" basicErrorPowerFactor="1.0" basicErrorVoltageMultiplier="1" basicErrorCurrentPoint="Ist" basicErrorPulseCount="1" basicErrorTestCount="1" basicErrorPulseType="0" startingTimeMultiplier="2" packetIntervalMs="100" description="正向有功起动误差点；内部执行升源、启动、等待、读取和判定完整流程。" timeoutMs="5000" />
+      <TestSubItem name="反有-H-1.0-1U-Ist" enabled="true" protocol="JJG596-2026+MeterControlPcbV2+XYCtr" executionMode="StartingErrorPoint" sourceControlConfig="单相默认源" controlPcbGroup="" basicErrorDirection="ReverseActive" basicErrorPhase="H" basicErrorPowerFactor="1.0" basicErrorVoltageMultiplier="1" basicErrorCurrentPoint="Ist" basicErrorPulseCount="1" basicErrorTestCount="1" basicErrorPulseType="0" startingTimeMultiplier="2" packetIntervalMs="100" description="反向有功起动误差点；内部执行升源、启动、等待、读取和判定完整流程。" timeoutMs="5000" />
+    </TestItem>
+
+    <!--
+      潜动试验按1.1倍额定电压升源，发送0x25+01启动后按手动配置时间等待，
+      再发送0x25+AA读取4字节小端uint实际脉冲数；脉冲数为0或1时判定合格。
+    -->
+    <TestItem name="潜动试验" description="按资产额定电压的1.1倍升潜动电压，后续执行潜动脉冲试验。">
+      <TestSubItem name="升源（潜动电压）" enabled="true" protocol="XYCtr" executionMode="CreepingSource" sourceControlConfig="单相默认源" description="从资产信息读取额定电压并乘以1.1；单相输出Ua，三相输出Ua/Ub/Uc，电流为0；按标准表正负0.03%验证升源结果。" timeoutMs="20000" />
+      <TestSubItem name="开启潜动试验" enabled="true" protocol="MeterControlPcbV2" executionMode="ControlPcbCreepingStart" controlPcbGroup="" responseParser="MeterControlCreepingTest" packetIntervalMs="100" description="按工位发送0x25+01启动潜动试验，收到数据项01应答的工位继续后续流程。" timeoutMs="5000" />
+      <TestSubItem name="等待潜动时间" enabled="true" protocol="JJG596-2026" executionMode="CreepingWait" description="根据资产信息中的有功等级、常数、电表类型、额定电压和Imin自动计算潜动等待时间。" timeoutMs="0" />
+      <TestSubItem name="读取脉冲数量" enabled="true" protocol="MeterControlPcbV2" executionMode="ControlPcbCreepingRead" controlPcbGroup="" responseParser="MeterControlCreepingTest" packetIntervalMs="100" description="按工位发送0x25+AA，解析AA后的4字节小端uint实际脉冲数。" timeoutMs="5000" />
+      <TestSubItem name="判断脉冲结果" enabled="true" protocol="JJG596-2026" executionMode="CreepingPulseJudge" description="累计脉冲数小于等于1判定合格，0个或1个均合格。" timeoutMs="0" />
+    </TestItem>
+
+    <!-- 正向有功；每个小项内部统一执行升源、A2/A0/0x38启动、等待、0x38读取和误差判定。 -->
+    <TestItem name="基本误差-正向有功" description="正向有功基本误差测试。">
+      <TestSubItem name="正有-H-1.0-1U-Imin" enabled="true" protocol="MeterControlPcbV2" executionMode="BasicErrorPoint" controlPcbGroup="" sourceControlConfig="单相默认源" basicErrorDirection="ForwardActive" basicErrorPhase="H" basicErrorPowerFactor="1.0" basicErrorVoltageMultiplier="1" basicErrorCurrentPoint="Imin" basicErrorPulseCount="0" basicErrorTestCount="2" basicErrorPulseType="0" basicErrorLimit="0" basicErrorLimits="A=2.5;B=1.5;C=1.0;D=0.4" basicErrorMinimumWaitSeconds="10" basicErrorWaitPaddingSeconds="20" packetIntervalMs="100" timeoutMs="5000" description="按资产信息计算测试电流、等待时间和JJG596误差限，执行完整有功基本误差流程。" />
+      <TestSubItem name="正有-H-1.0-1U-Itr" enabled="true" protocol="MeterControlPcbV2" executionMode="BasicErrorPoint" controlPcbGroup="" sourceControlConfig="单相默认源" basicErrorDirection="ForwardActive" basicErrorPhase="H" basicErrorPowerFactor="1.0" basicErrorVoltageMultiplier="1" basicErrorCurrentPoint="Itr" basicErrorPulseCount="0" basicErrorTestCount="2" basicErrorPulseType="0" basicErrorLimit="0" basicErrorLimits="A=2.0;B=1.0;C=0.5;D=0.2" basicErrorMinimumWaitSeconds="10" basicErrorWaitPaddingSeconds="20" packetIntervalMs="100" timeoutMs="5000" description="按资产信息计算测试电流、等待时间和JJG596误差限，执行完整有功基本误差流程。" />
+      <TestSubItem name="正有-H-1.0-1U-10Itr" enabled="true" protocol="MeterControlPcbV2" executionMode="BasicErrorPoint" controlPcbGroup="" sourceControlConfig="单相默认源" basicErrorDirection="ForwardActive" basicErrorPhase="H" basicErrorPowerFactor="1.0" basicErrorVoltageMultiplier="1" basicErrorCurrentPoint="10Itr" basicErrorPulseCount="0" basicErrorTestCount="2" basicErrorPulseType="0" basicErrorLimit="0" basicErrorLimits="A=2.0;B=1.0;C=0.5;D=0.2" basicErrorMinimumWaitSeconds="10" basicErrorWaitPaddingSeconds="20" packetIntervalMs="100" timeoutMs="5000" description="按资产信息计算测试电流、等待时间和JJG596误差限，执行完整有功基本误差流程。" />
+      <TestSubItem name="正有-H-1.0-1U-0.5Imax" enabled="true" protocol="MeterControlPcbV2" executionMode="BasicErrorPoint" controlPcbGroup="" sourceControlConfig="单相默认源" basicErrorDirection="ForwardActive" basicErrorPhase="H" basicErrorPowerFactor="1.0" basicErrorVoltageMultiplier="1" basicErrorCurrentPoint="0.5Imax" basicErrorPulseCount="0" basicErrorTestCount="2" basicErrorPulseType="0" basicErrorLimit="0" basicErrorLimits="A=2.0;B=1.0;C=0.5;D=0.2" basicErrorMinimumWaitSeconds="10" basicErrorWaitPaddingSeconds="20" packetIntervalMs="100" timeoutMs="5000" description="按资产信息计算测试电流、等待时间和JJG596误差限，执行完整有功基本误差流程。" />
+      <TestSubItem name="正有-H-1.0-1U-Imax" enabled="true" protocol="MeterControlPcbV2" executionMode="BasicErrorPoint" controlPcbGroup="" sourceControlConfig="单相默认源" basicErrorDirection="ForwardActive" basicErrorPhase="H" basicErrorPowerFactor="1.0" basicErrorVoltageMultiplier="1" basicErrorCurrentPoint="Imax" basicErrorPulseCount="0" basicErrorTestCount="2" basicErrorPulseType="0" basicErrorLimit="0" basicErrorLimits="A=2.0;B=1.0;C=0.5;D=0.2" basicErrorMinimumWaitSeconds="10" basicErrorWaitPaddingSeconds="20" packetIntervalMs="100" timeoutMs="5000" description="按资产信息计算测试电流、等待时间和JJG596误差限，执行完整有功基本误差流程。" />
+      <TestSubItem name="正有-H-1.0-1U-1.2Imax" enabled="true" protocol="MeterControlPcbV2" executionMode="BasicErrorPoint" controlPcbGroup="" sourceControlConfig="单相默认源" basicErrorDirection="ForwardActive" basicErrorPhase="H" basicErrorPowerFactor="1.0" basicErrorVoltageMultiplier="1" basicErrorCurrentPoint="1.2Imax" basicErrorPulseCount="0" basicErrorTestCount="2" basicErrorPulseType="0" basicErrorLimit="0" basicErrorLimits="A=2.0;B=1.0;C=0.5;D=0.2" basicErrorMinimumWaitSeconds="10" basicErrorWaitPaddingSeconds="20" packetIntervalMs="100" timeoutMs="5000" description="按资产信息计算测试电流、等待时间和JJG596误差限，执行完整有功基本误差流程。" />
+      <TestSubItem name="正有-H-0.5L-1U-Imin" enabled="true" protocol="MeterControlPcbV2" executionMode="BasicErrorPoint" controlPcbGroup="" sourceControlConfig="单相默认源" basicErrorDirection="ForwardActive" basicErrorPhase="H" basicErrorPowerFactor="0.5L" basicErrorVoltageMultiplier="1" basicErrorCurrentPoint="Imin" basicErrorPulseCount="0" basicErrorTestCount="2" basicErrorPulseType="0" basicErrorLimit="0" basicErrorLimits="A=2.5;B=1.5;C=1.0;D=0.5" basicErrorMinimumWaitSeconds="10" basicErrorWaitPaddingSeconds="20" packetIntervalMs="100" timeoutMs="5000" description="按资产信息计算测试电流、等待时间和JJG596误差限，执行完整有功基本误差流程。" />
+      <TestSubItem name="正有-H-0.5L-1U-Itr" enabled="true" protocol="MeterControlPcbV2" executionMode="BasicErrorPoint" controlPcbGroup="" sourceControlConfig="单相默认源" basicErrorDirection="ForwardActive" basicErrorPhase="H" basicErrorPowerFactor="0.5L" basicErrorVoltageMultiplier="1" basicErrorCurrentPoint="Itr" basicErrorPulseCount="0" basicErrorTestCount="2" basicErrorPulseType="0" basicErrorLimit="0" basicErrorLimits="A=2.0;B=1.0;C=0.6;D=0.3" basicErrorMinimumWaitSeconds="10" basicErrorWaitPaddingSeconds="20" packetIntervalMs="100" timeoutMs="5000" description="按资产信息计算测试电流、等待时间和JJG596误差限，执行完整有功基本误差流程。" />
+      <TestSubItem name="正有-H-0.5L-1U-10Itr" enabled="true" protocol="MeterControlPcbV2" executionMode="BasicErrorPoint" controlPcbGroup="" sourceControlConfig="单相默认源" basicErrorDirection="ForwardActive" basicErrorPhase="H" basicErrorPowerFactor="0.5L" basicErrorVoltageMultiplier="1" basicErrorCurrentPoint="10Itr" basicErrorPulseCount="0" basicErrorTestCount="2" basicErrorPulseType="0" basicErrorLimit="0" basicErrorLimits="A=2.0;B=1.0;C=0.6;D=0.3" basicErrorMinimumWaitSeconds="10" basicErrorWaitPaddingSeconds="20" packetIntervalMs="100" timeoutMs="5000" description="按资产信息计算测试电流、等待时间和JJG596误差限，执行完整有功基本误差流程。" />
+      <TestSubItem name="正有-H-0.5L-1U-0.5Imax" enabled="true" protocol="MeterControlPcbV2" executionMode="BasicErrorPoint" controlPcbGroup="" sourceControlConfig="单相默认源" basicErrorDirection="ForwardActive" basicErrorPhase="H" basicErrorPowerFactor="0.5L" basicErrorVoltageMultiplier="1" basicErrorCurrentPoint="0.5Imax" basicErrorPulseCount="0" basicErrorTestCount="2" basicErrorPulseType="0" basicErrorLimit="0" basicErrorLimits="A=2.0;B=1.0;C=0.6;D=0.3" basicErrorMinimumWaitSeconds="10" basicErrorWaitPaddingSeconds="20" packetIntervalMs="100" timeoutMs="5000" description="按资产信息计算测试电流、等待时间和JJG596误差限，执行完整有功基本误差流程。" />
+      <TestSubItem name="正有-H-0.5L-1U-Imax" enabled="true" protocol="MeterControlPcbV2" executionMode="BasicErrorPoint" controlPcbGroup="" sourceControlConfig="单相默认源" basicErrorDirection="ForwardActive" basicErrorPhase="H" basicErrorPowerFactor="0.5L" basicErrorVoltageMultiplier="1" basicErrorCurrentPoint="Imax" basicErrorPulseCount="0" basicErrorTestCount="2" basicErrorPulseType="0" basicErrorLimit="0" basicErrorLimits="A=2.0;B=1.0;C=0.6;D=0.3" basicErrorMinimumWaitSeconds="10" basicErrorWaitPaddingSeconds="20" packetIntervalMs="100" timeoutMs="5000" description="按资产信息计算测试电流、等待时间和JJG596误差限，执行完整有功基本误差流程。" />
+      <TestSubItem name="正有-H-0.5L-1U-1.2Imax" enabled="true" protocol="MeterControlPcbV2" executionMode="BasicErrorPoint" controlPcbGroup="" sourceControlConfig="单相默认源" basicErrorDirection="ForwardActive" basicErrorPhase="H" basicErrorPowerFactor="0.5L" basicErrorVoltageMultiplier="1" basicErrorCurrentPoint="1.2Imax" basicErrorPulseCount="0" basicErrorTestCount="2" basicErrorPulseType="0" basicErrorLimit="0" basicErrorLimits="A=2.0;B=1.0;C=0.6;D=0.3" basicErrorMinimumWaitSeconds="10" basicErrorWaitPaddingSeconds="20" packetIntervalMs="100" timeoutMs="5000" description="按资产信息计算测试电流、等待时间和JJG596误差限，执行完整有功基本误差流程。" />
+      <TestSubItem name="正有-H-0.8C-1U-Imin" enabled="true" protocol="MeterControlPcbV2" executionMode="BasicErrorPoint" controlPcbGroup="" sourceControlConfig="单相默认源" basicErrorDirection="ForwardActive" basicErrorPhase="H" basicErrorPowerFactor="0.8C" basicErrorVoltageMultiplier="1" basicErrorCurrentPoint="Imin" basicErrorPulseCount="0" basicErrorTestCount="2" basicErrorPulseType="0" basicErrorLimit="0" basicErrorLimits="A=2.5;B=1.5;C=1.0;D=0.5" basicErrorMinimumWaitSeconds="10" basicErrorWaitPaddingSeconds="20" packetIntervalMs="100" timeoutMs="5000" description="按资产信息计算测试电流、等待时间和JJG596误差限，执行完整有功基本误差流程。" />
+      <TestSubItem name="正有-H-0.8C-1U-Itr" enabled="true" protocol="MeterControlPcbV2" executionMode="BasicErrorPoint" controlPcbGroup="" sourceControlConfig="单相默认源" basicErrorDirection="ForwardActive" basicErrorPhase="H" basicErrorPowerFactor="0.8C" basicErrorVoltageMultiplier="1" basicErrorCurrentPoint="Itr" basicErrorPulseCount="0" basicErrorTestCount="2" basicErrorPulseType="0" basicErrorLimit="0" basicErrorLimits="A=2.0;B=1.0;C=0.6;D=0.3" basicErrorMinimumWaitSeconds="10" basicErrorWaitPaddingSeconds="20" packetIntervalMs="100" timeoutMs="5000" description="按资产信息计算测试电流、等待时间和JJG596误差限，执行完整有功基本误差流程。" />
+      <TestSubItem name="正有-H-0.8C-1U-10Itr" enabled="true" protocol="MeterControlPcbV2" executionMode="BasicErrorPoint" controlPcbGroup="" sourceControlConfig="单相默认源" basicErrorDirection="ForwardActive" basicErrorPhase="H" basicErrorPowerFactor="0.8C" basicErrorVoltageMultiplier="1" basicErrorCurrentPoint="10Itr" basicErrorPulseCount="0" basicErrorTestCount="2" basicErrorPulseType="0" basicErrorLimit="0" basicErrorLimits="A=2.0;B=1.0;C=0.6;D=0.3" basicErrorMinimumWaitSeconds="10" basicErrorWaitPaddingSeconds="20" packetIntervalMs="100" timeoutMs="5000" description="按资产信息计算测试电流、等待时间和JJG596误差限，执行完整有功基本误差流程。" />
+      <TestSubItem name="正有-H-0.8C-1U-0.5Imax" enabled="true" protocol="MeterControlPcbV2" executionMode="BasicErrorPoint" controlPcbGroup="" sourceControlConfig="单相默认源" basicErrorDirection="ForwardActive" basicErrorPhase="H" basicErrorPowerFactor="0.8C" basicErrorVoltageMultiplier="1" basicErrorCurrentPoint="0.5Imax" basicErrorPulseCount="0" basicErrorTestCount="2" basicErrorPulseType="0" basicErrorLimit="0" basicErrorLimits="A=2.0;B=1.0;C=0.6;D=0.3" basicErrorMinimumWaitSeconds="10" basicErrorWaitPaddingSeconds="20" packetIntervalMs="100" timeoutMs="5000" description="按资产信息计算测试电流、等待时间和JJG596误差限，执行完整有功基本误差流程。" />
+      <TestSubItem name="正有-H-0.8C-1U-Imax" enabled="true" protocol="MeterControlPcbV2" executionMode="BasicErrorPoint" controlPcbGroup="" sourceControlConfig="单相默认源" basicErrorDirection="ForwardActive" basicErrorPhase="H" basicErrorPowerFactor="0.8C" basicErrorVoltageMultiplier="1" basicErrorCurrentPoint="Imax" basicErrorPulseCount="0" basicErrorTestCount="2" basicErrorPulseType="0" basicErrorLimit="0" basicErrorLimits="A=2.0;B=1.0;C=0.6;D=0.3" basicErrorMinimumWaitSeconds="10" basicErrorWaitPaddingSeconds="20" packetIntervalMs="100" timeoutMs="5000" description="按资产信息计算测试电流、等待时间和JJG596误差限，执行完整有功基本误差流程。" />
+      <TestSubItem name="正有-H-0.8C-1U-1.2Imax" enabled="true" protocol="MeterControlPcbV2" executionMode="BasicErrorPoint" controlPcbGroup="" sourceControlConfig="单相默认源" basicErrorDirection="ForwardActive" basicErrorPhase="H" basicErrorPowerFactor="0.8C" basicErrorVoltageMultiplier="1" basicErrorCurrentPoint="1.2Imax" basicErrorPulseCount="0" basicErrorTestCount="2" basicErrorPulseType="0" basicErrorLimit="0" basicErrorLimits="A=2.0;B=1.0;C=0.6;D=0.3" basicErrorMinimumWaitSeconds="10" basicErrorWaitPaddingSeconds="20" packetIntervalMs="100" timeoutMs="5000" description="按资产信息计算测试电流、等待时间和JJG596误差限，执行完整有功基本误差流程。" />
+
+    </TestItem>
+
+    <!-- 反向有功；每个小项内部统一执行升源、A2/A0/0x38启动、等待、0x38读取和误差判定。 -->
+    <TestItem name="基本误差-反向有功" description="反向有功基本误差测试。">
+      <TestSubItem name="反有-H-1.0-1U-Imin" enabled="true" protocol="MeterControlPcbV2" executionMode="BasicErrorPoint" controlPcbGroup="" sourceControlConfig="单相默认源" basicErrorDirection="ReverseActive" basicErrorPhase="H" basicErrorPowerFactor="1.0" basicErrorVoltageMultiplier="1" basicErrorCurrentPoint="Imin" basicErrorPulseCount="0" basicErrorTestCount="2" basicErrorPulseType="0" basicErrorLimit="0" basicErrorLimits="A=2.5;B=1.5;C=1.0;D=0.4" basicErrorMinimumWaitSeconds="10" basicErrorWaitPaddingSeconds="20" packetIntervalMs="100" timeoutMs="5000" description="按资产信息计算测试电流、等待时间和JJG596误差限，执行完整有功基本误差流程。" />
+      <TestSubItem name="反有-H-1.0-1U-Itr" enabled="true" protocol="MeterControlPcbV2" executionMode="BasicErrorPoint" controlPcbGroup="" sourceControlConfig="单相默认源" basicErrorDirection="ReverseActive" basicErrorPhase="H" basicErrorPowerFactor="1.0" basicErrorVoltageMultiplier="1" basicErrorCurrentPoint="Itr" basicErrorPulseCount="0" basicErrorTestCount="2" basicErrorPulseType="0" basicErrorLimit="0" basicErrorLimits="A=2.0;B=1.0;C=0.5;D=0.2" basicErrorMinimumWaitSeconds="10" basicErrorWaitPaddingSeconds="20" packetIntervalMs="100" timeoutMs="5000" description="按资产信息计算测试电流、等待时间和JJG596误差限，执行完整有功基本误差流程。" />
+      <TestSubItem name="反有-H-1.0-1U-10Itr" enabled="true" protocol="MeterControlPcbV2" executionMode="BasicErrorPoint" controlPcbGroup="" sourceControlConfig="单相默认源" basicErrorDirection="ReverseActive" basicErrorPhase="H" basicErrorPowerFactor="1.0" basicErrorVoltageMultiplier="1" basicErrorCurrentPoint="10Itr" basicErrorPulseCount="0" basicErrorTestCount="2" basicErrorPulseType="0" basicErrorLimit="0" basicErrorLimits="A=2.0;B=1.0;C=0.5;D=0.2" basicErrorMinimumWaitSeconds="10" basicErrorWaitPaddingSeconds="20" packetIntervalMs="100" timeoutMs="5000" description="按资产信息计算测试电流、等待时间和JJG596误差限，执行完整有功基本误差流程。" />
+      <TestSubItem name="反有-H-1.0-1U-0.5Imax" enabled="true" protocol="MeterControlPcbV2" executionMode="BasicErrorPoint" controlPcbGroup="" sourceControlConfig="单相默认源" basicErrorDirection="ReverseActive" basicErrorPhase="H" basicErrorPowerFactor="1.0" basicErrorVoltageMultiplier="1" basicErrorCurrentPoint="0.5Imax" basicErrorPulseCount="0" basicErrorTestCount="2" basicErrorPulseType="0" basicErrorLimit="0" basicErrorLimits="A=2.0;B=1.0;C=0.5;D=0.2" basicErrorMinimumWaitSeconds="10" basicErrorWaitPaddingSeconds="20" packetIntervalMs="100" timeoutMs="5000" description="按资产信息计算测试电流、等待时间和JJG596误差限，执行完整有功基本误差流程。" />
+      <TestSubItem name="反有-H-1.0-1U-Imax" enabled="true" protocol="MeterControlPcbV2" executionMode="BasicErrorPoint" controlPcbGroup="" sourceControlConfig="单相默认源" basicErrorDirection="ReverseActive" basicErrorPhase="H" basicErrorPowerFactor="1.0" basicErrorVoltageMultiplier="1" basicErrorCurrentPoint="Imax" basicErrorPulseCount="0" basicErrorTestCount="2" basicErrorPulseType="0" basicErrorLimit="0" basicErrorLimits="A=2.0;B=1.0;C=0.5;D=0.2" basicErrorMinimumWaitSeconds="10" basicErrorWaitPaddingSeconds="20" packetIntervalMs="100" timeoutMs="5000" description="按资产信息计算测试电流、等待时间和JJG596误差限，执行完整有功基本误差流程。" />
+      <TestSubItem name="反有-H-1.0-1U-1.2Imax" enabled="true" protocol="MeterControlPcbV2" executionMode="BasicErrorPoint" controlPcbGroup="" sourceControlConfig="单相默认源" basicErrorDirection="ReverseActive" basicErrorPhase="H" basicErrorPowerFactor="1.0" basicErrorVoltageMultiplier="1" basicErrorCurrentPoint="1.2Imax" basicErrorPulseCount="0" basicErrorTestCount="2" basicErrorPulseType="0" basicErrorLimit="0" basicErrorLimits="A=2.0;B=1.0;C=0.5;D=0.2" basicErrorMinimumWaitSeconds="10" basicErrorWaitPaddingSeconds="20" packetIntervalMs="100" timeoutMs="5000" description="按资产信息计算测试电流、等待时间和JJG596误差限，执行完整有功基本误差流程。" />
+      <TestSubItem name="反有-H-0.5L-1U-Imin" enabled="true" protocol="MeterControlPcbV2" executionMode="BasicErrorPoint" controlPcbGroup="" sourceControlConfig="单相默认源" basicErrorDirection="ReverseActive" basicErrorPhase="H" basicErrorPowerFactor="0.5L" basicErrorVoltageMultiplier="1" basicErrorCurrentPoint="Imin" basicErrorPulseCount="0" basicErrorTestCount="2" basicErrorPulseType="0" basicErrorLimit="0" basicErrorLimits="A=2.5;B=1.5;C=1.0;D=0.5" basicErrorMinimumWaitSeconds="10" basicErrorWaitPaddingSeconds="20" packetIntervalMs="100" timeoutMs="5000" description="按资产信息计算测试电流、等待时间和JJG596误差限，执行完整有功基本误差流程。" />
+      <TestSubItem name="反有-H-0.5L-1U-Itr" enabled="true" protocol="MeterControlPcbV2" executionMode="BasicErrorPoint" controlPcbGroup="" sourceControlConfig="单相默认源" basicErrorDirection="ReverseActive" basicErrorPhase="H" basicErrorPowerFactor="0.5L" basicErrorVoltageMultiplier="1" basicErrorCurrentPoint="Itr" basicErrorPulseCount="0" basicErrorTestCount="2" basicErrorPulseType="0" basicErrorLimit="0" basicErrorLimits="A=2.0;B=1.0;C=0.6;D=0.3" basicErrorMinimumWaitSeconds="10" basicErrorWaitPaddingSeconds="20" packetIntervalMs="100" timeoutMs="5000" description="按资产信息计算测试电流、等待时间和JJG596误差限，执行完整有功基本误差流程。" />
+      <TestSubItem name="反有-H-0.5L-1U-10Itr" enabled="true" protocol="MeterControlPcbV2" executionMode="BasicErrorPoint" controlPcbGroup="" sourceControlConfig="单相默认源" basicErrorDirection="ReverseActive" basicErrorPhase="H" basicErrorPowerFactor="0.5L" basicErrorVoltageMultiplier="1" basicErrorCurrentPoint="10Itr" basicErrorPulseCount="0" basicErrorTestCount="2" basicErrorPulseType="0" basicErrorLimit="0" basicErrorLimits="A=2.0;B=1.0;C=0.6;D=0.3" basicErrorMinimumWaitSeconds="10" basicErrorWaitPaddingSeconds="20" packetIntervalMs="100" timeoutMs="5000" description="按资产信息计算测试电流、等待时间和JJG596误差限，执行完整有功基本误差流程。" />
+      <TestSubItem name="反有-H-0.5L-1U-0.5Imax" enabled="true" protocol="MeterControlPcbV2" executionMode="BasicErrorPoint" controlPcbGroup="" sourceControlConfig="单相默认源" basicErrorDirection="ReverseActive" basicErrorPhase="H" basicErrorPowerFactor="0.5L" basicErrorVoltageMultiplier="1" basicErrorCurrentPoint="0.5Imax" basicErrorPulseCount="0" basicErrorTestCount="2" basicErrorPulseType="0" basicErrorLimit="0" basicErrorLimits="A=2.0;B=1.0;C=0.6;D=0.3" basicErrorMinimumWaitSeconds="10" basicErrorWaitPaddingSeconds="20" packetIntervalMs="100" timeoutMs="5000" description="按资产信息计算测试电流、等待时间和JJG596误差限，执行完整有功基本误差流程。" />
+      <TestSubItem name="反有-H-0.5L-1U-Imax" enabled="true" protocol="MeterControlPcbV2" executionMode="BasicErrorPoint" controlPcbGroup="" sourceControlConfig="单相默认源" basicErrorDirection="ReverseActive" basicErrorPhase="H" basicErrorPowerFactor="0.5L" basicErrorVoltageMultiplier="1" basicErrorCurrentPoint="Imax" basicErrorPulseCount="0" basicErrorTestCount="2" basicErrorPulseType="0" basicErrorLimit="0" basicErrorLimits="A=2.0;B=1.0;C=0.6;D=0.3" basicErrorMinimumWaitSeconds="10" basicErrorWaitPaddingSeconds="20" packetIntervalMs="100" timeoutMs="5000" description="按资产信息计算测试电流、等待时间和JJG596误差限，执行完整有功基本误差流程。" />
+      <TestSubItem name="反有-H-0.5L-1U-1.2Imax" enabled="true" protocol="MeterControlPcbV2" executionMode="BasicErrorPoint" controlPcbGroup="" sourceControlConfig="单相默认源" basicErrorDirection="ReverseActive" basicErrorPhase="H" basicErrorPowerFactor="0.5L" basicErrorVoltageMultiplier="1" basicErrorCurrentPoint="1.2Imax" basicErrorPulseCount="0" basicErrorTestCount="2" basicErrorPulseType="0" basicErrorLimit="0" basicErrorLimits="A=2.0;B=1.0;C=0.6;D=0.3" basicErrorMinimumWaitSeconds="10" basicErrorWaitPaddingSeconds="20" packetIntervalMs="100" timeoutMs="5000" description="按资产信息计算测试电流、等待时间和JJG596误差限，执行完整有功基本误差流程。" />
+      <TestSubItem name="反有-H-0.8C-1U-Imin" enabled="true" protocol="MeterControlPcbV2" executionMode="BasicErrorPoint" controlPcbGroup="" sourceControlConfig="单相默认源" basicErrorDirection="ReverseActive" basicErrorPhase="H" basicErrorPowerFactor="0.8C" basicErrorVoltageMultiplier="1" basicErrorCurrentPoint="Imin" basicErrorPulseCount="0" basicErrorTestCount="2" basicErrorPulseType="0" basicErrorLimit="0" basicErrorLimits="A=2.5;B=1.5;C=1.0;D=0.5" basicErrorMinimumWaitSeconds="10" basicErrorWaitPaddingSeconds="20" packetIntervalMs="100" timeoutMs="5000" description="按资产信息计算测试电流、等待时间和JJG596误差限，执行完整有功基本误差流程。" />
+      <TestSubItem name="反有-H-0.8C-1U-Itr" enabled="true" protocol="MeterControlPcbV2" executionMode="BasicErrorPoint" controlPcbGroup="" sourceControlConfig="单相默认源" basicErrorDirection="ReverseActive" basicErrorPhase="H" basicErrorPowerFactor="0.8C" basicErrorVoltageMultiplier="1" basicErrorCurrentPoint="Itr" basicErrorPulseCount="0" basicErrorTestCount="2" basicErrorPulseType="0" basicErrorLimit="0" basicErrorLimits="A=2.0;B=1.0;C=0.6;D=0.3" basicErrorMinimumWaitSeconds="10" basicErrorWaitPaddingSeconds="20" packetIntervalMs="100" timeoutMs="5000" description="按资产信息计算测试电流、等待时间和JJG596误差限，执行完整有功基本误差流程。" />
+      <TestSubItem name="反有-H-0.8C-1U-10Itr" enabled="true" protocol="MeterControlPcbV2" executionMode="BasicErrorPoint" controlPcbGroup="" sourceControlConfig="单相默认源" basicErrorDirection="ReverseActive" basicErrorPhase="H" basicErrorPowerFactor="0.8C" basicErrorVoltageMultiplier="1" basicErrorCurrentPoint="10Itr" basicErrorPulseCount="0" basicErrorTestCount="2" basicErrorPulseType="0" basicErrorLimit="0" basicErrorLimits="A=2.0;B=1.0;C=0.6;D=0.3" basicErrorMinimumWaitSeconds="10" basicErrorWaitPaddingSeconds="20" packetIntervalMs="100" timeoutMs="5000" description="按资产信息计算测试电流、等待时间和JJG596误差限，执行完整有功基本误差流程。" />
+      <TestSubItem name="反有-H-0.8C-1U-0.5Imax" enabled="true" protocol="MeterControlPcbV2" executionMode="BasicErrorPoint" controlPcbGroup="" sourceControlConfig="单相默认源" basicErrorDirection="ReverseActive" basicErrorPhase="H" basicErrorPowerFactor="0.8C" basicErrorVoltageMultiplier="1" basicErrorCurrentPoint="0.5Imax" basicErrorPulseCount="0" basicErrorTestCount="2" basicErrorPulseType="0" basicErrorLimit="0" basicErrorLimits="A=2.0;B=1.0;C=0.6;D=0.3" basicErrorMinimumWaitSeconds="10" basicErrorWaitPaddingSeconds="20" packetIntervalMs="100" timeoutMs="5000" description="按资产信息计算测试电流、等待时间和JJG596误差限，执行完整有功基本误差流程。" />
+      <TestSubItem name="反有-H-0.8C-1U-Imax" enabled="true" protocol="MeterControlPcbV2" executionMode="BasicErrorPoint" controlPcbGroup="" sourceControlConfig="单相默认源" basicErrorDirection="ReverseActive" basicErrorPhase="H" basicErrorPowerFactor="0.8C" basicErrorVoltageMultiplier="1" basicErrorCurrentPoint="Imax" basicErrorPulseCount="0" basicErrorTestCount="2" basicErrorPulseType="0" basicErrorLimit="0" basicErrorLimits="A=2.0;B=1.0;C=0.6;D=0.3" basicErrorMinimumWaitSeconds="10" basicErrorWaitPaddingSeconds="20" packetIntervalMs="100" timeoutMs="5000" description="按资产信息计算测试电流、等待时间和JJG596误差限，执行完整有功基本误差流程。" />
+      <TestSubItem name="反有-H-0.8C-1U-1.2Imax" enabled="true" protocol="MeterControlPcbV2" executionMode="BasicErrorPoint" controlPcbGroup="" sourceControlConfig="单相默认源" basicErrorDirection="ReverseActive" basicErrorPhase="H" basicErrorPowerFactor="0.8C" basicErrorVoltageMultiplier="1" basicErrorCurrentPoint="1.2Imax" basicErrorPulseCount="0" basicErrorTestCount="2" basicErrorPulseType="0" basicErrorLimit="0" basicErrorLimits="A=2.0;B=1.0;C=0.6;D=0.3" basicErrorMinimumWaitSeconds="10" basicErrorWaitPaddingSeconds="20" packetIntervalMs="100" timeoutMs="5000" description="按资产信息计算测试电流、等待时间和JJG596误差限，执行完整有功基本误差流程。" />
+
+    </TestItem>
+
+    <TestItem name="常数试验" description="读取电表起止电量，执行0x37走字试验，并按电量差换算理论脉冲后比对待测表脉冲数。">
+      <TestSubItem name="读取电表开始电量" enabled="true" protocol="DLT698.45" executionMode="ConstantEnergyReadStart" expectedApdu="85 01" expectedOad="00 10 02 00" description="通过MeterTestStationConfig配置的工位TCP通道读取正向有功总电能作为起始电量。" timeoutMs="5000" />
+      <TestSubItem name="开始走字试验" enabled="true" protocol="MeterControlPcbV2" executionMode="ControlPcbWalkingStart" controlPcbGroup="" packetIntervalMs="100" description="按工位发送0x37+00开始走字试验。" timeoutMs="5000" />
+      <TestSubItem name="升源（基础电压、Imax电流）" enabled="true" protocol="XYCtr" executionMode="ConstantImaxSource" sourceControlConfig="单相默认源" description="按资产信息额定电压和电流规格Imax升源。" timeoutMs="20000" />
+      <TestSubItem name="等待60秒" enabled="true" protocol="System" executionMode="ConstantWait" description="走字试验固定等待60秒。" timeoutMs="60000" />
+      <TestSubItem name="升源（基础电压）" enabled="true" protocol="XYCtr" executionMode="ConstantVoltageSource" sourceControlConfig="单相默认源" description="保持资产额定电压输出，电流降为0A。" timeoutMs="20000" />
+      <TestSubItem name="读取电表结束电量" enabled="true" protocol="DLT698.45" executionMode="ConstantEnergyReadEnd" expectedApdu="85 01" expectedOad="00 10 02 00" description="通过MeterTestStationConfig配置的工位TCP通道读取正向有功总电能作为结束电量。" timeoutMs="5000" />
+      <TestSubItem name="停止走字试验" enabled="true" protocol="MeterControlPcbV2" executionMode="ControlPcbWalkingStop" controlPcbGroup="" packetIntervalMs="100" description="按工位发送0x37+FF停止走字试验。" timeoutMs="5000" />
+      <TestSubItem name="读取走字试验结果" enabled="true" protocol="MeterControlPcbV2" executionMode="ControlPcbWalkingRead" controlPcbGroup="" packetIntervalMs="100" description="按工位发送0x37+AA，解析被测表脉冲数和标准表电能量。" timeoutMs="5000" />
+      <TestSubItem name="对比试验结果" enabled="true" protocol="JJG596-2026" executionMode="ConstantResultJudge" constantEnergyToleranceKwh="0.01" description="用(结束电量-开始电量)×资产有功常数得到理论脉冲，和0x37返回待测表脉冲数比较，差值≤1判定合格。" timeoutMs="0" />
+    </TestItem>
+  </Scheme>
+</MeterTestPlanConfig>

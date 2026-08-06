@@ -1,4 +1,6 @@
 using System.Collections.Generic;
+using System;
+using System.Linq;
 using System.Xml.Serialization;
 
 namespace ModelTest.MeterTest;
@@ -39,9 +41,85 @@ public sealed class MeterTestStationConfig
     public List<MeterTestBluetoothTcpChannel> BluetoothTcpChannels { get; set; } = new();
 
     /// <summary>
-    /// 工位列表。程序启动时会自动补齐缺失工位，并按工位号排序。
+    /// 工位指示灯控制板映射集合。
+    /// 只有配置文件缺少该节点时才生成默认模板，用户已有 IP/端口和地址映射不会被程序启动覆盖。
+    /// </summary>
+    [XmlArray("IndicatorLightGroups")]
+    [XmlArrayItem("IndicatorLightGroup")]
+    public List<MeterTestIndicatorLightGroup> IndicatorLightGroups { get; set; } = new();
+
+    /// <summary>
+    /// 工位485通信通道集合。
+    /// 485-2为地址读取默认上行通道，485-1作为备用/扩展通道保留独立IP和端口配置。
+    /// </summary>
+    [XmlArray("StationTcpChannels")]
+    [XmlArrayItem("StationTcpChannel")]
+    public List<MeterTestStationTcpChannel> StationTcpChannels { get; set; } = new();
+
+    /// <summary>
+    /// 旧版根级工位列表兼容入口。
+    /// 旧XML仍可读取，加载后会迁移到默认485-2通道；新版保存时不再输出根级Station。
     /// </summary>
     [XmlElement("Station")]
+    public List<MeterTestStationCommunication> LegacyStations { get; set; } = new();
+
+    /// <summary>
+    /// 默认工位通信列表。
+    /// 现有测试流程继续通过该属性使用485-2，不需要在业务代码里关心XML层级变化。
+    /// </summary>
+    [XmlIgnore]
+    public List<MeterTestStationCommunication> Stations
+    {
+        get => GetDefaultStationTcpChannel().Stations;
+        set => GetDefaultStationTcpChannel().Stations = value ?? new List<MeterTestStationCommunication>();
+    }
+
+    /// <summary>获取默认485-2通道；缺失时自动创建，保证旧调用方始终有可用Station列表。</summary>
+    public MeterTestStationTcpChannel GetDefaultStationTcpChannel()
+    {
+        MeterTestStationTcpChannel? defaultChannel = StationTcpChannels.FirstOrDefault(channel => channel.IsDefault)
+            ?? StationTcpChannels.FirstOrDefault(channel => channel.Channel.Equals("485-2", StringComparison.OrdinalIgnoreCase))
+            ?? StationTcpChannels.FirstOrDefault();
+        if (defaultChannel is not null)
+            return defaultChannel;
+
+        defaultChannel = new MeterTestStationTcpChannel
+        {
+            Name = "485-2通信通道",
+            Channel = "485-2",
+            Enabled = true,
+            IsDefault = true
+        };
+        StationTcpChannels.Add(defaultChannel);
+        return defaultChannel;
+    }
+}
+
+/// <summary>
+/// 工位485通信通道配置。
+/// 一个通道下包含1-48工位的IP/Port映射，便于同时维护485-1和485-2。
+/// </summary>
+public sealed class MeterTestStationTcpChannel
+{
+    /// <summary>通道名称，显示和日志使用。</summary>
+    [XmlAttribute("name")]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>通道编号，例如485-1、485-2。</summary>
+    [XmlAttribute("channel")]
+    public string Channel { get; set; } = string.Empty;
+
+    /// <summary>是否启用该通道。</summary>
+    [XmlAttribute("enabled")]
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>是否为默认地址读取通道。</summary>
+    [XmlAttribute("isDefault")]
+    public bool IsDefault { get; set; }
+
+    /// <summary>该通道下每个工位的IP和端口。</summary>
+    [XmlArray("Stations")]
+    [XmlArrayItem("Station")]
     public List<MeterTestStationCommunication> Stations { get; set; } = new();
 }
 

@@ -23,7 +23,8 @@ public sealed record MeterTestErrorLimitRequest(
     decimal MinimumCurrent,
     decimal TransitionCurrent,
     decimal MaximumCurrent,
-    decimal RatedCurrent);
+    decimal RatedCurrent,
+    string Phase = "H");
 
 /// <summary>规程误差限计算结果。</summary>
 public sealed record MeterTestErrorLimitResult(
@@ -235,6 +236,12 @@ public static class MeterTestErrorResultComparer
         decimal ratio = request.Current / request.RatedCurrent;
         decimal? limit = null;
         string range;
+        bool isBalanced = string.Equals(request.Phase, "H", StringComparison.OrdinalIgnoreCase);
+        if (!isBalanced)
+        {
+            return CalculateDirectReactiveUnbalancedLimit(request, accuracyClass, powerFactor, ratio);
+        }
+
         if (powerFactor == "1.0")
         {
             if (ratio >= 0.1m)
@@ -252,12 +259,12 @@ public static class MeterTestErrorResultComparer
                 range = "I<0.05In";
             }
         }
-        else if (powerFactor == "0.5L")
+        else if (powerFactor is "0.5L" or "0.5C")
         {
             if (ratio >= 0.2m)
             {
                 range = "0.2In≤I≤Imax";
-                limit = ResolveReactiveClassLimit(accuracyClass, 3.0m, 2.0m, 1.0m, 0.5m);
+                limit = ResolveReactiveClassLimit(accuracyClass, 4.0m, 2.5m, 2.0m, 1.0m);
             }
             else if (ratio >= 0.1m)
             {
@@ -269,7 +276,7 @@ public static class MeterTestErrorResultComparer
                 range = "I<0.1In";
             }
         }
-        else if (powerFactor == "0.25L")
+        else if (powerFactor is "0.25L" or "0.25C")
         {
             range = ratio >= 0.2m ? "0.2In≤I≤Imax" : "I<0.2In";
             if (ratio >= 0.2m)
@@ -278,6 +285,43 @@ public static class MeterTestErrorResultComparer
         else
         {
             return NotApplicable("直接接入无功误差表未定义该功率因数。", "无功", accuracyClass, powerFactor, "未定义");
+        }
+
+        return limit.HasValue
+            ? Applicable("无功", accuracyClass, powerFactor, range, limit.Value)
+            : NotApplicable("该等级、电流段和功率因数组合按规程不测试。", "无功", accuracyClass, powerFactor, range);
+    }
+
+    /// <summary>按直接接入 A/B/C 单相不平衡负载无功等级、电流区间和功率因数查找最大允许误差。</summary>
+    private static MeterTestErrorLimitResult CalculateDirectReactiveUnbalancedLimit(
+        MeterTestErrorLimitRequest request,
+        string accuracyClass,
+        string powerFactor,
+        decimal ratio)
+    {
+        decimal? limit = null;
+        string range;
+        if (powerFactor == "1.0")
+        {
+            range = ratio >= 0.1m ? "0.1In≤I≤Imax（不平衡负载）" : "I<0.1In（不平衡负载）";
+            if (ratio >= 0.1m)
+                limit = ResolveReactiveClassLimit(accuracyClass, 4.0m, 3.0m, 1.5m, 0.7m);
+        }
+        else if (powerFactor is "0.5L" or "0.5C")
+        {
+            range = ratio >= 0.2m ? "0.2In≤I≤Imax（不平衡负载）" : "I<0.2In（不平衡负载）";
+            if (ratio >= 0.2m)
+                limit = ResolveReactiveClassLimit(accuracyClass, 4.0m, 3.0m, 2.0m, 1.0m);
+        }
+        else if (powerFactor is "0.25L" or "0.25C")
+        {
+            range = ratio >= 0.2m ? "0.2In≤I≤Imax（不平衡负载）" : "I<0.2In（不平衡负载）";
+            if (ratio >= 0.2m)
+                limit = ResolveReactiveClassLimit(accuracyClass, null, null, 3.0m, 1.5m);
+        }
+        else
+        {
+            return NotApplicable("直接接入不平衡无功误差表未定义该功率因数。", "无功", accuracyClass, powerFactor, "未定义");
         }
 
         return limit.HasValue

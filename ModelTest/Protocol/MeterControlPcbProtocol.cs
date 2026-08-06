@@ -53,7 +53,9 @@ public static class MeterControlPcbProtocol
     public const byte MeterPresenceDetectionCommand = 0x84;
     public const byte VoltageShortCircuitDetectionCommand = 0x86;
     public const byte ActiveConstantCommand = 0xA0;
+    public const byte ReactiveConstantCommand = 0xA1;
     public const byte StandardActiveConstantCommand = 0xA2;
+    public const byte StandardReactiveConstantCommand = 0xA3;
     public const byte MotorCrimpingCommand = 0xC9;
     public const byte TemperatureCommand = 0xCA;
     public const byte FeedbackCommand = 0xFB;
@@ -73,6 +75,9 @@ public static class MeterControlPcbProtocol
 
     /// <summary>0x38基本误差的有功脉冲类型。</summary>
     public const byte ActivePulseType = 0x00;
+
+    /// <summary>0x38基本误差的无功脉冲类型。</summary>
+    public const byte ReactivePulseType = 0x01;
 
     public const byte SinglePhaseEnableDataItem = 0x01;
     public const byte SinglePhaseDisableDataItem = 0x05;

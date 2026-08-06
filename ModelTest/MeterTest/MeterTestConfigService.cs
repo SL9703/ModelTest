@@ -11,6 +11,9 @@ namespace ModelTest.MeterTest;
 /// </summary>
 public sealed class MeterTestConfigService
 {
+    private const string SinglePhasePlanConfigFileName = "MeterTestPlanConfig.SinglePhase.xml";
+    private const string DefaultStationTcpChannel = "485-2";
+    private const string SecondaryStationTcpChannel = "485-1";
     private const int MaximumStationCount = 48;
     private const int StationsPerControlPcb = 3;
 
@@ -25,10 +28,16 @@ public sealed class MeterTestConfigService
     public MeterTestPlanConfig LoadOrCreate(string configPath)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(configPath) ?? AppContext.BaseDirectory);
+        bool isSinglePhasePlan = Path.GetFileName(configPath)
+            .Equals(SinglePhasePlanConfigFileName, StringComparison.OrdinalIgnoreCase);
 
         if (!File.Exists(configPath))
         {
             MeterTestPlanConfig defaultConfig = CreateDefault();
+            if (isSinglePhasePlan)
+            {
+                RemoveSplitPhaseBasicErrorSubItems(defaultConfig);
+            }
             Save(configPath, defaultConfig);
             return defaultConfig;
         }
@@ -46,9 +55,22 @@ public sealed class MeterTestConfigService
         configChanged |= EnsureBluetoothTcpChannels(config);
         configChanged |= EnsureCreepingSourceSubItem(config);
         configChanged |= EnsureCreepingProtocolSubItems(config);
-        configChanged |= EnsureBasicErrorTestItems(config);
-        configChanged |= EnsureCommunicationAddressFallbackFlow(config);
+        configChanged |= EnsureBasicErrorTestItems(config, includeSplitPhaseSubItems: !isSinglePhasePlan);
+        configChanged |= EnsureCommunicationTestItem(
+            config,
+            itemName: "通信测试",
+            stationTcpChannel: DefaultStationTcpChannel,
+            insertAfterItemName: "设备自检测试");
+        if (!isSinglePhasePlan)
+        {
+            configChanged |= EnsureCommunicationTestItem(
+                config,
+                itemName: "通信测试-2",
+                stationTcpChannel: SecondaryStationTcpChannel,
+                insertAfterItemName: "通信测试");
+        }
         configChanged |= EnsureDeviceSelfCheckTestItem(config);
+        configChanged |= EnsureLedEffectTestItem(config);
         configChanged |= EnsureBluetoothInterfaceTestItem(config);
         configChanged |= EnsureConstantTestItem(config);
         if (configChanged)
@@ -120,6 +142,7 @@ public sealed class MeterTestConfigService
                     TestItems =
                     {
                         CreateDeviceSelfCheckTestItem(),
+                        CreateLedEffectTestItem(),
                         CreateCommunicationTestItem(),
                         CreateBluetoothInterfaceTestItem(),
                         new MeterTestItem
@@ -481,23 +504,71 @@ public sealed class MeterTestConfigService
     }
 
     /// <summary>
-    /// 为已有方案补齐正向、反向有功各18个基本误差测试点。
-    /// 已存在同名测试点保持现场自定义参数不变，只补充缺失节点。
+    /// 为已有方案补齐正向、反向有功基本误差测试点。
+    /// 三相方案补 H/A/B/C，单相方案只补 H，并主动清理历史自动补入的 A/B/C 分相点。
     /// </summary>
-    private static bool EnsureBasicErrorTestItems(MeterTestPlanConfig config)
+    private static bool EnsureBasicErrorTestItems(MeterTestPlanConfig config, bool includeSplitPhaseSubItems)
     {
         bool changed = false;
+        if (!includeSplitPhaseSubItems)
+        {
+            changed |= RemoveSplitPhaseBasicErrorSubItems(config);
+        }
+
         foreach (MeterTestScheme scheme in config.Schemes)
         {
             changed |= EnsureBasicErrorTestItem(
                 scheme,
-                CreateBasicErrorTestItem("基本误差-正向有功", "正有", "ForwardActive"));
+                CreateBasicErrorTestItem("基本误差-正向有功", "正有", "ForwardActive", includeSplitPhaseSubItems));
             changed |= EnsureBasicErrorTestItem(
                 scheme,
-                CreateBasicErrorTestItem("基本误差-反向有功", "反有", "ReverseActive"));
+                CreateBasicErrorTestItem("基本误差-反向有功", "反有", "ReverseActive", includeSplitPhaseSubItems));
+            if (includeSplitPhaseSubItems)
+            {
+                changed |= EnsureBasicErrorTestItem(
+                    scheme,
+                    CreateReactiveBasicErrorTestItem("基本误差-正向无功", "正无", "ForwardReactive"));
+                changed |= EnsureBasicErrorTestItem(
+                    scheme,
+                    CreateReactiveBasicErrorTestItem("基本误差-反向无功", "反无", "ReverseReactive"));
+            }
         }
 
         return changed;
+    }
+
+    /// <summary>单相方案禁止保留 A/B/C 分相基本误差点，避免切换方案后界面又被自动补齐逻辑带回来。</summary>
+    private static bool RemoveSplitPhaseBasicErrorSubItems(MeterTestPlanConfig config)
+    {
+        bool changed = false;
+        foreach (MeterTestItem item in config.Schemes.SelectMany(scheme => scheme.TestItems))
+        {
+            if (!item.Name.Contains("基本误差", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            int removedCount = item.TestSubItems.RemoveAll(subItem =>
+                IsSplitPhaseBasicErrorName(subItem.Name) ||
+                subItem.BasicErrorPhase.Equals("A", StringComparison.OrdinalIgnoreCase) ||
+                subItem.BasicErrorPhase.Equals("B", StringComparison.OrdinalIgnoreCase) ||
+                subItem.BasicErrorPhase.Equals("C", StringComparison.OrdinalIgnoreCase));
+            changed |= removedCount > 0;
+        }
+
+        return changed;
+    }
+
+    /// <summary>判断测试点名称是否为“正有-A...”或“反有-C...”这类分相基本误差点。</summary>
+    private static bool IsSplitPhaseBasicErrorName(string name)
+    {
+        string[] parts = name.Split('-', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return parts.Length >= 2 &&
+            (parts[0].Equals("正有", StringComparison.OrdinalIgnoreCase) ||
+             parts[0].Equals("反有", StringComparison.OrdinalIgnoreCase) ||
+             parts[0].Equals("正无", StringComparison.OrdinalIgnoreCase) ||
+             parts[0].Equals("反无", StringComparison.OrdinalIgnoreCase)) &&
+            (parts[1].Equals("A", StringComparison.OrdinalIgnoreCase) ||
+             parts[1].Equals("B", StringComparison.OrdinalIgnoreCase) ||
+             parts[1].Equals("C", StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>确保方案包含指定基本误差测试项，并补齐缺失的小项而不覆盖用户已有配置。</summary>
@@ -534,6 +605,18 @@ public sealed class MeterTestConfigService
                     !existingSubItem.BasicErrorDirection.Equals(expectedDirection, StringComparison.OrdinalIgnoreCase))
                 {
                     existingSubItem.BasicErrorDirection = expectedDirection;
+                    changed = true;
+                }
+
+                if (existingSubItem.BasicErrorPulseType != expectedSubItem.BasicErrorPulseType)
+                {
+                    existingSubItem.BasicErrorPulseType = expectedSubItem.BasicErrorPulseType;
+                    changed = true;
+                }
+
+                if (!existingSubItem.ExecutionMode.Equals(expectedSubItem.ExecutionMode, StringComparison.OrdinalIgnoreCase))
+                {
+                    existingSubItem.ExecutionMode = expectedSubItem.ExecutionMode;
                     changed = true;
                 }
 
@@ -660,24 +743,29 @@ public sealed class MeterTestConfigService
     }
 
     /// <summary>
-    /// 保留并补齐原有“连接/读取/校验/修改/地址读取”通信流程。
-    /// 备用波特率循环只作为最后地址读取失败后的追加动作，不改变前四个V2串口服务器步骤。
+    /// 保留并补齐“连接/读取/校验/修改/地址读取”通信流程。
+    /// itemName决定方案树显示名称，stationTcpChannel决定工位通信端点来自485-1还是485-2；
+    /// 执行代码共用同一套通信测试服务，避免为不同485通道复制业务流程。
     /// </summary>
-    private static bool EnsureCommunicationAddressFallbackFlow(MeterTestPlanConfig config)
+    private static bool EnsureCommunicationTestItem(
+        MeterTestPlanConfig config,
+        string itemName,
+        string stationTcpChannel,
+        string insertAfterItemName)
     {
         bool changed = false;
-        MeterTestItem expectedItem = CreateCommunicationTestItem();
+        MeterTestItem expectedItem = CreateCommunicationTestItem(stationTcpChannel, itemName);
 
         foreach (MeterTestScheme scheme in config.Schemes)
         {
             MeterTestItem? communicationItem = scheme.TestItems.FirstOrDefault(item =>
-                item.Name.Equals("通信测试", StringComparison.OrdinalIgnoreCase));
+                item.Name.Equals(itemName, StringComparison.OrdinalIgnoreCase));
             if (communicationItem is null)
             {
-                communicationItem = CreateCommunicationTestItem();
-                int selfCheckIndex = scheme.TestItems.FindIndex(item =>
-                    item.Name.Equals("设备自检测试", StringComparison.OrdinalIgnoreCase));
-                scheme.TestItems.Insert(selfCheckIndex >= 0 ? selfCheckIndex + 1 : 0, communicationItem);
+                communicationItem = expectedItem;
+                int insertAfterIndex = scheme.TestItems.FindIndex(item =>
+                    item.Name.Equals(insertAfterItemName, StringComparison.OrdinalIgnoreCase));
+                scheme.TestItems.Insert(insertAfterIndex >= 0 ? insertAfterIndex + 1 : 0, communicationItem);
                 changed = true;
                 continue;
             }
@@ -698,8 +786,10 @@ public sealed class MeterTestConfigService
 
                 if (expectedSubItem.Name.Equals("地址读取", StringComparison.OrdinalIgnoreCase))
                 {
-                    changed |= ApplyCommunicationAddressDefaults(existingSubItem);
+                    changed |= ApplyCommunicationAddressDefaults(existingSubItem, stationTcpChannel);
                 }
+
+                changed |= ApplyCommunicationStepDefaults(existingSubItem, expectedSubItem);
             }
 
             string expectedDescription = expectedItem.Description;
@@ -714,12 +804,16 @@ public sealed class MeterTestConfigService
     }
 
     /// <summary>创建原串口服务器四步同步流程，并在地址读取失败后追加备用波特率尝试。</summary>
-    private static MeterTestItem CreateCommunicationTestItem()
+    private static MeterTestItem CreateCommunicationTestItem(
+        string stationTcpChannel = DefaultStationTcpChannel,
+        string itemName = "通信测试")
     {
-        return new MeterTestItem
+        MeterTestItem item = new()
         {
-            Name = "通信测试",
-            Description = "先执行原串口服务器波特率同步流程；地址读取失败后追加数据库候选波特率循环。",
+            Name = itemName,
+            Description = stationTcpChannel.Equals(DefaultStationTcpChannel, StringComparison.OrdinalIgnoreCase)
+                ? "先执行原串口服务器波特率同步流程；地址读取失败后追加数据库候选波特率循环。"
+                : $"复用通信测试流程，但使用MeterTestStationConfig.xml中的{stationTcpChannel}通道IP和端口。",
             TestSubItems =
             {
                 new MeterTestSubItem
@@ -730,6 +824,7 @@ public sealed class MeterTestConfigService
                     Protocol = "MeterControlPcbV2",
                     ExecutionMode = MeterTestExecutionMode.SerialPortServerBaudRateSync.ToString(),
                     SerialPortServerStep = "Connect",
+                    StationTcpChannel = stationTcpChannel,
                     TimeoutMs = 5000
                 },
                 new MeterTestSubItem
@@ -740,6 +835,7 @@ public sealed class MeterTestConfigService
                     Protocol = "MeterControlPcbV2",
                     ExecutionMode = MeterTestExecutionMode.SerialPortServerBaudRateSync.ToString(),
                     SerialPortServerStep = "ReadParameters",
+                    StationTcpChannel = stationTcpChannel,
                     TimeoutMs = 5000
                 },
                 new MeterTestSubItem
@@ -750,6 +846,7 @@ public sealed class MeterTestConfigService
                     Protocol = "MeterControlPcbV2",
                     ExecutionMode = MeterTestExecutionMode.SerialPortServerBaudRateSync.ToString(),
                     SerialPortServerStep = "Compare",
+                    StationTcpChannel = stationTcpChannel,
                     TimeoutMs = 5000
                 },
                 new MeterTestSubItem
@@ -760,15 +857,28 @@ public sealed class MeterTestConfigService
                     Protocol = "MeterControlPcbV2",
                     ExecutionMode = MeterTestExecutionMode.SerialPortServerBaudRateSync.ToString(),
                     SerialPortServerStep = "Apply",
+                    StationTcpChannel = stationTcpChannel,
                     TimeoutMs = 5000
                 },
-                CreateCommunicationAddressSubItem()
+                CreateCommunicationAddressSubItem(stationTcpChannel)
             }
         };
+
+        if (!stationTcpChannel.Equals(DefaultStationTcpChannel, StringComparison.OrdinalIgnoreCase))
+        {
+            foreach (MeterTestSubItem subItem in item.TestSubItems)
+            {
+                subItem.Description = subItem.Name.Equals("地址读取", StringComparison.OrdinalIgnoreCase)
+                    ? $"使用{stationTcpChannel}通道先按资产波特率读取；无地址响应时追加切换数据库候选波特率并重试。"
+                    : $"{subItem.Description}（使用{stationTcpChannel}通道）";
+            }
+        }
+
+        return item;
     }
 
     /// <summary>创建698定址读取节点；串口服务器的波特率回退由执行服务在节点内部完成。</summary>
-    private static MeterTestSubItem CreateCommunicationAddressSubItem()
+    private static MeterTestSubItem CreateCommunicationAddressSubItem(string stationTcpChannel = DefaultStationTcpChannel)
     {
         return new MeterTestSubItem
         {
@@ -778,6 +888,7 @@ public sealed class MeterTestConfigService
             Protocol = "DLT698.45",
             ExecutionMode = MeterTestExecutionMode.StationTcp.ToString(),
             SourceControlConfig = "单相默认源",
+            StationTcpChannel = stationTcpChannel,
             RequestHex = "68 17 00 43 05 AA AA AA AA AA AA 10 2B 3A 05 01 71 40 01 02 00 00 C7 C2 16",
             ResponseParser = ResponseParserType.Sgcc698BroadcastAddress.ToString(),
             ExpectedApdu = "85 01",
@@ -792,15 +903,34 @@ public sealed class MeterTestConfigService
         };
     }
 
-    /// <summary>补齐旧地址读取节点的协议字段，同时保留现场已配置的超时、升源名称和模拟响应。</summary>
-    private static bool ApplyCommunicationAddressDefaults(MeterTestSubItem target)
+    /// <summary>
+    /// 补齐通信测试普通步骤的协议字段。
+    /// 该方法只处理串口服务器连接、读取、校验、修改等非地址读取节点。
+    /// </summary>
+    private static bool ApplyCommunicationStepDefaults(MeterTestSubItem target, MeterTestSubItem expected)
     {
-        MeterTestSubItem expected = CreateCommunicationAddressSubItem();
         bool changed = false;
 
         changed |= SetIfDifferent(target.Enabled, expected.Enabled, value => target.Enabled = value);
         changed |= SetIfDifferent(target.Protocol, expected.Protocol, value => target.Protocol = value);
         changed |= SetIfDifferent(target.ExecutionMode, expected.ExecutionMode, value => target.ExecutionMode = value);
+        changed |= SetIfDifferent(target.SerialPortServerStep, expected.SerialPortServerStep, value => target.SerialPortServerStep = value);
+        changed |= SetIfDifferent(target.StationTcpChannel, expected.StationTcpChannel, value => target.StationTcpChannel = value);
+        changed |= SetIfDifferent(target.Description, expected.Description, value => target.Description = value);
+
+        return changed;
+    }
+
+    /// <summary>补齐旧地址读取节点的协议字段，同时保留现场已配置的超时、升源名称和模拟响应。</summary>
+    private static bool ApplyCommunicationAddressDefaults(MeterTestSubItem target, string stationTcpChannel = DefaultStationTcpChannel)
+    {
+        MeterTestSubItem expected = CreateCommunicationAddressSubItem(stationTcpChannel);
+        bool changed = false;
+
+        changed |= SetIfDifferent(target.Enabled, expected.Enabled, value => target.Enabled = value);
+        changed |= SetIfDifferent(target.Protocol, expected.Protocol, value => target.Protocol = value);
+        changed |= SetIfDifferent(target.ExecutionMode, expected.ExecutionMode, value => target.ExecutionMode = value);
+        changed |= SetIfDifferent(target.StationTcpChannel, expected.StationTcpChannel, value => target.StationTcpChannel = value);
         changed |= SetIfDifferent(target.Description, expected.Description, value => target.Description = value);
         changed |= SetIfDifferent(target.RequestHex, expected.RequestHex, value => target.RequestHex = value);
         changed |= SetIfDifferent(target.ResponseParser, expected.ResponseParser, value => target.ResponseParser = value);
@@ -957,6 +1087,143 @@ public sealed class MeterTestConfigService
                     PacketIntervalMs = 100,
                     Description = "按工位发送0xCA+传感器序号+AA并解析4字节有符号小端温度原始值。",
                     TimeoutMs = 5000
+                }
+            }
+        };
+    }
+
+    /// <summary>
+    /// 确保单相和三相方案中都有LED效果灯测试项。
+    /// 已存在的用户配置只补执行模式和缺省时间，不覆盖现场自定义的保持时间。
+    /// </summary>
+    private static bool EnsureLedEffectTestItem(MeterTestPlanConfig config)
+    {
+        bool changed = false;
+        MeterTestItem expectedItem = CreateLedEffectTestItem();
+        foreach (MeterTestScheme scheme in config.Schemes)
+        {
+            MeterTestItem? existingItem = scheme.TestItems.FirstOrDefault(item =>
+                item.Name.Equals(expectedItem.Name, StringComparison.OrdinalIgnoreCase));
+            if (existingItem is null)
+            {
+                int insertAfterDeviceSelfCheckIndex = scheme.TestItems.FindIndex(item =>
+                    item.Name.Equals("设备自检测试", StringComparison.OrdinalIgnoreCase));
+                scheme.TestItems.Insert(
+                    insertAfterDeviceSelfCheckIndex >= 0 ? insertAfterDeviceSelfCheckIndex + 1 : 0,
+                    CreateLedEffectTestItem());
+                changed = true;
+                continue;
+            }
+
+            foreach (MeterTestSubItem expectedSubItem in expectedItem.TestSubItems)
+            {
+                MeterTestSubItem? existingSubItem = existingItem.TestSubItems.FirstOrDefault(item =>
+                    item.Name.Equals(expectedSubItem.Name, StringComparison.OrdinalIgnoreCase));
+                if (existingSubItem is null)
+                {
+                    existingItem.TestSubItems.Add(expectedSubItem);
+                    changed = true;
+                    continue;
+                }
+
+                if (!existingSubItem.ExecutionMode.Equals(
+                        MeterTestExecutionMode.LedEffectTest.ToString(),
+                        StringComparison.OrdinalIgnoreCase) ||
+                    string.IsNullOrWhiteSpace(existingSubItem.LedEffectStep))
+                {
+                    existingSubItem.Enabled = true;
+                    existingSubItem.Protocol = expectedSubItem.Protocol;
+                    existingSubItem.ExecutionMode = expectedSubItem.ExecutionMode;
+                    existingSubItem.LedEffectStep = expectedSubItem.LedEffectStep;
+                    existingSubItem.ControlPcbGroup = expectedSubItem.ControlPcbGroup;
+                    existingSubItem.Description = expectedSubItem.Description;
+                    if (existingSubItem.TimeoutMs <= 0)
+                    {
+                        existingSubItem.TimeoutMs = expectedSubItem.TimeoutMs;
+                    }
+                    if (existingSubItem.LedMarqueeDurationSeconds <= 0)
+                    {
+                        existingSubItem.LedMarqueeDurationSeconds = expectedSubItem.LedMarqueeDurationSeconds;
+                    }
+                    if (existingSubItem.LedMarqueeIntervalSeconds <= 0)
+                    {
+                        existingSubItem.LedMarqueeIntervalSeconds = expectedSubItem.LedMarqueeIntervalSeconds;
+                    }
+                    if (existingSubItem.LedEffectHoldSeconds <= 0)
+                    {
+                        existingSubItem.LedEffectHoldSeconds = expectedSubItem.LedEffectHoldSeconds;
+                    }
+                    if (existingSubItem.LedBlinkHoldSeconds <= 0)
+                    {
+                        existingSubItem.LedBlinkHoldSeconds = expectedSubItem.LedBlinkHoldSeconds;
+                    }
+                    if (existingSubItem.LedSteadyHoldSeconds <= 0)
+                    {
+                        existingSubItem.LedSteadyHoldSeconds = expectedSubItem.LedSteadyHoldSeconds;
+                    }
+                    if (existingSubItem.LedOffHoldSeconds <= 0)
+                    {
+                        existingSubItem.LedOffHoldSeconds = expectedSubItem.LedOffHoldSeconds;
+                    }
+                    if (existingSubItem.LedBlinkTimeMs <= 0)
+                    {
+                        existingSubItem.LedBlinkTimeMs = expectedSubItem.LedBlinkTimeMs;
+                    }
+                    changed = true;
+                }
+            }
+
+            int currentIndex = scheme.TestItems.IndexOf(existingItem);
+            int deviceSelfCheckIndex = scheme.TestItems.FindIndex(item =>
+                item.Name.Equals("设备自检测试", StringComparison.OrdinalIgnoreCase));
+            if (deviceSelfCheckIndex >= 0 && currentIndex != deviceSelfCheckIndex + 1)
+            {
+                scheme.TestItems.RemoveAt(currentIndex);
+                deviceSelfCheckIndex = scheme.TestItems.FindIndex(item =>
+                    item.Name.Equals("设备自检测试", StringComparison.OrdinalIgnoreCase));
+                scheme.TestItems.Insert(Math.Min(deviceSelfCheckIndex + 1, scheme.TestItems.Count), existingItem);
+                changed = true;
+            }
+        }
+
+        return changed;
+    }
+
+    /// <summary>创建LED效果灯测试方案，时间均可在XML中调整。</summary>
+    private static MeterTestItem CreateLedEffectTestItem()
+    {
+        return new MeterTestItem
+        {
+            Name = "LED效果灯测试",
+            Description = "通过0x2F指示灯协议执行LED1-LED4跑马灯和闪烁效果测试。",
+            TestSubItems =
+            {
+                new MeterTestSubItem
+                {
+                    Name = "led1-led4灯的做跑马灯测试",
+                    Enabled = true,
+                    Protocol = "DetectionBoardV2",
+                    ExecutionMode = MeterTestExecutionMode.LedEffectTest.ToString(),
+                    LedEffectStep = "Marquee",
+                    LedMarqueeDurationSeconds = 60,
+                    LedMarqueeIntervalSeconds = 2,
+                    Description = "LED1-LED4按红、绿、黄顺序逐灯亮灭；总时长和间隔可配置，默认1分钟、2秒一帧。",
+                    TimeoutMs = 0
+                },
+                new MeterTestSubItem
+                {
+                    Name = "led1-led4灯闪烁测试",
+                    Enabled = true,
+                    Protocol = "DetectionBoardV2",
+                    ExecutionMode = MeterTestExecutionMode.LedEffectTest.ToString(),
+                    LedEffectStep = "Blink",
+                    LedEffectHoldSeconds = 15,
+                    LedBlinkHoldSeconds = 15,
+                    LedSteadyHoldSeconds = 15,
+                    LedOffHoldSeconds = 15,
+                    LedBlinkTimeMs = 500,
+                    Description = "LED1-LED4分别执行红、绿、黄的闪烁、长亮、熄灭；闪烁、长亮、熄灭时长均可配置，默认15秒。",
+                    TimeoutMs = 0
                 }
             }
         };
@@ -1299,11 +1566,15 @@ public sealed class MeterTestConfigService
     }
 
     /// <summary>创建有功基本误差测试点，每个点内部由统一服务执行完整五步流程。</summary>
-    private static MeterTestItem CreateBasicErrorTestItem(string itemName, string namePrefix, string direction)
+    private static MeterTestItem CreateBasicErrorTestItem(
+        string itemName,
+        string namePrefix,
+        string direction,
+        bool includeSplitPhaseSubItems = true)
     {
         string[] powerFactors = { "1.0", "0.5L", "0.8C" };
         string[] currentPoints = { "Imin", "Itr", "10Itr", "0.5Imax", "Imax", "1.2Imax" };
-        string[] phases = { "H", "A", "B", "C" };
+        string[] phases = includeSplitPhaseSubItems ? new[] { "H", "A", "B", "C" } : new[] { "H" };
         MeterTestItem item = new()
         {
             Name = itemName,
@@ -1347,6 +1618,89 @@ public sealed class MeterTestConfigService
         return item;
     }
 
+    /// <summary>创建三相无功基本误差测试点；只写入三相方案，单相方案不生成无功节点。</summary>
+    private static MeterTestItem CreateReactiveBasicErrorTestItem(
+        string itemName,
+        string namePrefix,
+        string direction)
+    {
+        bool isReverseReactive = direction.Equals("ReverseReactive", StringComparison.OrdinalIgnoreCase);
+        MeterTestItem item = new()
+        {
+            Name = itemName,
+            Description = $"{(isReverseReactive ? "反向" : "正向")}无功基本误差测试；每个测试点内部统一执行升源、A3/A1常数设置、0x38启动、等待、读取和判定。"
+        };
+
+        string[] balancedPowerFactors = { "1.0", "0.5L", "0.5C", "0.25L", "0.25C" };
+        string[] balancedCurrentPoints = { "0.05In", "0.1In", "0.2In", "0.5In", "Imax" };
+        foreach (string powerFactor in balancedPowerFactors)
+        {
+            foreach (string currentPoint in balancedCurrentPoints)
+            {
+                item.TestSubItems.Add(CreateReactiveBasicErrorSubItem(
+                    $"{namePrefix}-H-{powerFactor}-1U-{currentPoint}",
+                    direction,
+                    "H",
+                    powerFactor,
+                    currentPoint));
+            }
+        }
+
+        string[] splitPhasePowerFactors = { "1.0", "0.5L", "0.5C" };
+        string[] splitPhaseCurrentPoints = { "0.1In", "0.5In", "1In", "Imax" };
+        foreach (string phase in new[] { "A", "B", "C" })
+        {
+            foreach (string powerFactor in splitPhasePowerFactors)
+            {
+                foreach (string currentPoint in splitPhaseCurrentPoints)
+                {
+                    item.TestSubItems.Add(CreateReactiveBasicErrorSubItem(
+                        $"{namePrefix}-{phase}-{powerFactor}-1U-{currentPoint}",
+                        direction,
+                        phase,
+                        powerFactor,
+                        currentPoint));
+                }
+            }
+        }
+
+        return item;
+    }
+
+    /// <summary>创建单个无功基本误差点，协议固定使用0x38无功脉冲类型1。</summary>
+    private static MeterTestSubItem CreateReactiveBasicErrorSubItem(
+        string name,
+        string direction,
+        string phase,
+        string powerFactor,
+        string currentPoint)
+    {
+        return new MeterTestSubItem
+        {
+            Name = name,
+            Enabled = true,
+            Protocol = "MeterControlPcbV2",
+            ExecutionMode = MeterTestExecutionMode.BasicErrorPoint.ToString(),
+            ControlPcbGroup = string.Empty,
+            SourceControlConfig = "单相默认源",
+            BasicErrorDirection = direction,
+            BasicErrorPhase = phase,
+            BasicErrorPowerFactor = powerFactor,
+            BasicErrorVoltageMultiplier = 1m,
+            BasicErrorCurrentPoint = currentPoint,
+            BasicErrorPulseCount = 0,
+            BasicErrorTestCount = 2,
+            BasicErrorPulseType = 1,
+            BasicErrorLimit = 0,
+            BasicErrorLimits = string.Empty,
+            BasicErrorMinimumWaitSeconds = 10,
+            BasicErrorWaitPaddingSeconds = MeterTestBasicErrorDefaults.WaitPaddingSeconds,
+            PacketIntervalMs = 100,
+            TimeoutMs = 5000,
+            Description = "按资产信息计算无功测试电流、等待时间和JJG596无功误差限，执行完整无功基本误差流程。"
+        };
+    }
+
     /// <summary>从“正有-A-1.0-1U-Imin”这类名称中提取分相标识。</summary>
     private static string? ExtractBasicErrorPhaseFromName(string name)
     {
@@ -1367,6 +1721,8 @@ public sealed class MeterTestConfigService
         {
             "正有" => "ForwardActive",
             "反有" => "ReverseActive",
+            "正无" => "ForwardReactive",
+            "反无" => "ReverseReactive",
             _ => null
         };
     }

@@ -45,6 +45,9 @@
             btnTestResults = new Button();
             middleArea = new TableLayoutPanel();
             groupScheme = new GroupBox();
+            schemeFilterPanel = new Panel();
+            cbxPlanConfigSelector = new ComboBox();
+            lblPlanConfigSelector = new Label();
             schemeTreeView = new TreeView();
             groupProcess = new GroupBox();
             processLayout = new TableLayoutPanel();
@@ -105,6 +108,7 @@
             buttonGrid.SuspendLayout();
             middleArea.SuspendLayout();
             groupScheme.SuspendLayout();
+            schemeFilterPanel.SuspendLayout();
             groupProcess.SuspendLayout();
             processLayout.SuspendLayout();
             countdownPanel.SuspendLayout();
@@ -297,6 +301,7 @@
             // groupScheme
             // 
             groupScheme.Controls.Add(schemeTreeView);
+            groupScheme.Controls.Add(schemeFilterPanel);
             groupScheme.Dock = DockStyle.Fill;
             groupScheme.Location = new Point(3, 3);
             groupScheme.Name = "groupScheme";
@@ -306,15 +311,44 @@
             groupScheme.TabStop = false;
             groupScheme.Text = "方案区域";
             // 
+            // schemeFilterPanel
+            // 
+            schemeFilterPanel.Controls.Add(cbxPlanConfigSelector);
+            schemeFilterPanel.Controls.Add(lblPlanConfigSelector);
+            schemeFilterPanel.Dock = DockStyle.Top;
+            schemeFilterPanel.Location = new Point(8, 35);
+            schemeFilterPanel.Name = "schemeFilterPanel";
+            schemeFilterPanel.Size = new Size(228, 58);
+            schemeFilterPanel.TabIndex = 1;
+            // 
+            // cbxPlanConfigSelector
+            // 
+            cbxPlanConfigSelector.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            cbxPlanConfigSelector.DropDownStyle = ComboBoxStyle.DropDownList;
+            cbxPlanConfigSelector.FormattingEnabled = true;
+            cbxPlanConfigSelector.Location = new Point(0, 24);
+            cbxPlanConfigSelector.Name = "cbxPlanConfigSelector";
+            cbxPlanConfigSelector.Size = new Size(228, 25);
+            cbxPlanConfigSelector.TabIndex = 1;
+            // 
+            // lblPlanConfigSelector
+            // 
+            lblPlanConfigSelector.AutoSize = true;
+            lblPlanConfigSelector.Location = new Point(0, 2);
+            lblPlanConfigSelector.Name = "lblPlanConfigSelector";
+            lblPlanConfigSelector.Size = new Size(56, 17);
+            lblPlanConfigSelector.TabIndex = 0;
+            lblPlanConfigSelector.Text = "方案筛选";
+            // 
             // schemeTreeView
             // 
             schemeTreeView.BorderStyle = BorderStyle.FixedSingle;
             schemeTreeView.Dock = DockStyle.Fill;
             schemeTreeView.FullRowSelect = true;
             schemeTreeView.HideSelection = false;
-            schemeTreeView.Location = new Point(8, 35);
+            schemeTreeView.Location = new Point(8, 93);
             schemeTreeView.Name = "schemeTreeView";
-            schemeTreeView.Size = new Size(228, 253);
+            schemeTreeView.Size = new Size(228, 195);
             schemeTreeView.TabIndex = 0;
             // 
             // groupProcess
@@ -910,6 +944,8 @@
             buttonGrid.ResumeLayout(false);
             middleArea.ResumeLayout(false);
             groupScheme.ResumeLayout(false);
+            schemeFilterPanel.ResumeLayout(false);
+            schemeFilterPanel.PerformLayout();
             groupProcess.ResumeLayout(false);
             processLayout.ResumeLayout(false);
             countdownPanel.ResumeLayout(false);
@@ -937,6 +973,9 @@
         private Button btnTestResults;
         private TableLayoutPanel middleArea;
         private GroupBox groupScheme;
+        private Panel schemeFilterPanel;
+        private ComboBox cbxPlanConfigSelector;
+        private Label lblPlanConfigSelector;
         private TreeView schemeTreeView;
         private GroupBox groupProcess;
         private TableLayoutPanel processLayout;

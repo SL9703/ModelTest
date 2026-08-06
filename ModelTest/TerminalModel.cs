@@ -142,7 +142,7 @@ namespace ModelTest
         /// <returns></returns>
         public static string GetTerminalClass(byte terminalclass)
         {
-            if (terminalclass <= 0x09)
+            if (terminalclass <= 0x0A)
             {
                 return terminalclass.ToString("X2");
             }

@@ -60,6 +60,7 @@ public sealed class MeterTestStationConfigService
         planConfig.SourceControlConfigs = stationConfig.SourceControlConfigs;
         planConfig.ControlPcbGroups = stationConfig.ControlPcbGroups;
         planConfig.BluetoothTcpChannels = stationConfig.BluetoothTcpChannels;
+        planConfig.IndicatorLightGroups = stationConfig.IndicatorLightGroups;
     }
 
     /// <summary>
@@ -74,17 +75,78 @@ public sealed class MeterTestStationConfigService
     }
 
     /// <summary>
-    /// 确保配置中包含指定数量的工位。
-    /// 缺失工位按 defaultStartPort + stationNo - 1 自动分配端口。
+    /// 确保存在工位485通信通道节点。
+    /// 只在StationTcpChannels完全缺失时创建模板；如果用户已经维护了相关节点，程序启动不补齐、不排序、不改IP和端口。
     /// </summary>
     private static void EnsureStations(MeterTestStationConfig config, int stationCount, string defaultIp, int defaultStartPort)
     {
+        EnsureStationTcpChannels(config, stationCount, defaultIp, defaultStartPort);
+    }
+
+    /// <summary>
+    /// 兼容旧版根级Station，并在缺少新版节点时创建485-1/485-2两个通道模板。
+    /// 地址读取默认继续使用485-2，485-1只作为独立配置保存，不参与旧流程默认选择。
+    /// </summary>
+    private static void EnsureStationTcpChannels(
+        MeterTestStationConfig config,
+        int stationCount,
+        string defaultIp,
+        int defaultStartPort)
+    {
+        config.StationTcpChannels ??= new List<MeterTestStationTcpChannel>();
+        if (config.StationTcpChannels.Count > 0)
+            return;
+
+        List<MeterTestStationCommunication> templateStations =
+            config.LegacyStations is { Count: > 0 }
+                ? config.LegacyStations.Select(CloneStationCommunication).ToList()
+                : CreateDefaultStations(stationCount, defaultIp, defaultStartPort);
+        EnsureChannelStations(templateStations, stationCount, defaultIp, defaultStartPort);
+
+        config.StationTcpChannels.Add(new MeterTestStationTcpChannel
+        {
+            Name = "485-1通信通道",
+            Channel = "485-1",
+            Enabled = true,
+            IsDefault = false,
+            Stations = templateStations.Select(CloneStationCommunication).ToList()
+        });
+        config.StationTcpChannels.Add(new MeterTestStationTcpChannel
+        {
+            Name = "485-2通信通道",
+            Channel = "485-2",
+            Enabled = true,
+            IsDefault = true,
+            Stations = templateStations.Select(CloneStationCommunication).ToList()
+        });
+
+        config.LegacyStations.Clear();
+    }
+
+    /// <summary>创建首次使用时的默认工位通信模板。</summary>
+    private static List<MeterTestStationCommunication> CreateDefaultStations(
+        int stationCount,
+        string defaultIp,
+        int defaultStartPort)
+    {
+        List<MeterTestStationCommunication> stations = new();
+        EnsureChannelStations(stations, stationCount, defaultIp, defaultStartPort);
+        return stations;
+    }
+
+    /// <summary>补齐一个通道内1-48工位，并按工位号排序。</summary>
+    private static void EnsureChannelStations(
+        List<MeterTestStationCommunication> stations,
+        int stationCount,
+        string defaultIp,
+        int defaultStartPort)
+    {
         for (int stationNo = 1; stationNo <= stationCount; stationNo++)
         {
-            if (config.Stations.Any(station => station.StationNo == stationNo))
+            if (stations.Any(station => station.StationNo == stationNo))
                 continue;
 
-            config.Stations.Add(new MeterTestStationCommunication
+            stations.Add(new MeterTestStationCommunication
             {
                 StationNo = stationNo,
                 Ip = defaultIp,
@@ -92,11 +154,21 @@ public sealed class MeterTestStationConfigService
             });
         }
 
-        config.Stations = config.Stations
+        List<MeterTestStationCommunication> sortedStations = stations
             .Where(station => station.StationNo >= 1 && station.StationNo <= stationCount)
             .OrderBy(station => station.StationNo)
             .ToList();
+        stations.Clear();
+        stations.AddRange(sortedStations);
     }
+
+    /// <summary>复制工位通信配置，迁移旧节点或生成485-1模板时避免共享同一对象。</summary>
+    private static MeterTestStationCommunication CloneStationCommunication(MeterTestStationCommunication source) => new()
+    {
+        StationNo = source.StationNo,
+        Ip = source.Ip,
+        Port = source.Port
+    };
 
     /// <summary>
     /// 补齐台体切换、源、控制PCB和蓝牙通道配置。
@@ -147,6 +219,16 @@ public sealed class MeterTestStationConfigService
         }
 
         EnsureBluetoothTcpChannels(config.BluetoothTcpChannels);
+
+        config.IndicatorLightGroups ??= new List<MeterTestIndicatorLightGroup>();
+        if (config.IndicatorLightGroups.Count == 0 && fallbackPlanConfig?.IndicatorLightGroups?.Count > 0)
+        {
+            config.IndicatorLightGroups = fallbackPlanConfig.IndicatorLightGroups
+                .Select(CloneIndicatorLightGroup)
+                .ToList();
+        }
+
+        EnsureIndicatorLightGroups(config.IndicatorLightGroups, config.ControlPcbGroups);
     }
 
     /// <summary>判断台体切换配置是否已经有新版端点或旧版单IP端点。</summary>
@@ -177,17 +259,6 @@ public sealed class MeterTestStationConfigService
             {
                 benchConfig.Endpoints.AddRange(CreateDefaultBenchTypeSwitchEndpoints());
             }
-        }
-
-        foreach (MeterTestBenchTypeSwitchEndpoint endpoint in benchConfig.Endpoints)
-        {
-            endpoint.SupportsSinglePhase = endpoint.Name.Trim() switch
-            {
-                "台体切换-1" => true,
-                "台体切换-2" => false,
-                "台体切换-3" => false,
-                _ => endpoint.SupportsSinglePhase
-            };
         }
 
         benchConfig.Ip = string.Empty;
@@ -247,6 +318,39 @@ public sealed class MeterTestStationConfigService
         }
 
         channels.Sort((left, right) => left.Station.CompareTo(right.Station));
+    }
+
+    /// <summary>
+    /// 补齐工位指示灯控制板配置。
+    /// 若用户已经配置 IndicatorLightGroups，则只排序不改 IP、端口、工位范围和灯地址；
+    /// 只有完全缺失时才按当前 ControlPcbGroups 生成一份同端点模板，便于首次使用。
+    /// </summary>
+    private static void EnsureIndicatorLightGroups(
+        List<MeterTestIndicatorLightGroup> groups,
+        IReadOnlyList<MeterTestControlPcbGroup> controlPcbGroups)
+    {
+        if (groups.Count > 0)
+        {
+            groups.Sort((left, right) => left.StationStart.CompareTo(right.StationStart));
+            return;
+        }
+
+        foreach (MeterTestControlPcbGroup controlGroup in controlPcbGroups.Where(group => group.Enabled))
+        {
+            groups.Add(new MeterTestIndicatorLightGroup
+            {
+                Name = $"{controlGroup.Name}-灯光",
+                Enabled = true,
+                Ip = controlGroup.Ip,
+                Port = controlGroup.Port,
+                ProtocolVersion = controlGroup.ProtocolVersion,
+                StationStart = controlGroup.StationStart,
+                StationEnd = controlGroup.StationEnd,
+                LightAddressStart = controlGroup.MeterAddressStart
+            });
+        }
+
+        groups.Sort((left, right) => left.StationStart.CompareTo(right.StationStart));
     }
 
     /// <summary>创建默认的三个台体切换端点。</summary>
@@ -391,5 +495,18 @@ public sealed class MeterTestStationConfigService
         Enabled = source.Enabled,
         Ip = source.Ip,
         Port = source.Port
+    };
+
+    /// <summary>复制工位指示灯配置，保留用户维护的端点和灯光地址映射。</summary>
+    private static MeterTestIndicatorLightGroup CloneIndicatorLightGroup(MeterTestIndicatorLightGroup source) => new()
+    {
+        Name = source.Name,
+        Enabled = source.Enabled,
+        Ip = source.Ip,
+        Port = source.Port,
+        ProtocolVersion = source.ProtocolVersion,
+        StationStart = source.StationStart,
+        StationEnd = source.StationEnd,
+        LightAddressStart = source.LightAddressStart
     };
 }

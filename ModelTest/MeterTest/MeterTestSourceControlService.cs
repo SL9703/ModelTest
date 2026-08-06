@@ -193,6 +193,7 @@ public sealed class MeterTestSourceControlService : IDisposable
                 phaseMode,
                 sourceVoltage,
                 sourceCurrentOverride: null,
+                MeterTestErrorEnergyType.Active,
                 out string initCommand,
                 out string initNote,
                 out string? initError))
@@ -982,6 +983,21 @@ public sealed class MeterTestSourceControlService : IDisposable
         }
 
         LogMessage.Debug($"[源控制] 配置 {sourceConfig.Name} 电压判定完成：{voltageNote}");
+
+        if (basicErrorPlan is not null &&
+            !EnsureBasicErrorEnergyInitialization(
+                xyCtr,
+                sourceConfig,
+                selectedStations,
+                meterArchives,
+                phaseMode,
+                sourceVoltage,
+                basicErrorPlan.EnergyType,
+                progressLogger,
+                out SourceControlExecutionState? initializationFailure))
+        {
+            return initializationFailure ?? SourceControlExecutionState.Fail("基本误差有功/无功源初始化失败。");
+        }
 
         MeterTestSourceControlResult result = ExecuteSourceControl(
             xyCtr,
@@ -1842,6 +1858,7 @@ public sealed class MeterTestSourceControlService : IDisposable
                 voltagePhaseIndices,
                 targetVoltage,
                 tolerancePercent,
+                decimalPlaces: 2,
                 out bool voltageWithinTolerance,
                 out string voltageDetail))
         {
@@ -1869,6 +1886,7 @@ public sealed class MeterTestSourceControlService : IDisposable
                         currentPhaseIndices,
                         targetCurrent,
                         tolerancePercent,
+                        decimalPlaces: 4,
                         out currentWithinTolerance,
                         out currentDetail))
                 {
@@ -1900,7 +1918,7 @@ public sealed class MeterTestSourceControlService : IDisposable
         };
     }
 
-    /// <summary>判断指定相位的一组同目标值相量是否全部进入允许范围。</summary>
+    /// <summary>判断指定相位的一组同目标值相量是否全部进入允许范围，并按业务精度完成范围展示和实际比对。</summary>
     private static bool TryEvaluateMeasurements(
         IReadOnlyList<string> standParts,
         int startIndex,
@@ -1908,12 +1926,14 @@ public sealed class MeterTestSourceControlService : IDisposable
         IReadOnlyList<int> phaseIndices,
         decimal target,
         decimal tolerancePercent,
+        int decimalPlaces,
         out bool withinTolerance,
         out string detail)
     {
         decimal tolerance = target * tolerancePercent / 100m;
-        decimal lower = target - tolerance;
-        decimal upper = target + tolerance;
+        decimal roundedTarget = TruncateMeasurement(target, decimalPlaces);
+        decimal lower = TruncateMeasurement(target - tolerance, decimalPlaces);
+        decimal upper = TruncateMeasurement(target + tolerance, decimalPlaces);
         List<string> actualValues = new();
         withinTolerance = true;
 
@@ -1927,13 +1947,27 @@ public sealed class MeterTestSourceControlService : IDisposable
                 return false;
             }
 
-            bool phaseWithinTolerance = actual >= lower && actual <= upper;
+            decimal truncatedActual = TruncateMeasurement(actual, decimalPlaces);
+            bool phaseWithinTolerance = truncatedActual >= lower && truncatedActual <= upper;
             withinTolerance &= phaseWithinTolerance;
-            actualValues.Add($"{names[phaseIndex]}={actual:0.#########}");
+            actualValues.Add($"{names[phaseIndex]}={FormatMeasurement(truncatedActual, decimalPlaces)}");
         }
 
-        detail = $"目标={target:0.#########}，范围=[{lower:0.#########},{upper:0.#########}]，实测{string.Join("、", actualValues)}";
+        detail = $"目标={FormatMeasurement(roundedTarget, decimalPlaces)}，范围=[{FormatMeasurement(lower, decimalPlaces)},{FormatMeasurement(upper, decimalPlaces)}]，实测{string.Join("、", actualValues)}";
         return true;
+    }
+
+    /// <summary>按源验证要求截取标准表数值，电压用2位、电流用4位，不做四舍五入。</summary>
+    private static decimal TruncateMeasurement(decimal value, int decimalPlaces)
+    {
+        decimal factor = (decimal)Math.Pow(10, decimalPlaces);
+        return Math.Truncate(value * factor) / factor;
+    }
+
+    /// <summary>按固定小数位输出源验证日志，保证日志展示值和判定值一致。</summary>
+    private static string FormatMeasurement(decimal value, int decimalPlaces)
+    {
+        return value.ToString($"F{decimalPlaces}", CultureInfo.InvariantCulture);
     }
 
     /// <summary>
@@ -2292,7 +2326,71 @@ public sealed class MeterTestSourceControlService : IDisposable
     }
 
     /// <summary>
-    /// 根据资产信息构造源初始化命令。
+    /// 基本误差在有功/无功测试点之间切换时，需要确保源处于对应的Ini接线方式。
+    /// 无功点使用接线方式5；有功点使用原有单相0、三相1。完整Ini命令未变化时直接复用。
+    /// </summary>
+    private bool EnsureBasicErrorEnergyInitialization(
+        XYCtr xyCtr,
+        MeterTestSourceControlConfig sourceConfig,
+        IReadOnlyList<MeterTestStationCommunication> selectedStations,
+        IReadOnlyDictionary<int, MeterArchiveData> meterArchives,
+        MeterTestSourcePhaseMode phaseMode,
+        string sourceVoltage,
+        MeterTestErrorEnergyType energyType,
+        Action<string>? progressLogger,
+        out SourceControlExecutionState? failure)
+    {
+        failure = null;
+        if (!TryBuildMeterInitCommand(
+                selectedStations,
+                meterArchives,
+                phaseMode,
+                sourceVoltage,
+                sourceCurrentOverride: null,
+                energyType,
+                out string desiredInitCommand,
+                out string desiredInitNote,
+                out string? initError))
+        {
+            failure = SourceControlExecutionState.Fail(initError ?? "基本误差有功/无功初始化参数生成失败。");
+            return false;
+        }
+
+        if (Volatile.Read(ref runSourceInitialized) != 0 &&
+            string.Equals(runInitializedCommand, desiredInitCommand, StringComparison.OrdinalIgnoreCase))
+        {
+            LogMessage.Debug($"[源控制][基本误差] 当前源Ini已匹配{energyType}：{desiredInitCommand}，跳过重复初始化。");
+            return true;
+        }
+
+        string energyText = energyType == MeterTestErrorEnergyType.Reactive ? "无功" : "有功";
+        string message = $"基本误差切换到{energyText}点，准备重新发送Ini：{desiredInitCommand}（{desiredInitNote}）。";
+        LogMessage.Debug($"[源控制][基本误差] {message}");
+        ReportProgress(progressLogger, message);
+
+        (bool success, int result) = xyCtr
+            .CallSendCommandAsync(desiredInitCommand, true, MeterTestSourceControlDefaults.OperationTimeout)
+            .GetAwaiter()
+            .GetResult();
+        if (!success)
+        {
+            string failureMessage = $"基本误差{energyText}Ini初始化失败：参数={desiredInitCommand}，返回值={result}。";
+            failure = SourceControlExecutionState.Fail(failureMessage);
+            LogMessage.Error($"[源控制][基本误差] {failureMessage}", null);
+            return false;
+        }
+
+        runInitializedSourcePort = sourceConfig.SourcePort;
+        runInitializedPhaseMode = phaseMode;
+        runInitializedSourceConfigName = sourceConfig.Name;
+        runInitializedCommand = desiredInitCommand;
+        Volatile.Write(ref runSourceInitialized, 1);
+        LogMessage.Info($"[源控制][基本误差] {energyText}Ini初始化成功：参数={desiredInitCommand}，返回值={result}。");
+        return true;
+    }
+
+    /// <summary>
+     /// 根据资产信息构造源初始化命令。
     /// 命令格式：Ini_接线方式_电压代码_电流_有功常数_E。
     /// </summary>
     private static bool TryBuildMeterInitCommand(
@@ -2301,6 +2399,7 @@ public sealed class MeterTestSourceControlService : IDisposable
         MeterTestSourcePhaseMode phaseMode,
         string sourceVoltage,
         string? sourceCurrentOverride,
+        MeterTestErrorEnergyType energyType,
         out string command,
         out string note,
         out string? errorMessage)
@@ -2309,7 +2408,9 @@ public sealed class MeterTestSourceControlService : IDisposable
         note = string.Empty;
         errorMessage = null;
 
-        string meterConnection = phaseMode == MeterTestSourcePhaseMode.SinglePhase ? "0" : "1";
+        string meterConnection = energyType == MeterTestErrorEnergyType.Reactive
+            ? "5"
+            : phaseMode == MeterTestSourcePhaseMode.SinglePhase ? "0" : "1";
         string meterVoltage = XYCtr.Init_meterV(NormalizeSourceVoltage(sourceVoltage));
         if (meterVoltage == "-1")
         {
@@ -2336,8 +2437,9 @@ public sealed class MeterTestSourceControlService : IDisposable
         if (!TryResolveSameArchiveValue(
                 selectedStations,
                 meterArchives,
-                archive => NormalizeNumericText(Normalize(archive.ActiveConstant)),
-                "有功常数",
+                archive => NormalizeNumericText(Normalize(
+                    energyType == MeterTestErrorEnergyType.Reactive ? archive.ReactiveConstant : archive.ActiveConstant)),
+                energyType == MeterTestErrorEnergyType.Reactive ? "无功常数" : "有功常数",
                 out string activeConstant,
                 out errorMessage))
         {
@@ -2345,7 +2447,7 @@ public sealed class MeterTestSourceControlService : IDisposable
         }
 
         command = $"Ini_{meterConnection}_{meterVoltage}_{current}_{activeConstant}_E";
-        note = $"接线方式={meterConnection}，电压代码={meterVoltage}，电流={current}，有功常数={activeConstant}";
+        note = $"接线方式={meterConnection}，电压代码={meterVoltage}，电流={current}，{(energyType == MeterTestErrorEnergyType.Reactive ? "无功常数" : "有功常数")}={activeConstant}";
         return true;
     }
 

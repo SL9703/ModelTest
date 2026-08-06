@@ -51,6 +51,7 @@ namespace ModelTest.MeterTest
         private readonly MeterTestCommunicationAddressService communicationAddressService = new();
         private readonly MeterTestCommunicationTestService communicationTestService;
         private readonly MeterTestStationPowerService stationPowerService = new();
+        private readonly MeterTestIndicatorLightService indicatorLightService = new();
         private readonly MeterTestControlPcbConnectionManager controlPcbConnectionManager = new();
         private readonly MeterTestControlPcbCommandService controlPcbCommandService;
         private readonly MeterTestStationTcpSessionService stationTcpSessionService = new();
@@ -63,7 +64,11 @@ namespace ModelTest.MeterTest
         private readonly MeterTestBasicErrorService basicErrorService;
         private readonly MeterTestStartingErrorService startingErrorService;
         private readonly CancellationTokenSource stationPowerControlCts = new();
-        private readonly string configFilePath;
+        private const string ThreePhasePlanSelectorText = "三相方案";
+        private const string SinglePhasePlanSelectorText = "单相方案";
+        private const string ThreePhasePlanConfigFileName = "MeterTestPlanConfig.xml";
+        private const string SinglePhasePlanConfigFileName = "MeterTestPlanConfig.SinglePhase.xml";
+        private string configFilePath;
         private readonly string stationConfigFilePath;
         private MeterTestPlanConfig meterTestPlanConfig = new();
         private CancellationTokenSource? executionCts;
@@ -149,6 +154,7 @@ namespace ModelTest.MeterTest
             ConfigureBufferedRendering();
             configFilePath = GetMeterTestConfigPath();
             stationConfigFilePath = GetMeterTestStationConfigPath();
+            InitializePlanConfigSelector();
             ConfigureDataGridViewSorting();
             InitializeResultUserControl();
             InitializeHardwareCollectionGrid();
@@ -359,6 +365,7 @@ namespace ModelTest.MeterTest
             btnSelectAllStations.Click += async (_, _) => await SetAllStationSelectionAsync(true);
             btnClearStationSelection.Click += async (_, _) => await SetAllStationSelectionAsync(false);
             btnShutDownSource.Click += async (_, _) => await ShutDownSourceAsync();
+            cbxPlanConfigSelector.SelectedIndexChanged += async (_, _) => await SwitchPlanConfigAsync();
             rbSingleStation.CheckedChanged += async (_, _) => await ApplySingleStationSelectionRuleAsync();
             tbxBarcodeStartIndex.Leave += (_, _) => SaveBarcodeSettingFromInputs();
             tbxBarcodeEndIndex.Leave += (_, _) => SaveBarcodeSettingFromInputs();
@@ -519,6 +526,107 @@ namespace ModelTest.MeterTest
             }
 
             await Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// 初始化方案筛选下拉框。
+        /// 默认选中三相方案，保持老版本 MeterTestPlanConfig.xml 的完整测试范围。
+        /// </summary>
+        private void InitializePlanConfigSelector()
+        {
+            cbxPlanConfigSelector.BeginUpdate();
+            try
+            {
+                cbxPlanConfigSelector.Items.Clear();
+                cbxPlanConfigSelector.Items.Add(ThreePhasePlanSelectorText);
+                cbxPlanConfigSelector.Items.Add(SinglePhasePlanSelectorText);
+                cbxPlanConfigSelector.SelectedItem = ThreePhasePlanSelectorText;
+            }
+            finally
+            {
+                cbxPlanConfigSelector.EndUpdate();
+            }
+        }
+
+        /// <summary>
+        /// 根据用户选择切换方案配置文件，并立即刷新左侧方案树和右侧测试过程区域。
+        /// </summary>
+        private async Task SwitchPlanConfigAsync()
+        {
+            string selectedConfigPath = GetSelectedMeterTestConfigPath();
+            if (string.Equals(configFilePath, selectedConfigPath, StringComparison.OrdinalIgnoreCase))
+                return;
+
+            configFilePath = selectedConfigPath;
+            meterTestConfigLastWriteTimeUtc = null;
+
+            if (!initialDataLoaded)
+                return;
+
+            Cursor previousCursor = Cursor;
+            Cursor = Cursors.WaitCursor;
+            cbxPlanConfigSelector.Enabled = false;
+            AddProcessInfoLog("系统", "方案切换", "加载中", $"正在切换到：{cbxPlanConfigSelector.Text}");
+
+            try
+            {
+                await Task.Yield();
+                SuspendInitialLayout();
+                try
+                {
+                    LoadMeterArchivesToGrid();
+                    LoadMeterTestPlanConfig();
+                    ApplyTestPlanView();
+                    SelectEligibleStationsForTestPlanWithoutPower();
+                    ForceSchemeTreeVisualRefresh();
+                }
+                finally
+                {
+                    ResumeInitialLayout();
+                }
+
+                controlPcbInitializationTask = InitializeControlPcbConnectionsAsync();
+                AddProcessLog("系统", "方案切换", true, $"当前测试方案已切换为：{cbxPlanConfigSelector.Text}", 0);
+            }
+            catch (Exception ex)
+            {
+                LogMessage.Error("[方案切换] 切换测试方案异常", ex);
+                AddProcessLog("系统", "方案切换", false, $"切换测试方案失败：{ex.Message}", 0);
+                MessageBox.Show($"切换测试方案失败：{ex.Message}", "MeterTest", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                Cursor = previousCursor;
+                cbxPlanConfigSelector.Enabled = true;
+                UpdateTestExecutionButtonState();
+            }
+        }
+
+        /// <summary>
+        /// 方案 XML 切换后立即刷新 TreeView 绘制。
+        /// WinForms 在复杂布局挂起/恢复后偶尔会延迟重绘，这里显式刷新避免界面仍显示旧方案节点。
+        /// </summary>
+        private void ForceSchemeTreeVisualRefresh()
+        {
+            if (schemeTreeView.Nodes.Count > 0)
+            {
+                schemeTreeView.SelectedNode = schemeTreeView.Nodes[0];
+                schemeTreeView.Nodes[0].Expand();
+            }
+
+            schemeTreeView.Invalidate();
+            schemeTreeView.Update();
+            schemeTreeView.Refresh();
+        }
+
+        /// <summary>把方案下拉框中的显示文本映射为实际 XML 配置路径。</summary>
+        private string GetSelectedMeterTestConfigPath()
+        {
+            string selectedText = cbxPlanConfigSelector.SelectedItem?.ToString() ?? ThreePhasePlanSelectorText;
+            string fileName = string.Equals(selectedText, SinglePhasePlanSelectorText, StringComparison.OrdinalIgnoreCase)
+                ? SinglePhasePlanConfigFileName
+                : ThreePhasePlanConfigFileName;
+            return GetMeterTestConfigPath(fileName);
         }
 
         /// <summary>
@@ -1171,10 +1279,11 @@ namespace ModelTest.MeterTest
                 // 子项全部执行结束后，再生成“通信测试”“日计时”等父测试项的汇总结果。
                 // 父节点使用独立结果记录，不覆盖树下各个测试小项的明细结果。
                 SynchronizeParentTestConclusions(testContexts, selectedStations);
+                await SetFinalResultIndicatorsAsync(testContexts, selectedStations, executionCts.Token);
                 RestoreStationDisplayForSelectedNode();
                 if (isCompleteSchemeRun)
                 {
-                    PromptToSaveCompletedScheme(
+                    await PromptToSaveCompletedSchemeAsync(
                         testContexts,
                         selectedStations.Select(station => station.StationNo));
                 }
@@ -1220,7 +1329,7 @@ namespace ModelTest.MeterTest
         /// 整个 Scheme 执行完成后询问是否保存。
         /// 保存成功后清除方案运行态结果，使方案树和工位结果恢复为灰色待测试状态。
         /// </summary>
-        private void PromptToSaveCompletedScheme(
+        private async Task PromptToSaveCompletedSchemeAsync(
             IReadOnlyList<SelectedSubItemContext> contexts,
             IEnumerable<int> stationNumbers)
         {
@@ -1237,15 +1346,17 @@ namespace ModelTest.MeterTest
                 return;
             }
 
+            List<int> savedStationNumbers = stationNumbers.Distinct().OrderBy(station => station).ToList();
             bool saved = SaveCurrentTestResultSnapshot(
                 contexts,
-                stationNumbers,
+                savedStationNumbers,
                 "Completed",
                 "方案完成确认保存",
                 showMessage: false);
             if (!saved)
                 return;
 
+            await TurnOffIndicatorsAfterSaveAsync(savedStationNumbers);
             string schemeName = contexts.Count > 0 ? contexts[0].SchemeName : string.Empty;
             ResetSchemeExecutionResults(schemeName);
             MessageBox.Show(
@@ -1323,6 +1434,11 @@ namespace ModelTest.MeterTest
                     "ManualSaved",
                     "手动保存",
                     showMessage: false));
+                if (saved)
+                {
+                    await TurnOffIndicatorsAfterSaveAsync(stationNumbers);
+                }
+
                 MessageBox.Show(
                     saved ? "测试结果已保存。" : "测试结果保存失败，详情请查看过程日志。",
                     "数据保存",
@@ -1333,6 +1449,145 @@ namespace ModelTest.MeterTest
             {
                 Cursor = previousCursor;
                 btnSaveTestResults.Enabled = true;
+            }
+        }
+
+        /// <summary>
+        /// 测试结果保存成功后熄灭本轮工位 LED1-LED4。
+        /// 灯光控制失败只写日志，不影响结果保存。
+        /// </summary>
+        private async Task TurnOffIndicatorsAfterSaveAsync(IEnumerable<int> stationNumbers)
+        {
+            List<int> stations = stationNumbers
+                .Distinct()
+                .OrderBy(station => station)
+                .ToList();
+            if (stations.Count == 0)
+                return;
+
+            foreach (int stationNo in stations)
+            {
+                try
+                {
+                    await indicatorLightService.TurnOffAllStationIndicatorsAsync(
+                        meterTestPlanConfig,
+                        controlPcbConnectionManager,
+                        stationNo,
+                        stationPowerControlCts.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    LogMessage.Error($"[工位指示灯] 工位{stationNo}保存结果后熄灭LED异常。", ex);
+                }
+            }
+        }
+
+        /// <summary>
+        /// 测试小项执行期间联动 LED3。
+        /// running=true 时亮黄灯，running=false 时熄灭；失败只记录日志，不打断测试流程。
+        /// </summary>
+        private async Task SetTestingIndicatorsForStationsAsync(
+            IEnumerable<StationCommunicationConfig> stations,
+            bool running,
+            CancellationToken cancellationToken)
+        {
+            foreach (int stationNo in stations.Select(station => station.StationNo).Distinct().OrderBy(station => station))
+            {
+                try
+                {
+                    await indicatorLightService.SetTestingIndicatorAsync(
+                        meterTestPlanConfig,
+                        controlPcbConnectionManager,
+                        stationNo,
+                        running,
+                        cancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    LogMessage.Error($"[工位指示灯] 工位{stationNo}LED3测试状态联动异常。", ex);
+                }
+            }
+        }
+
+        /// <summary>
+        /// 设备自检小项完成后联动 LED2。
+        /// 以当前设备自检小项的工位结果为准：合格绿灯，不合格红灯。
+        /// </summary>
+        private async Task SetSelfCheckIndicatorsAsync(
+            SelectedSubItemContext context,
+            IEnumerable<StationCommunicationConfig> stations,
+            CancellationToken cancellationToken)
+        {
+            foreach (StationCommunicationConfig station in stations.OrderBy(item => item.StationNo))
+            {
+                bool passed = stationResultCache.TryGetValue(CreateStationResultKey(context, station.StationNo), out StationDisplayState? state) &&
+                              state.Result.Equals("合格", StringComparison.OrdinalIgnoreCase);
+                try
+                {
+                    await indicatorLightService.SetSelfCheckIndicatorAsync(
+                        meterTestPlanConfig,
+                        controlPcbConnectionManager,
+                        station.StationNo,
+                        passed,
+                        cancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    LogMessage.Error($"[工位指示灯] 工位{station.StationNo}LED2自检结果联动异常。", ex);
+                }
+            }
+        }
+
+        /// <summary>
+        /// 整个方案执行结束后联动 LED4。
+        /// 同一工位所有测试项父节点均为合格时亮绿灯，任意测试项不合格、未完成或缺失结果时亮红灯。
+        /// </summary>
+        private async Task SetFinalResultIndicatorsAsync(
+            IReadOnlyList<SelectedSubItemContext> contexts,
+            IReadOnlyList<StationCommunicationConfig> stations,
+            CancellationToken cancellationToken)
+        {
+            List<SelectedSubItemContext> parentContexts = contexts
+                .GroupBy(context => (context.SchemeName, context.TestItemName))
+                .Select(group => CreateParentResultContext(group.Key.SchemeName, group.Key.TestItemName))
+                .ToList();
+            if (parentContexts.Count == 0)
+                return;
+
+            foreach (StationCommunicationConfig station in stations.OrderBy(item => item.StationNo))
+            {
+                bool passed = parentContexts.All(parentContext =>
+                    stationResultCache.TryGetValue(CreateStationResultKey(parentContext, station.StationNo), out StationDisplayState? state) &&
+                    state.Result.Equals("合格", StringComparison.OrdinalIgnoreCase));
+                try
+                {
+                    await indicatorLightService.SetFinalResultIndicatorAsync(
+                        meterTestPlanConfig,
+                        controlPcbConnectionManager,
+                        station.StationNo,
+                        passed,
+                        cancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    LogMessage.Error($"[工位指示灯] 工位{station.StationNo}LED4最终结果联动异常。", ex);
+                }
             }
         }
 
@@ -1591,11 +1846,21 @@ namespace ModelTest.MeterTest
             List<StationCommunicationConfig> selectedStations,
             CancellationToken cancellationToken)
         {
+            selectedStations = ResolveStationTcpChannelStations(context, selectedStations);
             MeterTestWorkflowKind workflowKind = MeterTestWorkflowRouter.Resolve(context.SubItem);
+            await SetTestingIndicatorsForStationsAsync(selectedStations, running: true, cancellationToken);
+            try
+            {
 
             if (workflowKind == MeterTestWorkflowKind.DeviceSelfCheck)
             {
                 await ExecuteDeviceSelfCheckStepAsync(context, selectedStations, cancellationToken);
+                return;
+            }
+
+            if (workflowKind == MeterTestWorkflowKind.LedEffectTest)
+            {
+                await ExecuteLedEffectTestStepAsync(context, selectedStations, cancellationToken);
                 return;
             }
 
@@ -1778,6 +2043,61 @@ namespace ModelTest.MeterTest
                 .ToList();
 
             await Task.WhenAll(stationTasks);
+            }
+            finally
+            {
+                await SetTestingIndicatorsForStationsAsync(selectedStations, running: false, cancellationToken);
+            }
+        }
+
+        /// <summary>
+        /// 根据测试小项stationTcpChannel配置切换485通信通道。
+        /// 通信测试-2使用该能力从MeterTestStationConfig.xml读取485-1的IP/Port；为空时保持原选中工位端点。
+        /// </summary>
+        private List<StationCommunicationConfig> ResolveStationTcpChannelStations(
+            SelectedSubItemContext context,
+            List<StationCommunicationConfig> selectedStations)
+        {
+            string channelName = context.SubItem.StationTcpChannel.Trim();
+            if (string.IsNullOrWhiteSpace(channelName))
+                return selectedStations;
+
+            MeterTestStationConfig stationConfig = stationConfigService.LoadOrCreate(
+                stationConfigFilePath,
+                MaxStationCount,
+                DefaultStationIp,
+                DefaultStationStartPort,
+                meterTestPlanConfig);
+            MeterTestStationTcpChannel? channel = stationConfig.StationTcpChannels
+                .FirstOrDefault(item => item.Enabled &&
+                                        item.Channel.Equals(channelName, StringComparison.OrdinalIgnoreCase));
+            if (channel is null)
+            {
+                throw new InvalidOperationException($"测试小项“{context.SubItem.Name}”指定的485通道不存在或未启用：{channelName}。");
+            }
+
+            Dictionary<int, MeterTestStationCommunication> stationMap = channel.Stations
+                .GroupBy(item => item.StationNo)
+                .ToDictionary(group => group.Key, group => group.First());
+            List<StationCommunicationConfig> remappedStations = new();
+            foreach (StationCommunicationConfig station in selectedStations)
+            {
+                if (!stationMap.TryGetValue(station.StationNo, out MeterTestStationCommunication? channelStation))
+                {
+                    throw new InvalidOperationException($"485通道“{channelName}”未配置工位{station.StationNo}的IP和端口。");
+                }
+
+                remappedStations.Add(station with
+                {
+                    Ip = channelStation.Ip.Trim(),
+                    Port = channelStation.Port
+                });
+            }
+
+            LogMessage.Debug(
+                $"[工位485通道] {context.TestItemName}/{context.SubItem.Name} 使用通道={channelName}，"
+                + $"工位={string.Join(",", remappedStations.Select(item => $"{item.StationNo}@{item.Ip}:{item.Port}"))}。");
+            return remappedStations;
         }
 
         /// <summary>
@@ -3653,6 +3973,7 @@ namespace ModelTest.MeterTest
                 result.Success,
                 result.Message,
                 result.ElapsedMilliseconds);
+            await SetSelfCheckIndicatorsAsync(context, selectedStations, cancellationToken);
             RestoreStationDisplayForSelectedNode();
         }
 
@@ -3705,6 +4026,46 @@ namespace ModelTest.MeterTest
             dialog.AcceptButton = cancelButton;
             dialog.CancelButton = cancelButton;
             return dialog.ShowDialog(this) == DialogResult.OK;
+        }
+
+        /// <summary>
+        /// 执行LED效果灯测试小项。
+        /// 具体0x2F报文、效果顺序、可配置等待时间和测试后灯光恢复由指示灯服务统一负责。
+        /// </summary>
+        private async Task ExecuteLedEffectTestStepAsync(
+            SelectedSubItemContext context,
+            List<StationCommunicationConfig> selectedStations,
+            CancellationToken cancellationToken)
+        {
+            MeterTestFlowStepResult result = await indicatorLightService.ExecuteLedEffectTestAsync(
+                meterTestPlanConfig,
+                controlPcbConnectionManager,
+                context.SubItem,
+                selectedStations,
+                (stationNo, lines) => LogTestItemStationBlock(
+                    context.TestItemName,
+                    context.SubItem.Name,
+                    stationNo,
+                    "LED效果灯测试日志",
+                    lines.ToArray()),
+                cancellationToken);
+
+            foreach (StationCommunicationConfig station in selectedStations)
+            {
+                RunOnUiThread(() => ApplyStationExecutionResult(
+                    station.StationNo,
+                    context,
+                    result.Success,
+                    result.Message));
+            }
+
+            AddProcessLog(
+                $"{context.SchemeName}/{context.TestItemName}",
+                context.SubItem.Name,
+                result.Success,
+                result.Message,
+                result.ElapsedMilliseconds);
+            RestoreStationDisplayForSelectedNode();
         }
 
         /// <summary>
@@ -4922,6 +5283,13 @@ namespace ModelTest.MeterTest
                     stationPowerControlCts.Token);
                 LogMessage.Debug(
                     $"[工位电源] 工位{change.StationNo}操作结论={(result.Success ? "成功" : "失败")}：{result.Message}");
+                await indicatorLightService.SetPowerIndicatorAsync(
+                    meterTestPlanConfig,
+                    controlPcbConnectionManager,
+                    change.StationNo,
+                    change.IsSelected,
+                    result.Success,
+                    stationPowerControlCts.Token);
             }
             catch (OperationCanceledException)
             {
@@ -6140,15 +6508,15 @@ namespace ModelTest.MeterTest
         /// <summary>
         /// 获取测试方案 XML 的优先路径。
         /// </summary>
-        private static string GetMeterTestConfigPath()
+        private static string GetMeterTestConfigPath(string fileName = ThreePhasePlanConfigFileName)
         {
-            string outputConfigPath = Path.Combine(AppContext.BaseDirectory, "MeterTest", "config", "MeterTestPlanConfig.xml");
+            string outputConfigPath = Path.Combine(AppContext.BaseDirectory, "MeterTest", "config", fileName);
             if (File.Exists(outputConfigPath))
             {
                 return outputConfigPath;
             }
 
-            return Path.Combine(AppContext.BaseDirectory, "config", "MeterTestPlanConfig.xml");
+            return Path.Combine(AppContext.BaseDirectory, "config", fileName);
         }
 
         /// <summary>

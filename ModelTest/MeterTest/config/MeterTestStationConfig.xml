@@ -27,6 +27,15 @@
     <ControlPcbGroup name="控制PCB-15" enabled="false" ip="192.168.127.101" port="4015" protocolVersion="V2" stationStart="43" stationEnd="45" meterAddressStart="43" />
     <ControlPcbGroup name="控制PCB-16" enabled="false" ip="192.168.127.101" port="4016" protocolVersion="V2" stationStart="46" stationEnd="48" meterAddressStart="46" />
   </ControlPcbGroups>
+  <IndicatorLightGroups>
+    <IndicatorLightGroup name="灯光控制-1" enabled="true" ip="192.168.127.111" port="957" protocolVersion="V2" stationStart="1" stationEnd="3" lightAddressStart="1" />
+    <IndicatorLightGroup name="灯光控制-2" enabled="true" ip="192.168.127.112" port="957" protocolVersion="V2" stationStart="4" stationEnd="6" lightAddressStart="1" />
+    <IndicatorLightGroup name="灯光控制-3" enabled="true" ip="192.168.127.113" port="957" protocolVersion="V2" stationStart="7" stationEnd="9" lightAddressStart="1" />
+    <IndicatorLightGroup name="灯光控制-4" enabled="true" ip="192.168.127.114" port="957" protocolVersion="V2" stationStart="10" stationEnd="12" lightAddressStart="1" />
+    <IndicatorLightGroup name="灯光控制-6" enabled="true" ip="192.168.127.121" port="957" protocolVersion="V2" stationStart="16" stationEnd="17" lightAddressStart="1" />
+    <IndicatorLightGroup name="灯光控制-7" enabled="true" ip="192.168.127.122" port="957" protocolVersion="V2" stationStart="18" stationEnd="19" lightAddressStart="1" />
+    <IndicatorLightGroup name="灯光控制-8" enabled="true" ip="192.168.127.123" port="957" protocolVersion="V2" stationStart="20" stationEnd="21" lightAddressStart="1" />
+  </IndicatorLightGroups>
   <BluetoothTcpChannels>
     <BluetoothTcpChannel station="1" enabled="true" ip="192.168.127.111" port="958" />
     <BluetoothTcpChannel station="2" enabled="true" ip="192.168.127.111" port="953" />
@@ -41,52 +50,41 @@
     <BluetoothTcpChannel station="11" enabled="true" ip="192.168.127.114" port="953" />
     <BluetoothTcpChannel station="12" enabled="true" ip="192.168.127.114" port="954" />
   </BluetoothTcpChannels>
-  <Station stationNo="1" ip="192.168.127.111" port="956" />
-  <Station stationNo="2" ip="192.168.127.111" port="952" />
-  <Station stationNo="3" ip="192.168.127.111" port="955" />
-  <Station stationNo="4" ip="192.168.127.112" port="956" />
-  <Station stationNo="5" ip="192.168.127.112" port="952" />
-  <Station stationNo="6" ip="192.168.127.112" port="955" />
-  <Station stationNo="7" ip="192.168.127.113" port="956" />
-  <Station stationNo="8" ip="192.168.127.113" port="952" />
-  <Station stationNo="9" ip="192.168.127.113" port="955" />
-  <Station stationNo="10" ip="192.168.127.114" port="956" />
-  <Station stationNo="11" ip="192.168.127.114" port="955" />
-  <Station stationNo="12" ip="192.168.127.114" port="955" />
-  <Station stationNo="13" ip="192.168.127.111" port="956" />
-  <Station stationNo="14" ip="192.168.127.111" port="956" />
-  <Station stationNo="15" ip="192.168.127.111" port="956" />
-  <Station stationNo="16" ip="192.168.127.111" port="956" />
-  <Station stationNo="17" ip="192.168.127.111" port="956" />
-  <Station stationNo="18" ip="192.168.127.111" port="956" />
-  <Station stationNo="19" ip="192.168.127.111" port="956" />
-  <Station stationNo="20" ip="192.168.127.111" port="956" />
-  <Station stationNo="21" ip="127.0.0.1" port="4021" />
-  <Station stationNo="22" ip="127.0.0.1" port="4022" />
-  <Station stationNo="23" ip="127.0.0.1" port="4023" />
-  <Station stationNo="24" ip="127.0.0.1" port="4024" />
-  <Station stationNo="25" ip="127.0.0.1" port="4025" />
-  <Station stationNo="26" ip="127.0.0.1" port="4026" />
-  <Station stationNo="27" ip="127.0.0.1" port="4027" />
-  <Station stationNo="28" ip="127.0.0.1" port="4028" />
-  <Station stationNo="29" ip="127.0.0.1" port="4029" />
-  <Station stationNo="30" ip="127.0.0.1" port="4030" />
-  <Station stationNo="31" ip="127.0.0.1" port="4031" />
-  <Station stationNo="32" ip="127.0.0.1" port="4032" />
-  <Station stationNo="33" ip="127.0.0.1" port="4033" />
-  <Station stationNo="34" ip="127.0.0.1" port="4034" />
-  <Station stationNo="35" ip="127.0.0.1" port="4035" />
-  <Station stationNo="36" ip="127.0.0.1" port="4036" />
-  <Station stationNo="37" ip="127.0.0.1" port="4037" />
-  <Station stationNo="38" ip="127.0.0.1" port="4038" />
-  <Station stationNo="39" ip="127.0.0.1" port="4039" />
-  <Station stationNo="40" ip="127.0.0.1" port="4040" />
-  <Station stationNo="41" ip="127.0.0.1" port="4041" />
-  <Station stationNo="42" ip="127.0.0.1" port="4042" />
-  <Station stationNo="43" ip="127.0.0.1" port="4043" />
-  <Station stationNo="44" ip="127.0.0.1" port="4044" />
-  <Station stationNo="45" ip="127.0.0.1" port="4045" />
-  <Station stationNo="46" ip="127.0.0.1" port="4046" />
-  <Station stationNo="47" ip="127.0.0.1" port="4047" />
-  <Station stationNo="48" ip="127.0.0.1" port="4048" />
+  <StationTcpChannels>
+    <StationTcpChannel name="485-1通信通道" channel="485-1" enabled="true" isDefault="false">
+      <Stations>
+      <Station stationNo="16" ip="192.168.127.121" port="956" />
+      <Station stationNo="17" ip="192.168.127.121" port="952" />
+      <Station stationNo="18" ip="192.168.127.122" port="956" />
+      <Station stationNo="19" ip="192.168.127.122" port="952" />
+      <Station stationNo="20" ip="192.168.127.123" port="956" />
+      <Station stationNo="21" ip="192.168.127.123" port="952" />
+      </Stations>
+    </StationTcpChannel>
+    <StationTcpChannel name="485-2通信通道" channel="485-2" enabled="true" isDefault="true">
+      <Stations>
+      <Station stationNo="1" ip="192.168.127.111" port="956" />
+      <Station stationNo="2" ip="192.168.127.111" port="952" />
+      <Station stationNo="3" ip="192.168.127.111" port="955" />
+      <Station stationNo="4" ip="192.168.127.112" port="956" />
+      <Station stationNo="5" ip="192.168.127.112" port="952" />
+      <Station stationNo="6" ip="192.168.127.112" port="955" />
+      <Station stationNo="7" ip="192.168.127.113" port="956" />
+      <Station stationNo="8" ip="192.168.127.113" port="952" />
+      <Station stationNo="9" ip="192.168.127.113" port="955" />
+      <Station stationNo="10" ip="192.168.127.114" port="956" />
+      <Station stationNo="11" ip="192.168.127.114" port="955" />
+      <Station stationNo="12" ip="192.168.127.114" port="955" />
+      <Station stationNo="13" ip="192.168.127.111" port="956" />
+      <Station stationNo="14" ip="192.168.127.111" port="956" />
+      <Station stationNo="15" ip="192.168.127.111" port="956" />
+      <Station stationNo="16" ip="192.168.127.121" port="955" />
+      <Station stationNo="17" ip="192.168.127.121" port="958" />
+      <Station stationNo="18" ip="192.168.127.122" port="955" />
+      <Station stationNo="19" ip="192.168.127.122" port="958" />
+      <Station stationNo="20" ip="192.168.127.123" port="955" />
+      <Station stationNo="21" ip="192.168.127.123" port="958" />
+      </Stations>
+    </StationTcpChannel>
+  </StationTcpChannels>
 </MeterTestStationConfig>

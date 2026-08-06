@@ -32,7 +32,8 @@ internal enum MeterTestWorkflowKind
     ConstantImaxSource,
     ControlPcbWalkingStop,
     ControlPcbWalkingRead,
-    ConstantResultJudge
+    ConstantResultJudge,
+    LedEffectTest
 }
 
 /// <summary>
@@ -75,6 +76,7 @@ internal static class MeterTestWorkflowRouter
             MeterTestExecutionMode.ControlPcbWalkingStop => MeterTestWorkflowKind.ControlPcbWalkingStop,
             MeterTestExecutionMode.ControlPcbWalkingRead => MeterTestWorkflowKind.ControlPcbWalkingRead,
             MeterTestExecutionMode.ConstantResultJudge => MeterTestWorkflowKind.ConstantResultJudge,
+            MeterTestExecutionMode.LedEffectTest => MeterTestWorkflowKind.LedEffectTest,
             _ => MeterTestWorkflowKind.StationTcp
         };
     }

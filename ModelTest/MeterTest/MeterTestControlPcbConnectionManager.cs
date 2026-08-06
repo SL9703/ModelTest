@@ -78,6 +78,23 @@ public sealed class MeterTestControlPcbConnectionManager : IAsyncDisposable
             }
         }
 
+        foreach (MeterTestIndicatorLightGroup group in planConfig.IndicatorLightGroups.Where(group => group.Enabled))
+        {
+            if (TryCreateDefinition(
+                    group.Ip,
+                    group.Port,
+                    group.ProtocolVersion,
+                    $"工位指示灯 {group.Name}",
+                    out ControlPcbEndpointDefinition lightDefinition))
+            {
+                definitions.Add(lightDefinition);
+            }
+            else
+            {
+                statusLogger?.Invoke($"指示灯控制端点跳过：{group.Name} 的 IP/Port 配置无效。");
+            }
+        }
+
         Dictionary<ControlPcbEndpoint, ControlPcbEndpointDefinition> uniqueDefinitions = new();
         foreach (ControlPcbEndpointDefinition definition in definitions)
         {
