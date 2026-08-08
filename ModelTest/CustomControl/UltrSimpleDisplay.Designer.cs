@@ -48,6 +48,7 @@
             operationPanel = new FlowLayoutPanel();
             btnStartErrorTerminal = new Button();
             btnStopErrorTerminal = new Button();
+            btnGetErrorResultTerminal = new Button();
             errorPanel.SuspendLayout();
             errorLayout.SuspendLayout();
             operationPanel.SuspendLayout();
@@ -285,10 +286,11 @@
             operationPanel.Anchor = AnchorStyles.Left;
             operationPanel.Controls.Add(btnStartErrorTerminal);
             operationPanel.Controls.Add(btnStopErrorTerminal);
+            operationPanel.Controls.Add(btnGetErrorResultTerminal);
             operationPanel.Location = new Point(518, 95);
             operationPanel.Margin = new Padding(8, 3, 10, 2);
             operationPanel.Name = "operationPanel";
-            operationPanel.Size = new Size(282, 31);
+            operationPanel.Size = new Size(390, 31);
             operationPanel.TabIndex = 15;
             operationPanel.WrapContents = false;
             // 
@@ -317,6 +319,19 @@
             btnStopErrorTerminal.Text = "停止试验";
             btnStopErrorTerminal.UseVisualStyleBackColor = true;
             btnStopErrorTerminal.Click += btnStopErrorTerminal_Click;
+            // 
+            // btnGetErrorResultTerminal
+            // 
+            btnGetErrorResultTerminal.Font = new Font("Microsoft YaHei UI", 9F, FontStyle.Regular, GraphicsUnit.Point, 134);
+            btnGetErrorResultTerminal.ForeColor = Color.Black;
+            btnGetErrorResultTerminal.Location = new Point(246, 0);
+            btnGetErrorResultTerminal.Margin = new Padding(0, 0, 6, 0);
+            btnGetErrorResultTerminal.Name = "btnGetErrorResultTerminal";
+            btnGetErrorResultTerminal.Size = new Size(120, 34);
+            btnGetErrorResultTerminal.TabIndex = 2;
+            btnGetErrorResultTerminal.Text = "结果获取";
+            btnGetErrorResultTerminal.UseVisualStyleBackColor = true;
+            btnGetErrorResultTerminal.Click += btnGetErrorResultTerminal_Click;
             // 
             // UltrSimpleDisplay
             // 
@@ -373,5 +388,6 @@
         private FlowLayoutPanel operationPanel;
         private Button btnStartErrorTerminal;
         private Button btnStopErrorTerminal;
+        private Button btnGetErrorResultTerminal;
     }
 }

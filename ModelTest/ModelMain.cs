@@ -38,15 +38,18 @@ namespace ModelTest
         private LinuxCommandForm? _linuxCommandForm;
         private ProtocolParserForm? _protocolParserForm;
         private TerminalV2UserControl? _terminalV2UserControl;
+        private SerialPortServerConfigForm? _serialPortServerConfigForm;
         public ModelMain()
         {
             InitializeComponent();
+            InitializeSerialPortServerConfigEntry();//串口服务器窗体加载
             ConfigureMainWindowBounds();
             LoadApplicationIcon();
             InitializeMeterTestDatabase();
             UpdateStatusTime();
             InitializeSGCCTestTab();
             InitializeMultifunctionalCommunicationTab();
+
             ultrSimpleDisplay1.TerminalAddressProvider = () => tbxTerminalAdds.Text;
             ultrSimpleDisplay1.LogRequested += AddLog;
             ultrSimpleDisplay1.SendCommandRequested += SeedMethod;
@@ -103,6 +106,64 @@ namespace ModelTest
                 LogMessage.Error(e.Exception);
             };
         }
+        /// <summary>
+        /// 在通信单元的 TCP/UDP 服务器区域增加串口服务器查看和配置入口。
+        /// 按钮点击后打开独立窗体，窗体内部使用 GenericSerialPortServerProtocol 发送查看、设置和保存指令。
+        /// </summary>
+        private void InitializeSerialPortServerConfigEntry()
+        {
+            Panel hostPanel = new()
+            {
+                Name = "panelSerialPortServerConfigHost",
+                Dock = DockStyle.Right,
+                Width = 330,
+                Padding = new Padding(15, 24, 15, 0),
+                AutoScroll = true,
+                BackColor = Color.Transparent
+            };
+
+            Button button = new()
+            {
+                Name = "btnSerialPortServerConfig",
+                Text = "串口服务器查看和配置",
+                Dock = DockStyle.Top,
+                Height = 100,
+                BackColor = Color.FromArgb(42, 135, 104),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Microsoft YaHei UI", 12F, FontStyle.Bold, GraphicsUnit.Point, 134),
+                Cursor = Cursors.Hand
+            };
+            button.FlatAppearance.BorderSize = 0;
+            button.Click += SerialPortServerConfigButton_Click;
+
+            hostPanel.Controls.Add(button);
+            groupBox14.Controls.Add(hostPanel);
+            hostPanel.BringToFront();
+            button.BringToFront();
+        }
+
+        /// <summary>显示串口服务器查看和配置窗体；已有窗体时激活，避免重复打开。</summary>
+        private void SerialPortServerConfigButton_Click(object? sender, EventArgs e)
+        {
+            try
+            {
+                if (_serialPortServerConfigForm is { IsDisposed: false })
+                {
+                    _serialPortServerConfigForm.Activate();
+                    return;
+                }
+
+                _serialPortServerConfigForm = new SerialPortServerConfigForm();
+                _serialPortServerConfigForm.Show();
+            }
+            catch (Exception ex)
+            {
+                LogMessage.Error(ex);
+                MessageBox.Show($"打开串口服务器配置窗体失败：{ex.Message}", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        }
+
         /// <summary>
         /// 配置主窗体的启动边界。
         ///

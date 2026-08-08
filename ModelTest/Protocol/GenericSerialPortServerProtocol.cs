@@ -11,6 +11,8 @@ public static class GenericSerialPortServerProtocol
     public const byte CommandPrefix = 0xFF;
     public const byte UnlockCommand = 0x02;
     public const byte SetPortCommand = 0x0B;
+    public const byte ReadParametersCommand = 0x0C;
+    public const byte SaveAndRestartCommand = 0x0D;
     public const byte UnlockPayloadLength = 0x06;
     public const byte SetPortPayloadLength = 0x06;
     public const byte ApplyImmediately = 0x01;
@@ -39,6 +41,46 @@ public static class GenericSerialPortServerProtocol
         passwordBytes.CopyTo(command, 3);
         command[^1] = 0x00;
         return command;
+    }
+
+    /// <summary>
+    /// 构造读取串口参数指令：FF 0C 06 72 65 61 64 0B 00。
+    /// 其中 read 为ASCII文本，0B 表示读取串口参数。
+    /// </summary>
+    public static byte[] BuildReadSerialParametersCommand()
+    {
+        return
+        [
+            CommandPrefix,
+            ReadParametersCommand,
+            0x06,
+            0x72,
+            0x65,
+            0x61,
+            0x64,
+            SetPortCommand,
+            0x00
+        ];
+    }
+
+    /// <summary>
+    /// 构造断电保存指令：FF 0D 06 73 61 76 65 72 00。
+    /// 该指令由用户明确点击“保存”时发送，设置按钮只负责立即生效。
+    /// </summary>
+    public static byte[] BuildSaveAndRestartCommand()
+    {
+        return
+        [
+            CommandPrefix,
+            SaveAndRestartCommand,
+            0x06,
+            0x73,
+            0x61,
+            0x76,
+            0x65,
+            0x72,
+            0x00
+        ];
     }
 
     /// <summary>
@@ -228,6 +270,91 @@ public static class GenericSerialPortServerProtocol
         return string.Join(' ', command.ToArray().Select(value => value.ToString("X2", CultureInfo.InvariantCulture)));
     }
 
+    /// <summary>
+    /// 解析 FF0C 读取串口参数应答。
+    /// 数据区按每4字节一组解析：波特率、数据位、停止位、校验位，共最多16路COM。
+    /// </summary>
+    public static bool TryParseReadSerialParametersResponse(
+        ReadOnlySpan<byte> response,
+        out List<GenericSerialPortChannelInfo> channels,
+        out string error)
+    {
+        channels = new List<GenericSerialPortChannelInfo>();
+        error = string.Empty;
+
+        if (response.Length < 3)
+        {
+            error = "应答长度不足。";
+            return false;
+        }
+
+        int headerIndex = IndexOfHeader(response, ReadParametersCommand);
+        if (headerIndex < 0 || headerIndex + 3 > response.Length)
+        {
+            error = "未找到FF0C串口参数应答头。";
+            return false;
+        }
+
+        int payloadLength = response[headerIndex + 2];
+        int payloadStart = headerIndex + 3;
+        if (payloadStart + payloadLength > response.Length)
+        {
+            error = $"FF0C应答长度不完整，声明={payloadLength}，实际剩余={response.Length - payloadStart}。";
+            return false;
+        }
+
+        ReadOnlySpan<byte> payload = response.Slice(payloadStart, payloadLength);
+        if (payload.Length % 4 != 0)
+        {
+            error = $"串口参数数据长度必须是4的倍数，当前={payload.Length}。";
+            return false;
+        }
+
+        for (int index = 0; index < payload.Length / 4; index++)
+        {
+            byte baudRateCode = payload[index * 4];
+            byte dataBitsCode = payload[index * 4 + 1];
+            byte stopBitsCode = payload[index * 4 + 2];
+            byte parityCode = payload[index * 4 + 3];
+            channels.Add(new GenericSerialPortChannelInfo(
+                index,
+                GetTcpPortFromChannelIndex(index, FirstLegacyTcpPort),
+                TryDecodeBaudRate(baudRateCode, out int baudRate) ? baudRate : 0,
+                dataBitsCode == 0x00 ? 7 : 8,
+                stopBitsCode == 0x01 ? 2 : 1,
+                parityCode switch
+                {
+                    0x01 => SerialPortServerParity.Even,
+                    0x02 => SerialPortServerParity.Odd,
+                    _ => SerialPortServerParity.None
+                },
+                baudRateCode,
+                dataBitsCode,
+                stopBitsCode,
+                parityCode));
+        }
+
+        return true;
+    }
+
+    /// <summary>把通道索引映射回TCP端口，默认951/4001两组均支持。</summary>
+    public static int GetTcpPortFromChannelIndex(int channelIndex, int firstTcpPort = FirstLegacyTcpPort)
+    {
+        ValidateChannelIndex(channelIndex);
+        return firstTcpPort + channelIndex;
+    }
+
+    /// <summary>把校验位枚举转换成N/E/O文本。</summary>
+    public static string FormatParity(SerialPortServerParity parity)
+    {
+        return parity switch
+        {
+            SerialPortServerParity.Even => "E",
+            SerialPortServerParity.Odd => "O",
+            _ => "N"
+        };
+    }
+
     private static void ValidateChannelIndex(int channelIndex)
     {
         if (channelIndex is < 0 or > MaximumChannelIndex)
@@ -238,6 +365,36 @@ public static class GenericSerialPortServerProtocol
                 "COM通道索引必须在00-0F之间，对应串口1-16。");
         }
     }
+
+    private static int IndexOfHeader(ReadOnlySpan<byte> response, byte command)
+    {
+        for (int index = 0; index <= response.Length - 2; index++)
+        {
+            if (response[index] == CommandPrefix && response[index + 1] == command)
+                return index;
+        }
+
+        return -1;
+    }
+
+    private static bool TryDecodeBaudRate(byte code, out int baudRate)
+    {
+        baudRate = code switch
+        {
+            0x00 => 300,
+            0x01 => 600,
+            0x02 => 1200,
+            0x03 => 2400,
+            0x04 => 4800,
+            0x05 => 9600,
+            0x06 => 19200,
+            0x07 => 38400,
+            0x08 => 57600,
+            0x09 => 115200,
+            _ => 0
+        };
+        return baudRate > 0;
+    }
 }
 
 /// <summary>通用串口服务器一次端口设置所需的解锁和设置指令。</summary>
@@ -246,3 +403,16 @@ public sealed record GenericSerialPortServerCommandSet(
     int ChannelIndex,
     byte[] UnlockCommand,
     byte[] SetPortCommand);
+
+/// <summary>通用串口服务器读取到的一路COM参数。</summary>
+public sealed record GenericSerialPortChannelInfo(
+    int ChannelIndex,
+    int TcpPort,
+    int BaudRate,
+    int DataBits,
+    int StopBits,
+    SerialPortServerParity Parity,
+    byte BaudRateCode,
+    byte DataBitsCode,
+    byte StopBitsCode,
+    byte ParityCode);

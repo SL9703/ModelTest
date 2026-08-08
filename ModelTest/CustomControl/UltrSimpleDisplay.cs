@@ -333,11 +333,9 @@ namespace ModelTest.CustomControl
 
             try
             {
-                if (!TryReadExperimentSettings(
+                if (!TryReadExperimentControlSettings(
                         out string experimentType,
                         out string experimentMode,
-                        out _,
-                        out _,
                         out ushort circleCount))
                 {
                     return;
@@ -349,6 +347,31 @@ namespace ModelTest.CustomControl
             finally
             {
                 btnStopErrorTerminal.Enabled = true;
+            }
+        }
+
+        private async void btnGetErrorResultTerminal_Click(object? sender, EventArgs e)
+        {
+            LogMessage.Info(sender?.ToString() ?? string.Empty);
+
+            btnGetErrorResultTerminal.Enabled = false;
+
+            try
+            {
+                if (!TryReadExperimentControlSettings(
+                        out string experimentType,
+                        out string experimentMode,
+                        out ushort circleCount))
+                {
+                    return;
+                }
+
+                string resultData = BuildExperimentData(experimentType, experimentMode, "AA", circleCount);
+                await SendCommandAndWaitAsync("获取误差实验结果", GetExperimentCommand(), resultData, GetExperimentAckPrefix(experimentType, experimentMode, "AA"));
+            }
+            finally
+            {
+                btnGetErrorResultTerminal.Enabled = true;
             }
         }
 
@@ -431,6 +454,24 @@ namespace ModelTest.CustomControl
             return true;
         }
 
+        private bool TryReadExperimentControlSettings(
+            out string experimentType,
+            out string experimentMode,
+            out ushort circleCount)
+        {
+            experimentType = GetExperimentType();
+            experimentMode = GetExperimentMode();
+            circleCount = 0;
+
+            if (experimentType == "03" && experimentMode == "03")
+            {
+                LogRequested?.Invoke("日计时实验不支持光脉冲方式，请切换实验方式。");
+                return false;
+            }
+
+            return TryParseUInt16(tbxRJSC.Text, "圈数", out circleCount);
+        }
+
         private bool TryParseUInt32(string text, string name, out uint value)
         {
             value = 0;
@@ -479,8 +520,9 @@ namespace ModelTest.CustomControl
 
         private string BuildConstantData(string constantType, uint value)
         {
-            int byteCount = ProtocolVersion == ErrorInstrumentProtocolVersion.V2 ? 5 : 4;
-            return constantType + HexConverter.ConvertHex(value.ToString("X"), byteCount);
+            // 常数设置数据项：字节1=常数类型，字节2~6=设置值小端5字节。
+            // 例如标准表常数50000000：32 01 80 F0 FA 02 00。
+            return constantType + HexConverter.ConvertHex(value.ToString("X"), 5);
         }
 
         private static string BuildExperimentData(string experimentType, string experimentMode, string action, ushort circleCount)
