@@ -46,11 +46,11 @@ namespace ModelTest
 
                 Application.EnableVisualStyles();
                 Application.SetCompatibleTextRenderingDefault(false);
-                MainForm = new ModelMain();
-                Application.Run(MainForm);
+                //MainForm = new ModelMain();
+                //Application.Run(MainForm);
                 //_databaseTestForm = new DatabaseTestForm();
                 //Application.Run(_databaseTestForm);
-                //Application.Run(new MeterTest.MeterTest());
+                Application.Run(new MeterTest.MeterTest());
             }
             catch (Exception ex)
             {

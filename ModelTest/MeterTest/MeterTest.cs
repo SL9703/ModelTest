@@ -1270,9 +1270,17 @@ namespace ModelTest.MeterTest
                 await SynchronizeEnabledControlPcbStationPowerAsync(
                     selectedStations.Select(station => station.StationNo));
 
+                HashSet<string> executedLedEffectSuites = new(StringComparer.OrdinalIgnoreCase);
                 foreach (SelectedSubItemContext context in testContexts)
                 {
                     executionCts.Token.ThrowIfCancellationRequested();
+                    if (MeterTestWorkflowRouter.Resolve(context.SubItem) == MeterTestWorkflowKind.LedEffectTest)
+                    {
+                        string ledSuiteKey = $"{context.SchemeName}|{context.TestItemName}";
+                        if (!executedLedEffectSuites.Add(ledSuiteKey))
+                            continue;
+                    }
+
                     await ExecuteTestContextAsync(context, selectedStations, executionCts.Token);
                 }
 
@@ -2052,7 +2060,8 @@ namespace ModelTest.MeterTest
 
         /// <summary>
         /// 根据测试小项stationTcpChannel配置切换485通信通道。
-        /// 通信测试-2使用该能力从MeterTestStationConfig.xml读取485-1的IP/Port；为空时保持原选中工位端点。
+        /// 通信测试、通信测试-2等工位TCP流程都通过该能力从MeterTestStationConfig.xml读取指定485通道的IP/Port；
+        /// 为空时保持测试过程区域当前选中工位端点。
         /// </summary>
         private List<StationCommunicationConfig> ResolveStationTcpChannelStations(
             SelectedSubItemContext context,
@@ -3941,6 +3950,17 @@ namespace ModelTest.MeterTest
                 : action();
         }
 
+        /// <summary>在UI线程执行需要返回复杂结果的交互操作。</summary>
+        private T? RunOnUiThreadWithValue<T>(Func<T?> action)
+        {
+            if (IsDisposed || Disposing)
+                return default;
+
+            return InvokeRequired
+                ? (T?)Invoke(action)
+                : action();
+        }
+
         /// <summary>
         /// 执行方案树中的一个设备自检小项。
         /// 短路检测先自动降源并复核无压，再由用户通过红色安全弹窗手动确认。
@@ -4037,10 +4057,37 @@ namespace ModelTest.MeterTest
             List<StationCommunicationConfig> selectedStations,
             CancellationToken cancellationToken)
         {
-            MeterTestFlowStepResult result = await indicatorLightService.ExecuteLedEffectTestAsync(
+            MeterTestSubItem marqueeSubItem = context.SubItem;
+            MeterTestSubItem blinkSubItem = context.SubItem;
+            MeterTestItem? ledTestItem = meterTestPlanConfig.Schemes
+                .FirstOrDefault(scheme => scheme.Name.Equals(context.SchemeName, StringComparison.OrdinalIgnoreCase))
+                ?.TestItems.FirstOrDefault(item => item.Name.Equals(context.TestItemName, StringComparison.OrdinalIgnoreCase));
+            if (ledTestItem is not null)
+            {
+                marqueeSubItem = ledTestItem.TestSubItems.FirstOrDefault(subItem =>
+                    subItem.Enabled &&
+                    subItem.ExecutionMode.Equals(MeterTestExecutionMode.LedEffectTest.ToString(), StringComparison.OrdinalIgnoreCase) &&
+                    subItem.LedEffectStep.Equals("Marquee", StringComparison.OrdinalIgnoreCase)) ?? marqueeSubItem;
+                blinkSubItem = ledTestItem.TestSubItems.FirstOrDefault(subItem =>
+                    subItem.Enabled &&
+                    subItem.ExecutionMode.Equals(MeterTestExecutionMode.LedEffectTest.ToString(), StringComparison.OrdinalIgnoreCase) &&
+                    subItem.LedEffectStep.Equals("Blink", StringComparison.OrdinalIgnoreCase)) ?? blinkSubItem;
+            }
+
+            List<SelectedSubItemContext> ledSubContexts = (ledTestItem?.TestSubItems ?? new List<MeterTestSubItem> { context.SubItem })
+                .Where(subItem =>
+                    subItem.Enabled &&
+                    subItem.ExecutionMode.Equals(MeterTestExecutionMode.LedEffectTest.ToString(), StringComparison.OrdinalIgnoreCase))
+                .Select(subItem => new SelectedSubItemContext(context.SchemeName, context.TestItemName, subItem))
+                .ToList();
+            if (ledSubContexts.Count == 0)
+                ledSubContexts.Add(context);
+
+            MeterTestFlowStepResult result = await indicatorLightService.ExecuteLedEffectSuiteAsync(
                 meterTestPlanConfig,
                 controlPcbConnectionManager,
-                context.SubItem,
+                marqueeSubItem,
+                blinkSubItem,
                 selectedStations,
                 (stationNo, lines) => LogTestItemStationBlock(
                     context.TestItemName,
@@ -4048,15 +4095,39 @@ namespace ModelTest.MeterTest
                     stationNo,
                     "LED效果灯测试日志",
                     lines.ToArray()),
+                message => RunOnUiThreadWithResult(() => ShowLedEffectStartConfirmation(message)),
+                (message, stationNos) => RunOnUiThreadWithValue(
+                    () => ShowLedEffectPanelResultConfirmation(message, stationNos)),
+                (stationNos, passedStations, sendSucceeded, message) => RunOnUiThreadWithResult(() =>
+                {
+                    foreach (int stationNo in stationNos)
+                    {
+                        bool passed = sendSucceeded && passedStations.Contains(stationNo);
+                        foreach (SelectedSubItemContext ledContext in ledSubContexts)
+                        {
+                            ApplyStationExecutionResult(stationNo, ledContext, passed, message);
+                        }
+                    }
+                    return true;
+                }),
                 cancellationToken);
 
             foreach (StationCommunicationConfig station in selectedStations)
             {
-                RunOnUiThread(() => ApplyStationExecutionResult(
-                    station.StationNo,
-                    context,
-                    result.Success,
-                    result.Message));
+                RunOnUiThread(() =>
+                {
+                    foreach (SelectedSubItemContext ledContext in ledSubContexts)
+                    {
+                        if (!stationResultCache.ContainsKey(new StationResultKey(
+                                ledContext.SchemeName,
+                                ledContext.TestItemName,
+                                ledContext.SubItem.Name,
+                                station.StationNo)))
+                        {
+                            ApplyStationExecutionResult(station.StationNo, ledContext, result.Success, result.Message);
+                        }
+                    }
+                });
             }
 
             AddProcessLog(
@@ -4066,6 +4137,109 @@ namespace ModelTest.MeterTest
                 result.Message,
                 result.ElapsedMilliseconds);
             RestoreStationDisplayForSelectedNode();
+        }
+
+        /// <summary>LED效果灯测试开始前的人工确认，避免现场错过目视观察起点。</summary>
+        private bool ShowLedEffectStartConfirmation(string message)
+        {
+            return MessageBox.Show(
+                this,
+                $"{message}\r\n\r\n点击“确定”后将从第一个灯光控制面板开始测试。",
+                "LED效果灯测试确认",
+                MessageBoxButtons.OKCancel,
+                MessageBoxIcon.Warning,
+                MessageBoxDefaultButton.Button2) == DialogResult.OK;
+        }
+
+        /// <summary>
+        /// 每个灯光控制面板测试结束后的人工判定确认。
+        /// 面板下的工位默认全部勾选，取消勾选的工位单独判为不合格。
+        /// </summary>
+        private IReadOnlyList<int>? ShowLedEffectPanelResultConfirmation(
+            string message,
+            IReadOnlyList<int> stationNumbers)
+        {
+            using Form dialog = new()
+            {
+                Text = "LED效果灯测试结果确认",
+                FormBorderStyle = FormBorderStyle.FixedDialog,
+                StartPosition = FormStartPosition.CenterParent,
+                ClientSize = new Size(560, 300),
+                MaximizeBox = false,
+                MinimizeBox = false,
+                ShowInTaskbar = false
+            };
+            Label messageLabel = new()
+            {
+                Dock = DockStyle.Top,
+                Height = 92,
+                Padding = new Padding(18, 14, 18, 8),
+                Text = $"{message}\r\n\r\n请勾选目视确认合格的工位："
+            };
+            FlowLayoutPanel stationPanel = new()
+            {
+                Dock = DockStyle.Fill,
+                Padding = new Padding(18, 4, 18, 4),
+                FlowDirection = FlowDirection.LeftToRight,
+                WrapContents = true,
+                AutoScroll = true
+            };
+            List<CheckBox> stationChecks = new();
+            foreach (int stationNo in stationNumbers.OrderBy(item => item))
+            {
+                CheckBox checkBox = new()
+                {
+                    Text = $"工位{stationNo}",
+                    Checked = true,
+                    AutoSize = true,
+                    Margin = new Padding(4, 4, 18, 4),
+                    Font = new Font(Font.FontFamily, 10F, FontStyle.Bold)
+                };
+                stationChecks.Add(checkBox);
+                stationPanel.Controls.Add(checkBox);
+            }
+
+            FlowLayoutPanel buttons = new()
+            {
+                Dock = DockStyle.Bottom,
+                Height = 58,
+                FlowDirection = FlowDirection.RightToLeft,
+                Padding = new Padding(10)
+            };
+            Button cancelButton = new()
+            {
+                Text = "取消测试",
+                Width = 110,
+                Height = 36,
+                DialogResult = DialogResult.Cancel
+            };
+            Button confirmButton = new()
+            {
+                Text = "确认并继续",
+                Width = 130,
+                Height = 36,
+                DialogResult = DialogResult.OK,
+                BackColor = Color.FromArgb(36, 137, 95),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat
+            };
+            buttons.Controls.Add(cancelButton);
+            buttons.Controls.Add(confirmButton);
+            dialog.Controls.Add(stationPanel);
+            dialog.Controls.Add(buttons);
+            dialog.Controls.Add(messageLabel);
+            dialog.AcceptButton = confirmButton;
+            dialog.CancelButton = cancelButton;
+
+            if (dialog.ShowDialog(this) != DialogResult.OK)
+                return null;
+
+            return stationChecks
+                .Where(checkBox => checkBox.Checked)
+                .Select(checkBox => int.Parse(
+                    checkBox.Text["工位".Length..],
+                    CultureInfo.InvariantCulture))
+                .ToArray();
         }
 
         /// <summary>

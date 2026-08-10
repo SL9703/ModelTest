@@ -116,7 +116,7 @@ namespace ModelTest
             {
                 Name = "panelSerialPortServerConfigHost",
                 Dock = DockStyle.Right,
-                Width = 330,
+                Width = 200,
                 Padding = new Padding(15, 24, 15, 0),
                 AutoScroll = true,
                 BackColor = Color.Transparent
@@ -127,7 +127,7 @@ namespace ModelTest
                 Name = "btnSerialPortServerConfig",
                 Text = "串口服务器查看和配置",
                 Dock = DockStyle.Top,
-                Height = 100,
+                Height = 75,
                 BackColor = Color.FromArgb(42, 135, 104),
                 ForeColor = Color.White,
                 FlatStyle = FlatStyle.Flat,

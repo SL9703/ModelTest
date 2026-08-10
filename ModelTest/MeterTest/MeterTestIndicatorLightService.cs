@@ -133,32 +133,144 @@ internal sealed class MeterTestIndicatorLightService
     }
 
     /// <summary>
-    /// 执行方案中的 LED 效果灯测试。
-    /// 跑马灯和闪烁测试都只通过0x2F灯光协议发送，不改变测试业务结论之外的其它流程状态。
+    /// 按灯光控制面板执行完整LED效果测试。
+    /// 流程为：开始确认 -> 面板1 -> 面板2 -> 面板3；同一面板内的工位并发发送，
+    /// 面板之间严格串行，避免多个面板同时发送导致目视顺序混乱。
     /// </summary>
-    public async Task<MeterTestFlowStepResult> ExecuteLedEffectTestAsync(
+    public async Task<MeterTestFlowStepResult> ExecuteLedEffectSuiteAsync(
         MeterTestPlanConfig planConfig,
         MeterTestControlPcbConnectionManager connectionManager,
-        MeterTestSubItem subItem,
+        MeterTestSubItem marqueeSubItem,
+        MeterTestSubItem blinkSubItem,
         IReadOnlyList<StationCommunicationConfig> stations,
         Action<int, IEnumerable<string>> writeStationLog,
+        Func<string, bool> confirmStart,
+        Func<string, IReadOnlyList<int>, IReadOnlyList<int>?> confirmPanelResult,
+        Action<IReadOnlyList<int>, IReadOnlyList<int>, bool, string> panelResult,
         CancellationToken cancellationToken)
     {
         long startTicks = Environment.TickCount64;
         if (stations.Count == 0)
-        {
             return MeterTestFlowStepResult.Fail("LED效果灯测试未选择工位。", startTicks);
+
+        if (!confirmStart("即将开始LED效果灯测试，请确认现场人员已就位，可以观察灯光变化。"))
+            return MeterTestFlowStepResult.Fail("用户取消LED效果灯测试。", startTicks);
+
+        MeterTestIndicatorLightGroup[] groups = planConfig.IndicatorLightGroups
+            .Where(group => group.Enabled)
+            .OrderBy(group => group.StationStart)
+            .ToArray();
+        bool allSuccess = true;
+        bool completedAnyGroup = false;
+
+        foreach (MeterTestIndicatorLightGroup group in groups)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            List<StationCommunicationConfig> groupStations = stations
+                .Where(station => station.StationNo >= group.StationStart && station.StationNo <= group.StationEnd)
+                .OrderBy(station => station.StationNo)
+                .ToList();
+            if (groupStations.Count == 0)
+                continue;
+
+            completedAnyGroup = true;
+            int marqueeIntervalSeconds = Math.Max(MinimumDelaySeconds, marqueeSubItem.LedMarqueeIntervalSeconds);
+            ushort blinkTimeMs = (ushort)Math.Clamp(blinkSubItem.LedBlinkTimeMs, 1, ushort.MaxValue);
+            int blinkHoldSeconds = blinkSubItem.LedBlinkHoldSeconds > 0
+                ? blinkSubItem.LedBlinkHoldSeconds
+                : Math.Max(MinimumDelaySeconds, blinkSubItem.LedEffectHoldSeconds);
+            int steadyHoldSeconds = blinkSubItem.LedSteadyHoldSeconds > 0
+                ? blinkSubItem.LedSteadyHoldSeconds
+                : Math.Max(MinimumDelaySeconds, blinkSubItem.LedEffectHoldSeconds);
+            int offHoldSeconds = blinkSubItem.LedOffHoldSeconds > 0
+                ? blinkSubItem.LedOffHoldSeconds
+                : Math.Max(MinimumDelaySeconds, blinkSubItem.LedEffectHoldSeconds);
+
+            string stationSummary = string.Join(",", groupStations.Select(station => station.StationNo));
+            WriteAllStationLogs(
+                groupStations,
+                writeStationLog,
+                $"[LED效果灯测试] 开始面板：{group.Name}，工位={stationSummary}。");
+
+            bool groupSuccess = true;
+            LightEffectStep[] sequence =
+            [
+                new(Red, Led1Power, SteadyOn, 0, marqueeIntervalSeconds, "LED1红灯长亮"),
+                new(Red, Led2SelfCheck, SteadyOn, 0, marqueeIntervalSeconds, "LED2红灯长亮"),
+                new(Red, Led3Testing, SteadyOn, 0, marqueeIntervalSeconds, "LED3红灯长亮"),
+                new(Red, Led4Result, SteadyOn, 0, marqueeIntervalSeconds, "LED4红灯长亮"),
+                new(0, 0, Off, 0, 5, "红灯顺序确认等待"),
+                new(Green, Led1Power | Led2SelfCheck | Led3Testing | Led4Result, SteadyOn, 0, 5, "LED1-LED4绿灯长亮"),
+                new(Yellow, Led1Power | Led2SelfCheck | Led3Testing | Led4Result, SteadyOn, 0, 5, "LED1-LED4黄灯长亮"),
+                new(Red, Led1Power | Led2SelfCheck | Led3Testing | Led4Result, Blink, blinkTimeMs, 5, "LED1-LED4红灯闪烁"),
+                new(Green, Led1Power | Led2SelfCheck | Led3Testing | Led4Result, Blink, blinkTimeMs, 5, "LED1-LED4绿灯闪烁"),
+                new(Yellow, Led1Power | Led2SelfCheck | Led3Testing | Led4Result, Blink, blinkTimeMs, 5, "LED1-LED4黄灯闪烁"),
+                new(Green, Led1Power | Led2SelfCheck | Led3Testing | Led4Result, Off, 0, 0, "LED1-LED4熄灭")
+            ];
+
+            foreach (LightEffectStep step in sequence)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (step.LedMask != 0)
+                {
+                    groupSuccess &= await SendEffectStepToStationsAsync(
+                            planConfig,
+                            connectionManager,
+                            groupStations,
+                            step,
+                            $"[LED效果灯测试][{group.Name}] {step.Description}",
+                            writeStationLog,
+                            cancellationToken)
+                        .ConfigureAwait(false);
+                }
+                else
+                {
+                    WriteAllStationLogs(groupStations, writeStationLog, $"[LED效果灯测试][{group.Name}] {step.Description}");
+                }
+
+                if (step.HoldSeconds > 0)
+                    await Task.Delay(TimeSpan.FromSeconds(step.HoldSeconds), cancellationToken).ConfigureAwait(false);
+            }
+
+            string panelMessage = groupSuccess
+                ? $"{group.Name} 工位{stationSummary}灯光报文发送完成，请目视确认流水灯和闪烁效果。"
+                : $"{group.Name} 工位{stationSummary}存在灯光报文发送失败，请检查日志和现场设备。";
+            int[] groupStationNumbers = groupStations.Select(station => station.StationNo).ToArray();
+            IReadOnlyList<int>? passedStations = confirmPanelResult(panelMessage, groupStationNumbers);
+            if (passedStations is null)
+            {
+                WriteAllStationLogs(groupStations, writeStationLog, $"[LED效果灯测试] 用户取消{group.Name}确认，结束本次灯光测试。");
+                return new MeterTestFlowStepResult(
+                    false,
+                    $"用户取消{group.Name}工位合格确认。",
+                    Math.Max(0, Environment.TickCount64 - startTicks));
+            }
+
+            int[] normalizedPassedStations = passedStations
+                .Intersect(groupStationNumbers)
+                .Distinct()
+                .OrderBy(stationNo => stationNo)
+                .ToArray();
+            bool finalGroupResult = groupSuccess && normalizedPassedStations.Length == groupStationNumbers.Length;
+            panelResult(
+                groupStationNumbers,
+                normalizedPassedStations,
+                groupSuccess,
+                groupSuccess
+                    ? $"用户确认合格工位：{string.Join(",", normalizedPassedStations)}。"
+                    : "灯光报文发送存在失败，未通过发送验证的工位判为不合格。");
+            allSuccess &= finalGroupResult;
+
+            WriteAllStationLogs(
+                groupStations,
+                writeStationLog,
+                $"[LED效果灯测试] 面板{group.Name}完成，结论={(finalGroupResult ? "合格" : "不合格")}。");
         }
 
-        string step = (subItem.LedEffectStep ?? string.Empty).Trim();
-        bool success = step.Equals("Blink", StringComparison.OrdinalIgnoreCase)
-            ? await ExecuteBlinkEffectAsync(planConfig, connectionManager, subItem, stations, writeStationLog, cancellationToken)
-                .ConfigureAwait(false)
-            : await ExecuteMarqueeEffectAsync(planConfig, connectionManager, subItem, stations, writeStationLog, cancellationToken)
-                .ConfigureAwait(false);
+        if (!completedAnyGroup)
+            return MeterTestFlowStepResult.Fail("选中工位未匹配到启用的IndicatorLightGroup。", startTicks);
 
-        // 效果测试结束后恢复测试正常状态：LED1保持上电绿灯，LED2/LED3/LED4熄灭。
-        foreach (StationCommunicationConfig station in stations.OrderBy(item => item.StationNo))
+        foreach (StationCommunicationConfig station in stations)
         {
             await TurnOffAllStationIndicatorsAsync(
                     planConfig,
@@ -176,103 +288,10 @@ internal sealed class MeterTestIndicatorLightService
                 .ConfigureAwait(false);
         }
 
-        string message = success
-            ? $"LED效果灯测试完成：{subItem.Name}。"
-            : $"LED效果灯测试存在发送失败或灯光配置缺失：{subItem.Name}。";
-        return new MeterTestFlowStepResult(success, message, Math.Max(0, Environment.TickCount64 - startTicks));
-    }
-
-    /// <summary>
-    /// 跑马灯测试：按红、绿、黄三种颜色依次点亮LED1-LED4，每个状态按配置间隔保持，默认2秒。
-    /// 默认总时长60秒；若一轮24个状态不足60秒，会从序列开头继续循环。
-    /// </summary>
-    private async Task<bool> ExecuteMarqueeEffectAsync(
-        MeterTestPlanConfig planConfig,
-        MeterTestControlPcbConnectionManager connectionManager,
-        MeterTestSubItem subItem,
-        IReadOnlyList<StationCommunicationConfig> stations,
-        Action<int, IEnumerable<string>> writeStationLog,
-        CancellationToken cancellationToken)
-    {
-        int durationSeconds = Math.Max(MinimumDelaySeconds, subItem.LedMarqueeDurationSeconds);
-        int intervalSeconds = Math.Max(MinimumDelaySeconds, subItem.LedMarqueeIntervalSeconds);
-        int totalSteps = Math.Max(1, (int)Math.Ceiling(durationSeconds / (double)intervalSeconds));
-        LightEffectStep[] sequence = BuildMarqueeSequence();
-        bool allSuccess = true;
-
-        WriteAllStationLogs(
-            stations,
-            writeStationLog,
-            $"[LED跑马灯测试] 开始：总时长={durationSeconds}s，每{intervalSeconds}s发送一次，共{totalSteps}步。");
-
-        for (int stepIndex = 0; stepIndex < totalSteps; stepIndex++)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            LightEffectStep step = sequence[stepIndex % sequence.Length];
-            allSuccess &= await SendEffectStepToStationsAsync(
-                    planConfig,
-                    connectionManager,
-                    stations,
-                    step,
-                    $"[LED跑马灯测试] 第{stepIndex + 1}/{totalSteps}步：{step.Description}",
-                    writeStationLog,
-                    cancellationToken)
-                .ConfigureAwait(false);
-            await Task.Delay(TimeSpan.FromSeconds(intervalSeconds), cancellationToken).ConfigureAwait(false);
-        }
-
-        WriteAllStationLogs(stations, writeStationLog, "[LED跑马灯测试] 结束，准备恢复测试正常状态。");
-        return allSuccess;
-    }
-
-    /// <summary>
-    /// 闪烁测试：LED1-LED4逐个执行红、绿、黄的闪烁、长亮、熄灭流程。
-    /// 闪烁、长亮、熄灭分别由ledBlinkHoldSeconds、ledSteadyHoldSeconds、ledOffHoldSeconds配置，默认均为15秒。
-    /// </summary>
-    private async Task<bool> ExecuteBlinkEffectAsync(
-        MeterTestPlanConfig planConfig,
-        MeterTestControlPcbConnectionManager connectionManager,
-        MeterTestSubItem subItem,
-        IReadOnlyList<StationCommunicationConfig> stations,
-        Action<int, IEnumerable<string>> writeStationLog,
-        CancellationToken cancellationToken)
-    {
-        int fallbackHoldSeconds = Math.Max(MinimumDelaySeconds, subItem.LedEffectHoldSeconds);
-        int blinkHoldSeconds = subItem.LedBlinkHoldSeconds > 0 ? subItem.LedBlinkHoldSeconds : fallbackHoldSeconds;
-        int steadyHoldSeconds = subItem.LedSteadyHoldSeconds > 0 ? subItem.LedSteadyHoldSeconds : fallbackHoldSeconds;
-        int offHoldSeconds = subItem.LedOffHoldSeconds > 0 ? subItem.LedOffHoldSeconds : fallbackHoldSeconds;
-        ushort blinkTimeMs = (ushort)Math.Clamp(subItem.LedBlinkTimeMs, 1, ushort.MaxValue);
-        LightEffectStep[] sequence = BuildBlinkSequence(
-            blinkTimeMs,
-            Math.Max(MinimumDelaySeconds, blinkHoldSeconds),
-            Math.Max(MinimumDelaySeconds, steadyHoldSeconds),
-            Math.Max(MinimumDelaySeconds, offHoldSeconds));
-        bool allSuccess = true;
-
-        WriteAllStationLogs(
-            stations,
-            writeStationLog,
-            $"[LED闪烁测试] 开始：闪烁保持={blinkHoldSeconds}s，长亮保持={steadyHoldSeconds}s，"
-            + $"熄灭保持={offHoldSeconds}s，闪烁周期={blinkTimeMs}ms，共{sequence.Length}步。");
-
-        for (int stepIndex = 0; stepIndex < sequence.Length; stepIndex++)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            LightEffectStep step = sequence[stepIndex];
-            allSuccess &= await SendEffectStepToStationsAsync(
-                    planConfig,
-                    connectionManager,
-                    stations,
-                    step,
-                    $"[LED闪烁测试] 第{stepIndex + 1}/{sequence.Length}步：{step.Description}，保持{step.HoldSeconds}s",
-                    writeStationLog,
-                    cancellationToken)
-                .ConfigureAwait(false);
-            await Task.Delay(TimeSpan.FromSeconds(step.HoldSeconds), cancellationToken).ConfigureAwait(false);
-        }
-
-        WriteAllStationLogs(stations, writeStationLog, "[LED闪烁测试] 结束，准备恢复测试正常状态。");
-        return allSuccess;
+        return new MeterTestFlowStepResult(
+            allSuccess,
+            allSuccess ? "所有灯光控制面板LED效果测试合格。" : "LED效果灯测试存在不合格面板。",
+            Math.Max(0, Environment.TickCount64 - startTicks));
     }
 
     /// <summary>
@@ -310,44 +329,6 @@ internal sealed class MeterTestIndicatorLightService
         return results.All(result => result);
     }
 
-    /// <summary>按“红灯跑完LED1-LED4，再绿灯，再黄灯”的顺序生成跑马灯状态序列。</summary>
-    private static LightEffectStep[] BuildMarqueeSequence()
-    {
-        byte[] colors = { Red, Green, Yellow };
-        byte[] leds = { Led1Power, Led2SelfCheck, Led3Testing, Led4Result };
-        return colors
-            .SelectMany(color => leds.SelectMany(led => new[]
-            {
-                new LightEffectStep(color, led, SteadyOn, 0, 0, $"{GetLedName(led)} {GetColorName(color)}灯长亮"),
-                new LightEffectStep(color, led, Off, 0, 0, $"{GetLedName(led)} 熄灭")
-            }))
-            .ToArray();
-    }
-
-    /// <summary>生成闪烁测试状态序列；LED3按用户要求使用红、黄、绿顺序，其余为红、绿、黄。</summary>
-    private static LightEffectStep[] BuildBlinkSequence(
-        ushort blinkTimeMs,
-        int blinkHoldSeconds,
-        int steadyHoldSeconds,
-        int offHoldSeconds)
-    {
-        byte[] leds = { Led1Power, Led2SelfCheck, Led3Testing, Led4Result };
-        return leds
-            .SelectMany(led =>
-            {
-                byte[] colors = led == Led3Testing
-                    ? new[] { Red, Yellow, Green }
-                    : new[] { Red, Green, Yellow };
-                return colors.SelectMany(color => new[]
-                {
-                    new LightEffectStep(color, led, Blink, blinkTimeMs, blinkHoldSeconds, $"{GetLedName(led)} {GetColorName(color)}灯闪烁"),
-                    new LightEffectStep(color, led, SteadyOn, 0, steadyHoldSeconds, $"{GetLedName(led)} {GetColorName(color)}灯长亮"),
-                    new LightEffectStep(color, led, Off, 0, offHoldSeconds, $"{GetLedName(led)} {GetColorName(color)}灯熄灭")
-                });
-            })
-            .ToArray();
-    }
-
     /// <summary>把同一条过程说明写入所有目标工位的测试日志。</summary>
     private static void WriteAllStationLogs(
         IEnumerable<StationCommunicationConfig> stations,
@@ -359,23 +340,6 @@ internal sealed class MeterTestIndicatorLightService
             writeStationLog(station.StationNo, new[] { log });
         }
     }
-
-    private static string GetLedName(byte ledMask) => ledMask switch
-    {
-        Led1Power => "LED1",
-        Led2SelfCheck => "LED2",
-        Led3Testing => "LED3",
-        Led4Result => "LED4",
-        _ => $"LED掩码0x{ledMask:X2}"
-    };
-
-    private static string GetColorName(byte color) => color switch
-    {
-        Red => "红",
-        Green => "绿",
-        Yellow => "黄",
-        _ => $"颜色0x{color:X2}"
-    };
 
     /// <summary>
     /// 根据工位查找灯光分组，计算灯光地址并发送 0x2F 控制帧。
