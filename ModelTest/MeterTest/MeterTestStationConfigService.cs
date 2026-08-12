@@ -76,7 +76,7 @@ public sealed class MeterTestStationConfigService
 
     /// <summary>
     /// 确保存在工位485通信通道节点。
-    /// 只在StationTcpChannels完全缺失时创建模板；如果用户已经维护了相关节点，程序启动不补齐、不排序、不改IP和端口。
+    /// 已有通道会保留用户维护过的IP和端口，只补齐缺失的工位占位配置，避免界面只显示到已配置的最大工位。
     /// </summary>
     private static void EnsureStations(MeterTestStationConfig config, int stationCount, string defaultIp, int defaultStartPort)
     {
@@ -95,7 +95,15 @@ public sealed class MeterTestStationConfigService
     {
         config.StationTcpChannels ??= new List<MeterTestStationTcpChannel>();
         if (config.StationTcpChannels.Count > 0)
+        {
+            foreach (MeterTestStationTcpChannel channel in config.StationTcpChannels)
+            {
+                channel.Stations ??= new List<MeterTestStationCommunication>();
+                EnsureChannelStations(channel.Stations, stationCount, defaultIp, defaultStartPort);
+            }
+
             return;
+        }
 
         List<MeterTestStationCommunication> templateStations =
             config.LegacyStations is { Count: > 0 }

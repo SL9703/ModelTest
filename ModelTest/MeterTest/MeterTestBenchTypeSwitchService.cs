@@ -29,6 +29,14 @@ public sealed class MeterTestBenchTypeSwitchService
             return MeterTestBenchTypeSwitchResult.Succeeded(skippedMessage, null);
         }
 
+        IReadOnlyList<MeterTestBenchTypeSwitchEndpoint> configuredEndpoints = config.GetEnabledEndpoints();
+        if (configuredEndpoints.Count == 0)
+        {
+            const string skippedMessage = "台体切换端点全部禁用，跳过0x82命令。";
+            LogMessage.Info($"[台体切换] {skippedMessage}");
+            return MeterTestBenchTypeSwitchResult.Succeeded(skippedMessage, null);
+        }
+
         if (!TryResolveConnectionType(
                 selectedStationNumbers,
                 meterArchives,
@@ -40,7 +48,6 @@ public sealed class MeterTestBenchTypeSwitchService
             return MeterTestBenchTypeSwitchResult.Fail(typeError);
         }
 
-        IReadOnlyList<MeterTestBenchTypeSwitchEndpoint> configuredEndpoints = config.GetEnabledEndpoints();
         IReadOnlyList<MeterTestBenchTypeSwitchEndpoint> modeEndpoints =
             config.GetEnabledEndpointsForMode(connectionType);
         if (!TryValidateConfig(config, modeEndpoints, out string configError))
