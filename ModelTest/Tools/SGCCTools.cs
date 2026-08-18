@@ -10,6 +10,15 @@ namespace ModelTest.Tools
     {
         private const int FixedFrameBytesWithoutServerAddressAndApdu = 9;
         private static readonly object FrameStateSyncRoot = new();
+        private static readonly HashSet<string> GetRequestServerAddressSign15Oads = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "00100200", // 正向有功总电能
+            "20000200", // 电压
+            "20010200", // 电流
+            "20040200", // 有功功率
+            "20050200", // 无功功率
+            "200A0200"  // 功率因数
+        };
 
         private static readonly IReadOnlyDictionary<string, string> ApduServiceTypes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
@@ -204,15 +213,27 @@ namespace ModelTest.Tools
             Array.Reverse(addressBytes);
             string wireAddress = ToHex(addressBytes);
             piid = NormalizePiid(piidCandidate);
+            string serverAddressSign = ResolveServerAddressSignForGetRequest(normalizedOad);
 
             return BytesToSGCCMessage(
                 "68",
                 "43",
-                "05",
+                serverAddressSign,
                 wireAddress,
                 "A0",
                 $"05 01 {piid} {normalizedOad} 00",
                 "16");
+        }
+
+        /// <summary>
+        /// 根据GetRequestNormal读取的OAD选择服务器地址标识。
+        /// 读取电量、标准表瞬时量相关OAD时现场设备要求使用15，其他读取请求继续使用05。
+        /// </summary>
+        private static string ResolveServerAddressSignForGetRequest(string normalizedOad)
+        {
+            return GetRequestServerAddressSign15Oads.Contains(normalizedOad)
+                ? "15"
+                : "05";
         }
 
         public static List<string> SGCCSericeImp()
