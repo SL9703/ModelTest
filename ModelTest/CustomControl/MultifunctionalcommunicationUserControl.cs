@@ -121,6 +121,10 @@ namespace ModelTest.CustomControl
                 // 当前工具页需要用户手动控制连接生命周期。
                 // 自动重连会在切换到 TCPServer 后留下旧客户端回调，导致状态和端口占用判断混乱。
                 EnableAutoReconnect = false,
+                // 多功能通信页不主动发送协议心跳，避免连接后周期性发送 PING。
+                EnableHeartbeat = false,
+                // 同时关闭无活动探测，避免长时间无通信时主动发送 ACTIVITY_TEST。
+                EnableInactivityProbe = false,
             };
             _tcpClient.MessageReceived += TcpClient_MessageReceived;
             _tcpClient.MessageSent += TcpClient_MessageSent;

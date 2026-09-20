@@ -70,6 +70,9 @@ namespace ModelTest
             panel4 = new Panel();
             tableLayoutPanel1 = new TableLayoutPanel();
             groupBox10 = new GroupBox();
+            btnRealModelDCUP = new Button();
+            cbbxrealModel = new ComboBox();
+            label9 = new Label();
             bttnReadSTAPinStatus = new Button();
             comboBoxSTAStutas = new ComboBox();
             bttnSTALPin = new Button();
@@ -202,6 +205,8 @@ namespace ModelTest
             panel2 = new Panel();
             panel3 = new Panel();
             mainLayoutPanel = new TableLayoutPanel();
+            cbxRealModel31 = new CheckBox();
+            cbxRealModel01 = new CheckBox();
             tabControl1.SuspendLayout();
             tabPage1.SuspendLayout();
             TestUnit.SuspendLayout();
@@ -232,7 +237,6 @@ namespace ModelTest
             tabPage7.SuspendLayout();
             tabPage18.SuspendLayout();
             tabControl6.SuspendLayout();
-            tabPage24.SuspendLayout();
             LogUnit.SuspendLayout();
             contextMenuStrip1.SuspendLayout();
             statusStrip1.SuspendLayout();
@@ -670,6 +674,11 @@ namespace ModelTest
             // 
             // groupBox10
             // 
+            groupBox10.Controls.Add(cbxRealModel31);
+            groupBox10.Controls.Add(cbxRealModel01);
+            groupBox10.Controls.Add(btnRealModelDCUP);
+            groupBox10.Controls.Add(cbbxrealModel);
+            groupBox10.Controls.Add(label9);
             groupBox10.Controls.Add(bttnReadSTAPinStatus);
             groupBox10.Controls.Add(comboBoxSTAStutas);
             groupBox10.Controls.Add(bttnSTALPin);
@@ -690,6 +699,38 @@ namespace ModelTest
             groupBox10.TabIndex = 0;
             groupBox10.TabStop = false;
             groupBox10.Text = "模块控制";
+            // 
+            // btnRealModelDCUP
+            // 
+            btnRealModelDCUP.Location = new Point(342, 180);
+            btnRealModelDCUP.Margin = new Padding(4);
+            btnRealModelDCUP.Name = "btnRealModelDCUP";
+            btnRealModelDCUP.Size = new Size(132, 40);
+            btnRealModelDCUP.TabIndex = 13;
+            btnRealModelDCUP.Tag = "0";
+            btnRealModelDCUP.Text = "模块上电";
+            btnRealModelDCUP.UseVisualStyleBackColor = true;
+            btnRealModelDCUP.Click += btnRealModelDCUP_Click;
+            // 
+            // cbbxrealModel
+            // 
+            cbbxrealModel.FormattingEnabled = true;
+            cbbxrealModel.Items.AddRange(new object[] { "真实模块1", "真实模块2", "真实模块3", "真实模块4", "真实模块5" });
+            cbbxrealModel.Location = new Point(102, 178);
+            cbbxrealModel.Margin = new Padding(4);
+            cbbxrealModel.Name = "cbbxrealModel";
+            cbbxrealModel.Size = new Size(212, 36);
+            cbbxrealModel.TabIndex = 12;
+            // 
+            // label9
+            // 
+            label9.AutoSize = true;
+            label9.Location = new Point(6, 182);
+            label9.Margin = new Padding(4, 0, 4, 0);
+            label9.Name = "label9";
+            label9.Size = new Size(96, 28);
+            label9.TabIndex = 11;
+            label9.Text = "真实模块";
             // 
             // bttnReadSTAPinStatus
             // 
@@ -1043,7 +1084,7 @@ namespace ModelTest
             ultrSimpleDisplay1.Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Regular, GraphicsUnit.Point, 134);
             ultrSimpleDisplay1.ForeColor = Color.White;
             ultrSimpleDisplay1.Location = new Point(0, 0);
-            ultrSimpleDisplay1.Margin = new Padding(4, 4, 4, 4);
+            ultrSimpleDisplay1.Margin = new Padding(4);
             ultrSimpleDisplay1.MinimumSize = new Size(760, 320);
             ultrSimpleDisplay1.Name = "ultrSimpleDisplay1";
             ultrSimpleDisplay1.Padding = new Padding(12, 8, 12, 10);
@@ -1641,7 +1682,7 @@ namespace ModelTest
             tabControl6.TabIndex = 0;
             // 
             // tabPage24
-            //
+            // 
             tabPage24.Location = new Point(4, 37);
             tabPage24.Margin = new Padding(4);
             tabPage24.Name = "tabPage24";
@@ -2167,6 +2208,30 @@ namespace ModelTest
             mainLayoutPanel.Size = new Size(2244, 1333);
             mainLayoutPanel.TabIndex = 6;
             // 
+            // cbxRealModel31
+            // 
+            cbxRealModel31.AutoSize = true;
+            cbxRealModel31.Location = new Point(603, 181);
+            cbxRealModel31.Margin = new Padding(4);
+            cbxRealModel31.Name = "cbxRealModel31";
+            cbxRealModel31.Size = new Size(85, 32);
+            cbxRealModel31.TabIndex = 15;
+            cbxRealModel31.Text = "0x31";
+            cbxRealModel31.UseVisualStyleBackColor = true;
+            // 
+            // cbxRealModel01
+            // 
+            cbxRealModel01.AutoSize = true;
+            cbxRealModel01.Checked = true;
+            cbxRealModel01.CheckState = CheckState.Checked;
+            cbxRealModel01.Location = new Point(503, 181);
+            cbxRealModel01.Margin = new Padding(4);
+            cbxRealModel01.Name = "cbxRealModel01";
+            cbxRealModel01.Size = new Size(85, 32);
+            cbxRealModel01.TabIndex = 14;
+            cbxRealModel01.Text = "0x01";
+            cbxRealModel01.UseVisualStyleBackColor = true;
+            // 
             // ModelMain
             // 
             AutoScaleDimensions = new SizeF(13F, 28F);
@@ -2177,11 +2242,9 @@ namespace ModelTest
             Controls.Add(panel1);
             Controls.Add(statusStrip1);
             Margin = new Padding(6, 5, 6, 5);
-            MaximizeBox = false;
             Name = "ModelMain";
             StartPosition = FormStartPosition.CenterScreen;
             Text = "习承科技测试";
-            MaximizeBox = true;
             WindowState = FormWindowState.Maximized;
             Load += ModelMain_Load;
             tabControl1.ResumeLayout(false);
@@ -2223,7 +2286,6 @@ namespace ModelTest
             tabPage7.ResumeLayout(false);
             tabPage18.ResumeLayout(false);
             tabControl6.ResumeLayout(false);
-            tabPage24.ResumeLayout(false);
             LogUnit.ResumeLayout(false);
             contextMenuStrip1.ResumeLayout(false);
             statusStrip1.ResumeLayout(false);
@@ -2420,5 +2482,10 @@ namespace ModelTest
         private Button btnApplyingmagnet;
         private Button btnReleasemagnet;
         private TabPage tabPage_UDP;
+        private Label label9;
+        private Button btnRealModelDCUP;
+        private ComboBox cbbxrealModel;
+        private CheckBox cbxRealModel31;
+        private CheckBox cbxRealModel01;
     }
 }

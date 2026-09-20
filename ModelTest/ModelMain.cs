@@ -255,6 +255,7 @@ namespace ModelTest
             this.SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint, true);
             this.UpdateStyles();
             ModelTool.BindMutexCheckBoxes(checkBox1, checkBox2);//初始化模组0x01 0x31命令选择状态
+            ModelTool.BindMutexCheckBoxes(cbxRealModel01, cbxRealModel31);//初始化真实模组0x01 0x31命令选择状态
             ModelTool.BindMutexCheckBoxes(checkBoxC, checkBoxN);//初始化模组IC和IN命令选择状态
             ModelTool.BindMutexCheckBoxes(cbx_TerminalV1_IC, cbx_TerminalV1_IN);//初始化终端IC和IN命令选择状态
 
@@ -492,7 +493,7 @@ namespace ModelTest
                                 {
                                     AddLog($"发送消息失败[PC-->MCU] : {BitConverter.ToString(ModelTool.HexStringToByteArray(mCU)).Replace("-", " ")}", Color.White);
                                 }
-                               
+
                             }
                         }
                     }
@@ -521,6 +522,7 @@ namespace ModelTest
         string MCUAddr = string.Empty;
         string STA = string.Empty;
         string STAPINREAD = string.Empty;
+        string RealModel = string.Empty;
         /// <summary>
         /// 直流上电按钮
         /// </summary>
@@ -1129,6 +1131,55 @@ namespace ModelTest
             }
         }
         /// <summary>
+        /// 真实模组上下电（直流电）
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private async void btnRealModelDCUP_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                LogMessage.Info(sender?.ToString() ?? nameof(btnRealModelDCUP_Click));
+
+                RealModel = TerminalModel.GetTerminalRealModelByte(cbbxrealModel.Text);
+                MCUAddr = tbxTerminalAdds.Text;
+
+                string? moduleCode = cbxRealModel01.Checked
+                    ? "01"
+                    : cbxRealModel31.Checked
+                        ? "31"
+                        : null;
+
+                if (moduleCode == null)
+                {
+                    AddLog("请选择真实模块类型");
+                    return;
+                }
+
+                bool isPowerOn = btnRealModelDCUP.Text == "模块上电";
+                string modelValue = isPowerOn ? RealModel : "00";
+
+                var command = TerminalModel.TerminalByte(
+                    MCUStartByte,
+                    A0700_DataLength,
+                    MCUAddr,
+                    MCUCtrl,
+                    moduleCode,
+                    modelValue,
+                    MCUStopByte);
+
+                await SeedMethod(command);
+
+                btnRealModelDCUP.Text = isPowerOn ? "模块下电" : "模块上电";
+            }
+            catch (Exception ex)
+            {
+                AddLog($"真实模块上下电失败：{ex.Message}");
+                LogMessage.Error(ex);
+            }
+        }
+
+        /// <summary>
         /// sta上下DC（直流电）
         /// </summary>
         /// <param name="sender"></param>
@@ -1581,7 +1632,7 @@ namespace ModelTest
                 e.Handled = true;//不能输入
             }
         }
-     
+
         private void UpdateUI(Action action)
         {
             if (InvokeRequired)
@@ -1658,8 +1709,9 @@ namespace ModelTest
         {
             ShowNonModalToolWindow(_protocolParserForm, () => new ProtocolParserForm(), form => _protocolParserForm = form);
         }
+
         private void ShowNonModalToolWindow<TForm>(TForm? form, Func<TForm> factory, Action<TForm?> setForm)
-            where TForm : Form
+                    where TForm : Form
         {
             if (form != null && !form.IsDisposed)
             {

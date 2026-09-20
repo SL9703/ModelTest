@@ -60,6 +60,23 @@ namespace ModelTest
             return TerminalMeassage;
         }
         /// <summary>
+        /// 真实模组字节转换
+        /// </summary>
+        /// <param name="realModel"></param>
+        /// <returns></returns>
+        public static string GetTerminalRealModelByte(string? realModel)
+        {
+            return realModel?.Trim() switch
+            {
+                "真实模块1" => "01",
+                "真实模块2" => "02",
+                "真实模块3" => "04",
+                "真实模块4" => "08",
+                "真实模块5" => "10",
+                _ => "00"
+            };
+        }
+        /// <summary>
         /// STA1-STA2 03 STA1 01 STA2 02
         /// </summary>
         /// <param name="s"></param>

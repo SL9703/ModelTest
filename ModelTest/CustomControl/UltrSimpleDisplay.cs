@@ -12,6 +12,10 @@ namespace ModelTest.CustomControl
         private const string MCUStopByte = "AA";
         private const string MCUCtrl = "00";
         private const int ResponseTimeoutMilliseconds = 5000;
+        private const string XckjConfigSection = "ErrorTest";
+        private const string ClockFrequencyConfigKey = "ClockFrequency";
+        private const uint DefaultClockFrequency = 500_000;
+        private static readonly string XckjConfigPath = Path.Combine(Application.StartupPath, "XCKJcomfig.ini");
 
         private double _displayValue;
         private readonly object _responseLock = new();
@@ -304,7 +308,12 @@ namespace ModelTest.CustomControl
                         return;
                     }
 
-                    if (!await SendCommandAndWaitAsync("设置时钟频率", GetConstantCommand(), BuildConstantData("05", standardConstant)))
+                    if (!TryReadClockFrequency(out uint clockFrequency))
+                    {
+                        return;
+                    }
+
+                    if (!await SendCommandAndWaitAsync("设置时钟频率", GetConstantCommand(), BuildConstantData("05", clockFrequency)))
                     {
                         return;
                     }
@@ -444,14 +453,19 @@ namespace ModelTest.CustomControl
             meterConstant = 0;
             circleCount = 0;
 
-            if (!TryParseUInt32(tbxBZBC.Text, "标准表常数", out standardConstant) ||
-                !TryParseUInt32(tbxDNBC.Text, "电能表常数", out meterConstant) ||
-                !TryParseUInt16(tbxRJSC.Text, "圈数", out circleCount))
+            if (!TryParseUInt16(tbxRJSC.Text, "圈数", out circleCount))
             {
                 return false;
             }
 
-            return true;
+            // 日计时使用 XCKJcomfig.ini 中的时钟频率，不依赖界面上的常数输入框。
+            if (experimentType == "03")
+            {
+                return true;
+            }
+
+            return TryParseUInt32(tbxBZBC.Text, "标准表常数", out standardConstant) &&
+                   TryParseUInt32(tbxDNBC.Text, "电能表常数", out meterConstant);
         }
 
         private bool TryReadExperimentControlSettings(
@@ -495,6 +509,31 @@ namespace ModelTest.CustomControl
             }
 
             value = Convert.ToUInt16(Math.Round(parsed));
+            return true;
+        }
+
+        private bool TryReadClockFrequency(out uint clockFrequency)
+        {
+            clockFrequency = 0;
+            string configuredValue = Confighelper
+                .ReadIni(
+                    XckjConfigSection,
+                    ClockFrequencyConfigKey,
+                    DefaultClockFrequency.ToString(CultureInfo.InvariantCulture),
+                    255,
+                    XckjConfigPath)
+                .Trim();
+
+            if (!uint.TryParse(configuredValue, NumberStyles.None, CultureInfo.InvariantCulture, out clockFrequency) ||
+                clockFrequency == 0)
+            {
+                LogRequested?.Invoke(
+                    $"日计时时钟频率配置无效：[{XckjConfigSection}]{ClockFrequencyConfigKey}={configuredValue}，请填写大于0的整数。");
+                clockFrequency = 0;
+                return false;
+            }
+
+            LogRequested?.Invoke($"读取日计时时钟频率：{clockFrequency}（配置文件：XCKJcomfig.ini）");
             return true;
         }
 
