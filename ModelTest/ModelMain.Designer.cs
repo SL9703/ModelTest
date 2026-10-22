@@ -70,6 +70,8 @@ namespace ModelTest
             panel4 = new Panel();
             tableLayoutPanel1 = new TableLayoutPanel();
             groupBox10 = new GroupBox();
+            cbxRealModel31 = new CheckBox();
+            cbxRealModel01 = new CheckBox();
             btnRealModelDCUP = new Button();
             cbbxrealModel = new ComboBox();
             label9 = new Label();
@@ -205,8 +207,9 @@ namespace ModelTest
             panel2 = new Panel();
             panel3 = new Panel();
             mainLayoutPanel = new TableLayoutPanel();
-            cbxRealModel31 = new CheckBox();
-            cbxRealModel01 = new CheckBox();
+            label10 = new Label();
+            btnChangePower = new Button();
+            btnNoChangePower = new Button();
             tabControl1.SuspendLayout();
             tabPage1.SuspendLayout();
             TestUnit.SuspendLayout();
@@ -674,6 +677,9 @@ namespace ModelTest
             // 
             // groupBox10
             // 
+            groupBox10.Controls.Add(btnNoChangePower);
+            groupBox10.Controls.Add(btnChangePower);
+            groupBox10.Controls.Add(label10);
             groupBox10.Controls.Add(cbxRealModel31);
             groupBox10.Controls.Add(cbxRealModel01);
             groupBox10.Controls.Add(btnRealModelDCUP);
@@ -699,6 +705,30 @@ namespace ModelTest
             groupBox10.TabIndex = 0;
             groupBox10.TabStop = false;
             groupBox10.Text = "模块控制";
+            // 
+            // cbxRealModel31
+            // 
+            cbxRealModel31.AutoSize = true;
+            cbxRealModel31.Location = new Point(603, 181);
+            cbxRealModel31.Margin = new Padding(4);
+            cbxRealModel31.Name = "cbxRealModel31";
+            cbxRealModel31.Size = new Size(85, 32);
+            cbxRealModel31.TabIndex = 15;
+            cbxRealModel31.Text = "0x31";
+            cbxRealModel31.UseVisualStyleBackColor = true;
+            // 
+            // cbxRealModel01
+            // 
+            cbxRealModel01.AutoSize = true;
+            cbxRealModel01.Checked = true;
+            cbxRealModel01.CheckState = CheckState.Checked;
+            cbxRealModel01.Location = new Point(503, 181);
+            cbxRealModel01.Margin = new Padding(4);
+            cbxRealModel01.Name = "cbxRealModel01";
+            cbxRealModel01.Size = new Size(85, 32);
+            cbxRealModel01.TabIndex = 14;
+            cbxRealModel01.Text = "0x01";
+            cbxRealModel01.UseVisualStyleBackColor = true;
             // 
             // btnRealModelDCUP
             // 
@@ -1811,7 +1841,7 @@ namespace ModelTest
             // 
             toolStripStatusVersion.Name = "toolStripStatusVersion";
             toolStripStatusVersion.Size = new Size(163, 28);
-            toolStripStatusVersion.Text = "测试版本：2.1.1";
+            toolStripStatusVersion.Text = "测试版本：2.2.0";
             // 
             // statusTimeTimer
             // 
@@ -2208,29 +2238,39 @@ namespace ModelTest
             mainLayoutPanel.Size = new Size(2244, 1333);
             mainLayoutPanel.TabIndex = 6;
             // 
-            // cbxRealModel31
+            // label10
             // 
-            cbxRealModel31.AutoSize = true;
-            cbxRealModel31.Location = new Point(603, 181);
-            cbxRealModel31.Margin = new Padding(4);
-            cbxRealModel31.Name = "cbxRealModel31";
-            cbxRealModel31.Size = new Size(85, 32);
-            cbxRealModel31.TabIndex = 15;
-            cbxRealModel31.Text = "0x31";
-            cbxRealModel31.UseVisualStyleBackColor = true;
+            label10.AutoSize = true;
+            label10.Location = new Point(4, 249);
+            label10.Margin = new Padding(4, 0, 4, 0);
+            label10.Name = "label10";
+            label10.Size = new Size(307, 28);
+            label10.TabIndex = 16;
+            label10.Text = "切换电源（12V带载）（0x60）";
             // 
-            // cbxRealModel01
+            // btnChangePower
             // 
-            cbxRealModel01.AutoSize = true;
-            cbxRealModel01.Checked = true;
-            cbxRealModel01.CheckState = CheckState.Checked;
-            cbxRealModel01.Location = new Point(503, 181);
-            cbxRealModel01.Margin = new Padding(4);
-            cbxRealModel01.Name = "cbxRealModel01";
-            cbxRealModel01.Size = new Size(85, 32);
-            cbxRealModel01.TabIndex = 14;
-            cbxRealModel01.Text = "0x01";
-            cbxRealModel01.UseVisualStyleBackColor = true;
+            btnChangePower.Location = new Point(6, 291);
+            btnChangePower.Margin = new Padding(4);
+            btnChangePower.Name = "btnChangePower";
+            btnChangePower.Size = new Size(132, 40);
+            btnChangePower.TabIndex = 17;
+            btnChangePower.Tag = "0";
+            btnChangePower.Text = "切换电源";
+            btnChangePower.UseVisualStyleBackColor = true;
+            btnChangePower.Click += btnChangePower_Click;
+            // 
+            // btnNoChangePower
+            // 
+            btnNoChangePower.Location = new Point(159, 291);
+            btnNoChangePower.Margin = new Padding(4);
+            btnNoChangePower.Name = "btnNoChangePower";
+            btnNoChangePower.Size = new Size(132, 40);
+            btnNoChangePower.TabIndex = 18;
+            btnNoChangePower.Tag = "0";
+            btnNoChangePower.Text = "不切换电源";
+            btnNoChangePower.UseVisualStyleBackColor = true;
+            btnNoChangePower.Click += btnNoChangePower_Click;
             // 
             // ModelMain
             // 
@@ -2487,5 +2527,8 @@ namespace ModelTest
         private ComboBox cbbxrealModel;
         private CheckBox cbxRealModel31;
         private CheckBox cbxRealModel01;
+        private Label label10;
+        private Button btnNoChangePower;
+        private Button btnChangePower;
     }
 }

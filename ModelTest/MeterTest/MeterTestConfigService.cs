@@ -235,13 +235,13 @@ public sealed class MeterTestConfigService
         string ip,
         int port,
         bool supportsSinglePhase) => new()
-    {
-        Name = name,
-        Enabled = true,
-        Ip = ip,
-        Port = port,
-        SupportsSinglePhase = supportsSinglePhase
-    };
+        {
+            Name = name,
+            Enabled = true,
+            Ip = ip,
+            Port = port,
+            SupportsSinglePhase = supportsSinglePhase
+        };
 
     /// <summary>
     /// 为旧版三端点配置补齐单相能力标记。

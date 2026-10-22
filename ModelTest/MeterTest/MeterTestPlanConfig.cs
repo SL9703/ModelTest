@@ -355,6 +355,18 @@ public class MeterTestSubItem
     [XmlAttribute("sourceControlConfig")]
     public string SourceControlConfig { get; set; } = string.Empty;
 
+    /// <summary>QuickTest 人工控源电压覆盖值，仅在 QuickTestManualSource 模式使用。</summary>
+    [XmlAttribute("quickTestVoltage")]
+    public string QuickTestVoltage { get; set; } = string.Empty;
+
+    /// <summary>QuickTest 人工控源电流覆盖值，仅在 QuickTestManualSource 模式使用。</summary>
+    [XmlAttribute("quickTestCurrent")]
+    public string QuickTestCurrent { get; set; } = string.Empty;
+
+    /// <summary>QuickTest 人工控源功率因数，仅在 QuickTestManualSource 模式使用。</summary>
+    [XmlAttribute("quickTestPowerFactor")]
+    public string QuickTestPowerFactor { get; set; } = string.Empty;
+
     /// <summary>
     /// 串口服务器波特率流程的步骤名称：Connect、ReadParameters、Compare、Apply。
     /// 仅在 SerialPortServerBaudRateSync 模式下生效。
@@ -383,6 +395,13 @@ public class MeterTestSubItem
     /// </summary>
     [XmlAttribute("deviceSelfCheckStep")]
     public string DeviceSelfCheckStep { get; set; } = string.Empty;
+
+    /// <summary>
+    /// QuickTest 自动自检准备步骤：DownSource、SwitchMode、ConfigureCircuit、RaiseSource。
+    /// 仅在 QuickTestAutoPreparation 模式下生效。
+    /// </summary>
+    [XmlAttribute("quickTestAutoPreparationStep")]
+    public string QuickTestAutoPreparationStep { get; set; } = string.Empty;
 
     /// <summary>
     /// LED效果灯测试步骤：Marquee 表示跑马灯，Blink 表示闪烁/长亮/熄灭组合测试。
@@ -589,6 +608,10 @@ public enum ResponseParserType
 public enum MeterTestExecutionMode
 {
     StationTcp,
+    /// <summary>QuickTest 人工控源步骤，使用小项中显式的电压、电流和功率因数。</summary>
+    QuickTestManualSource,
+    /// <summary>QuickTest 自动自检的降源、切模式、回路配置和升源准备步骤。</summary>
+    QuickTestAutoPreparation,
     ControlPcbDailyTiming,
     /// <summary>
     /// 读取标准表脉冲常数，并通过控制PCB依次下发A2、A0和0x38开始试验命令。
@@ -651,6 +674,10 @@ public enum MeterTestExecutionMode
     ControlPcbWalkingRead,
     /// <summary>按电表电量差×有功常数得到理论脉冲，并与0x37待测表脉冲数比对常数试验结果。</summary>
     ConstantResultJudge,
+    /// <summary>按六步顺序执行单相电表 ESAM 密钥恢复。</summary>
+    KeyRecovery,
+    /// <summary>执行单相电表密钥恢复、密钥更新及更新后业务验证。</summary>
+    KeyUpdate,
     /// <summary>
     /// 仅用于在方案树中预置尚未接入报文的测试流程，启用前需要补充对应执行器。
     /// </summary>

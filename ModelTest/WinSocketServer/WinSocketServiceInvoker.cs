@@ -349,9 +349,9 @@ namespace ModelTest
                     return _server.CallObj_Meter_Formal_GetMeterSetData(ParseInt(args[0], "iOperateMode"), args[1], args[2], args[3],
                         buffers.OutSID, buffers.OutAttachData, buffers.OutData, buffers.OutMAC);
                 case "Obj_Meter_Formal_GetGrpBrdCstData":
-                    RequireArgs(serviceName, args, 7);
-                    LogArgs(("iKeyState", args[0]), ("iOperateMode", args[1]), ("cESAMNO", args[2]), ("cGrpKID", args[3]), ("cDIV", args[4]), ("AGSEQ", args[5]), ("cBrdCstData", args[6]));
-                    return _server.CallObj_Meter_Formal_GetGrpBrdCstData(ParseInt(args[0], "iKeyState"), ParseInt(args[1], "iOperateMode"), args[2], args[3], args[4], args[5], args[6],
+                    RequireArgs(serviceName, args, 6);
+                    LogArgs(("iKeyState", args[0]), ("iOperateMode", args[1]), ("cESAMNO", args[2]), ("cDIV", args[3]), ("AGSEQ", args[4]), ("cBrdCstData", args[5]));
+                    return _server.CallObj_Meter_Formal_GetGrpBrdCstData(ParseInt(args[0], "iKeyState"), ParseInt(args[1], "iOperateMode"), args[2], args[3], args[4], args[5],
                         buffers.OutSID, buffers.OutAttachData, buffers.OutData, buffers.OutMAC);
                 case "Obj_Meter_Formal_GetTrmKeyData":
                     RequireArgs(serviceName, args, 5);

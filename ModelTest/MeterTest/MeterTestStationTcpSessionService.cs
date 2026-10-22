@@ -48,11 +48,13 @@ internal sealed class MeterTestStationTcpSessionService : IDisposable
         string requestDescription,
         int timeoutMs,
         Action<string>? trace,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool logTraffic = true)
     {
         byte[] requestBytes = ParseHexBytes(requestHex);
         if (requestBytes.Length == 0)
-            throw new InvalidOperationException("请求报文为空或不是合法HEX。");
+            throw new InvalidOperationException(
+                $"请求报文为空或不是合法HEX，原始内容={FormatInvalidRequest(requestHex)}。");
 
         StationTcpConnectionHolder holder = GetHolder(station);
         await holder.Gate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -71,10 +73,13 @@ internal sealed class MeterTestStationTcpSessionService : IDisposable
                 Trace(trace, $"{FormatTimestamp()} - [工位TCP接口] 丢弃旧缓存报文：{discarded}");
             }
 
-            Trace(
-                trace,
-                $"{FormatTimestamp()} - [工位TCP接口][PC-->Meter] 端点={station.Ip}:{station.Port}，"
-                + $"工位={station.StationNo}，说明={requestDescription}，报文={NormalizeHex(requestHex)}");
+            if (logTraffic)
+            {
+                Trace(
+                    trace,
+                    $"{FormatTimestamp()} - [工位TCP接口][PC-->Meter] 端点={station.Ip}:{station.Port}，"
+                    + $"工位={station.StationNo}，说明={requestDescription}，报文={NormalizeHex(requestHex)}");
+            }
             await WriteWithRetryAsync(
                     stream,
                     requestBytes,
@@ -83,10 +88,13 @@ internal sealed class MeterTestStationTcpSessionService : IDisposable
                     timeoutCts.Token)
                 .ConfigureAwait(false);
             string responseHex = await ReadResponseHexAsync(stream, timeoutCts.Token).ConfigureAwait(false);
-            Trace(
-                trace,
-                $"{FormatTimestamp()} - [工位TCP接口][Meter-->PC] 端点={station.Ip}:{station.Port}，"
-                + $"工位={station.StationNo}，报文={responseHex}");
+            if (logTraffic)
+            {
+                Trace(
+                    trace,
+                    $"{FormatTimestamp()} - [工位TCP接口][Meter-->PC] 端点={station.Ip}:{station.Port}，"
+                    + $"工位={station.StationNo}，报文={responseHex}");
+            }
             return responseHex;
         }
         catch (OperationCanceledException ex)
@@ -115,6 +123,94 @@ internal sealed class MeterTestStationTcpSessionService : IDisposable
                 + $"下行报文={NormalizeHex(requestHex)}");
             LogMessage.Error(
                 $"[工位TCP接口][工位{station.StationNo}] 接口异常：端点={station.Ip}:{station.Port}，"
+                + $"说明={requestDescription}。",
+                ex);
+            ResetHolder(holder);
+            throw;
+        }
+        finally
+        {
+            holder.Gate.Release();
+        }
+    }
+
+    /// <summary>
+    /// 复用工位连接发送不等待响应的 HEX 请求。
+    /// 用于广播报文：发送成功即完成，不把电表无响应误判为超时失败。
+    /// </summary>
+    public async Task SendWithoutResponseAsync(
+        StationCommunicationConfig station,
+        string requestHex,
+        string requestDescription,
+        int timeoutMs,
+        Action<string>? trace,
+        CancellationToken cancellationToken,
+        bool logTraffic = true)
+    {
+        byte[] requestBytes = ParseHexBytes(requestHex);
+        if (requestBytes.Length == 0)
+            throw new InvalidOperationException(
+                $"请求报文为空或不是合法HEX，原始内容={FormatInvalidRequest(requestHex)}。");
+
+        StationTcpConnectionHolder holder = GetHolder(station);
+        await holder.Gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            NetworkStream stream = await EnsureConnectedAsync(
+                holder,
+                station,
+                timeoutMs,
+                trace,
+                cancellationToken).ConfigureAwait(false);
+            using CancellationTokenSource timeoutCts = CreateTimeoutToken(timeoutMs, cancellationToken);
+            string discarded = await DrainBufferedDataAsync(stream, timeoutCts.Token).ConfigureAwait(false);
+            if (!string.IsNullOrWhiteSpace(discarded))
+            {
+                Trace(trace, $"{FormatTimestamp()} - [工位TCP接口] 丢弃广播前旧缓存报文：{discarded}");
+            }
+
+            if (logTraffic)
+            {
+                Trace(
+                    trace,
+                    $"{FormatTimestamp()} - [工位TCP接口][PC-->Meter] 端点={station.Ip}:{station.Port}，"
+                    + $"工位={station.StationNo}，说明={requestDescription}，报文={NormalizeHex(requestHex)}");
+            }
+
+            await WriteWithRetryAsync(
+                    stream,
+                    requestBytes,
+                    $"[工位TCP接口][工位{station.StationNo}] {requestDescription}",
+                    trace,
+                    timeoutCts.Token)
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException ex)
+        {
+            string reason = cancellationToken.IsCancellationRequested
+                ? "测试被用户取消"
+                : $"广播发送超时({Math.Max(100, timeoutMs)}ms)";
+            Trace(
+                trace,
+                $"{FormatTimestamp()} - [工位TCP接口] 广播发送失败：端点={station.Ip}:{station.Port}，"
+                + $"工位={station.StationNo}，说明={requestDescription}，原因={reason}，"
+                + $"下行报文={NormalizeHex(requestHex)}");
+            LogMessage.Error(
+                $"[工位TCP接口][工位{station.StationNo}] {reason}：端点={station.Ip}:{station.Port}，"
+                + $"说明={requestDescription}。",
+                ex);
+            ResetHolder(holder);
+            throw;
+        }
+        catch (Exception ex)
+        {
+            Trace(
+                trace,
+                $"{FormatTimestamp()} - [工位TCP接口] 广播发送异常：端点={station.Ip}:{station.Port}，"
+                + $"工位={station.StationNo}，说明={requestDescription}，异常={ex.Message}，"
+                + $"下行报文={NormalizeHex(requestHex)}");
+            LogMessage.Error(
+                $"[工位TCP接口][工位{station.StationNo}] 广播发送异常：端点={station.Ip}:{station.Port}，"
                 + $"说明={requestDescription}。",
                 ex);
             ResetHolder(holder);
@@ -398,11 +494,13 @@ internal sealed class MeterTestStationTcpSessionService : IDisposable
                parseResult.Message.Contains("读取响应标识错误", StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <summary>将允许空格和分隔符的 HEX 文本转换为原始字节；非法长度返回空数组。</summary>
+    /// <summary>将允许空格和分隔符的 HEX 文本转换为原始字节；非法字符或长度返回空数组。</summary>
     private static byte[] ParseHexBytes(string value)
     {
-        string normalized = new(value.Where(Uri.IsHexDigit).ToArray());
-        if (normalized.Length == 0 || normalized.Length % 2 != 0)
+        string normalized = new(value
+            .Where(character => !char.IsWhiteSpace(character) && character != '-')
+            .ToArray());
+        if (normalized.Length == 0 || normalized.Length % 2 != 0 || normalized.Any(character => !Uri.IsHexDigit(character)))
             return Array.Empty<byte>();
 
         byte[] bytes = new byte[normalized.Length / 2];
@@ -412,6 +510,15 @@ internal sealed class MeterTestStationTcpSessionService : IDisposable
         }
 
         return bytes;
+    }
+
+    private static string FormatInvalidRequest(string? requestHex)
+    {
+        if (string.IsNullOrWhiteSpace(requestHex))
+            return "<空>";
+
+        string value = requestHex.Trim();
+        return value.Length <= 128 ? value : value[..128] + "...";
     }
 
     /// <summary>将任意合法 HEX 输入规范化为空格分隔大写文本，便于日志核对。</summary>

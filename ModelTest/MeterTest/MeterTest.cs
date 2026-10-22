@@ -14,12 +14,26 @@ using System.Windows.Forms;
 
 namespace ModelTest.MeterTest
 {
+    public sealed class MeterTestHardwareSafetyCompletedEventArgs : EventArgs
+    {
+        public MeterTestHardwareSafetyCompletedEventArgs(bool success, string message)
+        {
+            Success = success;
+            Message = message;
+        }
+
+        public bool Success { get; }
+        public string Message { get; }
+    }
+
     /// <summary>
     /// MeterTest 主窗体。
     /// 负责方案树加载、工位/资产表维护、测试执行、结果回填和日志输出。
     /// </summary>
     public partial class MeterTest : Form
     {
+        public event EventHandler<MeterTestHardwareSafetyCompletedEventArgs>? HardwareSafetyCompleted;
+
         /// <summary>用于给 WinForms 复合控件开启受保护的双缓冲属性。</summary>
         private static readonly PropertyInfo? DoubleBufferedProperty = typeof(Control).GetProperty(
             "DoubleBuffered",
@@ -58,6 +72,7 @@ namespace ModelTest.MeterTest
         private readonly MeterTestBluetoothInterfaceService bluetoothInterfaceService;
         private readonly MeterTestCountdownService countdownService = new();
         private readonly MeterTestDailyTimingService dailyTimingService;
+        private readonly MeterTestKeyRecoveryService keyRecoveryService;
         private readonly MeterTestDeviceSelfCheckService deviceSelfCheckService;
         private readonly MeterTestConstantTestService constantTestService;
         private readonly MeterTestCreepingTestService creepingTestService;
@@ -117,6 +132,7 @@ namespace ModelTest.MeterTest
             InitializeComponent();
             controlPcbCommandService = new MeterTestControlPcbCommandService(controlPcbConnectionManager);
             dailyTimingService = new MeterTestDailyTimingService(controlPcbCommandService, countdownService);
+            keyRecoveryService = new MeterTestKeyRecoveryService(stationTcpSessionService, accessDatabaseService);
             sourceControlService = new MeterTestSourceControlService(accessDatabaseService);
             runPreparationService = new MeterTestRunPreparationService(
                 accessDatabaseService,
@@ -1191,6 +1207,7 @@ namespace ModelTest.MeterTest
             stationTcpSessionService.BeginRun();
             bluetoothInterfaceService.BeginRun();
             dailyTimingService.BeginRun();
+            keyRecoveryService.BeginRun();
             creepingTestService.BeginRun();
             btnStartTest.Enabled = false;
             btnStopTest.Enabled = true;
@@ -1270,17 +1287,9 @@ namespace ModelTest.MeterTest
                 await SynchronizeEnabledControlPcbStationPowerAsync(
                     selectedStations.Select(station => station.StationNo));
 
-                HashSet<string> executedLedEffectSuites = new(StringComparer.OrdinalIgnoreCase);
                 foreach (SelectedSubItemContext context in testContexts)
                 {
                     executionCts.Token.ThrowIfCancellationRequested();
-                    if (MeterTestWorkflowRouter.Resolve(context.SubItem) == MeterTestWorkflowKind.LedEffectTest)
-                    {
-                        string ledSuiteKey = $"{context.SchemeName}|{context.TestItemName}";
-                        if (!executedLedEffectSuites.Add(ledSuiteKey))
-                            continue;
-                    }
-
                     await ExecuteTestContextAsync(context, selectedStations, executionCts.Token);
                 }
 
@@ -1855,48 +1864,84 @@ namespace ModelTest.MeterTest
             CancellationToken cancellationToken)
         {
             selectedStations = ResolveStationTcpChannelStations(context, selectedStations);
-            MeterTestWorkflowKind workflowKind = MeterTestWorkflowRouter.Resolve(context.SubItem);
+            MeterTestWorkflowKind workflowKind = MeterTestWorkflowRouter.Resolve(context);
+            LogMessage.Debug(
+               $"[测试流程路由] 测试项目={context.TestItemName}，小项={context.SubItem.Name}，"
+               + $"执行流程={workflowKind}。");
             await SetTestingIndicatorsForStationsAsync(selectedStations, running: true, cancellationToken);
             try
             {
 
-            if (workflowKind == MeterTestWorkflowKind.DeviceSelfCheck)
-            {
-                await ExecuteDeviceSelfCheckStepAsync(context, selectedStations, cancellationToken);
-                return;
-            }
+                if (workflowKind == MeterTestWorkflowKind.DeviceSelfCheck)
+                {
+                    await ExecuteDeviceSelfCheckStepAsync(context, selectedStations, cancellationToken);
+                    return;
+                }
 
-            if (workflowKind == MeterTestWorkflowKind.LedEffectTest)
-            {
-                await ExecuteLedEffectTestStepAsync(context, selectedStations, cancellationToken);
-                return;
-            }
+                if (workflowKind == MeterTestWorkflowKind.LedEffectTest)
+                {
+                    await ExecuteLedEffectTestStepAsync(context, selectedStations, cancellationToken);
+                    return;
+                }
 
-            if (workflowKind == MeterTestWorkflowKind.BasicErrorPoint)
-            {
-                await ExecuteBasicErrorPointAsync(context, selectedStations, cancellationToken);
-                return;
-            }
+                if (workflowKind == MeterTestWorkflowKind.BasicErrorPoint)
+                {
+                    await ExecuteBasicErrorPointAsync(context, selectedStations, cancellationToken);
+                    return;
+                }
 
-            if (workflowKind == MeterTestWorkflowKind.StartingErrorPoint)
-            {
-                await ExecuteStartingErrorPointAsync(context, selectedStations, cancellationToken);
-                return;
-            }
+                if (workflowKind == MeterTestWorkflowKind.StartingErrorPoint)
+                {
+                    await ExecuteStartingErrorPointAsync(context, selectedStations, cancellationToken);
+                    return;
+                }
 
-            if (workflowKind == MeterTestWorkflowKind.BluetoothStationTcp)
-            {
-                await ExecuteBluetoothInterfaceStepAsync(context, selectedStations, cancellationToken);
-                return;
-            }
+                if (workflowKind == MeterTestWorkflowKind.BluetoothStationTcp)
+                {
+                    await ExecuteBluetoothInterfaceStepAsync(context, selectedStations, cancellationToken);
+                    return;
+                }
 
-            bool isCommunicationTest = IsCommunicationTestContext(context);
-            bool sourceControlSucceeded = true;
-            if (MeterTestWorkflowRouter.RequiresSourceControl(context.SubItem))
-            {
-                // 起动和潜动均由5个方案小项共同组成，此处只在第1步写入一次流程头。
-                string? fiveStepSourceTitle = MeterTestWorkflowRouter.GetFiveStepSourceTitle(context.SubItem);
-                if (fiveStepSourceTitle != null)
+                bool isCommunicationTest = IsCommunicationTestContext(context);
+                bool sourceControlSucceeded = true;
+                if (MeterTestWorkflowRouter.RequiresSourceControl(context.SubItem))
+                {
+                    // 起动和潜动均由5个方案小项共同组成，此处只在第1步写入一次流程头。
+                    string? fiveStepSourceTitle = MeterTestWorkflowRouter.GetFiveStepSourceTitle(context.SubItem);
+                    if (fiveStepSourceTitle != null)
+                    {
+                        foreach (StationCommunicationConfig station in selectedStations)
+                        {
+                            LogTestItemStationBlock(
+                                context.TestItemName,
+                                context.SubItem.Name,
+                                station.StationNo,
+                                "流程日志",
+                                StationLogSeparator,
+                                $"[流程开始] 测试项目：{context.TestItemName}",
+                                $"[步骤1/5 {fiveStepSourceTitle}] 开始。");
+                        }
+                    }
+
+                    sourceControlSucceeded = await TryExecuteSourceControlAsync(context, cancellationToken);
+                }
+
+                // 通信测试中的单个准备步骤失败后仍继续执行后续步骤，最后一定尝试地址读取。
+                if (!sourceControlSucceeded && !isCommunicationTest)
+                {
+                    return;
+                }
+
+                // StartingSource/CreepingSource 的完整结果就是“下发升源 + 20秒内标准表达标判断”，
+                // 不再进入普通工位 TCP 一发一收，否则空请求会覆盖已经得到的升源结论。
+                if (workflowKind is MeterTestWorkflowKind.SourceControl
+                    or MeterTestWorkflowKind.ConstantImaxSource
+                    or MeterTestWorkflowKind.ConstantVoltageSource)
+                {
+                    return;
+                }
+
+                if (workflowKind == MeterTestWorkflowKind.Planned)
                 {
                     foreach (StationCommunicationConfig station in selectedStations)
                     {
@@ -1904,153 +1949,132 @@ namespace ModelTest.MeterTest
                             context.TestItemName,
                             context.SubItem.Name,
                             station.StationNo,
-                            "流程日志",
-                            StationLogSeparator,
-                            $"[流程开始] 测试项目：{context.TestItemName}",
-                            $"[步骤1/5 {fiveStepSourceTitle}] 开始。");
+                            "方案占位日志",
+                            $"测试小项尚未接入执行器：{context.SubItem.Name}，未发送报文。");
                     }
-                }
 
-                sourceControlSucceeded = await TryExecuteSourceControlAsync(context, cancellationToken);
-            }
-
-            // 通信测试中的单个准备步骤失败后仍继续执行后续步骤，最后一定尝试地址读取。
-            if (!sourceControlSucceeded && !isCommunicationTest)
-            {
-                return;
-            }
-
-            // StartingSource/CreepingSource 的完整结果就是“下发升源 + 20秒内标准表达标判断”，
-            // 不再进入普通工位 TCP 一发一收，否则空请求会覆盖已经得到的升源结论。
-            if (workflowKind is MeterTestWorkflowKind.SourceControl
-                or MeterTestWorkflowKind.ConstantImaxSource
-                or MeterTestWorkflowKind.ConstantVoltageSource)
-            {
-                return;
-            }
-
-            if (workflowKind == MeterTestWorkflowKind.Planned)
-            {
-                foreach (StationCommunicationConfig station in selectedStations)
-                {
-                    LogTestItemStationBlock(
-                        context.TestItemName,
+                    AddProcessLog(
+                        $"{context.SchemeName}/{context.TestItemName}",
                         context.SubItem.Name,
-                        station.StationNo,
-                        "方案占位日志",
-                        $"测试小项尚未接入执行器：{context.SubItem.Name}，未发送报文。");
+                        false,
+                        "该测试流程已加入方案树，但执行器和通信协议尚未接入，未发送报文。",
+                        0);
+                    return;
                 }
 
-                AddProcessLog(
-                    $"{context.SchemeName}/{context.TestItemName}",
-                    context.SubItem.Name,
-                    false,
-                    "该测试流程已加入方案树，但执行器和通信协议尚未接入，未发送报文。",
-                    0);
-                return;
-            }
+                if (workflowKind == MeterTestWorkflowKind.SerialPortServerBaudRate)
+                {
+                    await ExecuteSerialPortServerBaudRateStepAsync(context, selectedStations, cancellationToken);
+                    return;
+                }
 
-            if (workflowKind == MeterTestWorkflowKind.SerialPortServerBaudRate)
-            {
-                await ExecuteSerialPortServerBaudRateStepAsync(context, selectedStations, cancellationToken);
-                return;
-            }
+                if (workflowKind == MeterTestWorkflowKind.ControlPcbDailyTiming)
+                {
+                    await ExecuteControlPcbDailyTimingStepAsync(context, selectedStations, cancellationToken);
+                    return;
+                }
 
-            if (workflowKind == MeterTestWorkflowKind.ControlPcbDailyTiming)
-            {
-                await ExecuteControlPcbDailyTimingStepAsync(context, selectedStations, cancellationToken);
-                return;
-            }
+                if (workflowKind == MeterTestWorkflowKind.KeyRecovery)
+                {
+                    await ExecuteKeyRecoveryStepAsync(context, selectedStations, cancellationToken);
+                    return;
+                }
 
-            if (workflowKind == MeterTestWorkflowKind.ControlPcbCreepingStart)
-            {
-                await ExecuteControlPcbCreepingStartAsync(context, selectedStations, cancellationToken);
-                return;
-            }
+                if (workflowKind == MeterTestWorkflowKind.KeyUpdate)
+                {
+                    await ExecuteKeyUpdateStepAsync(context, selectedStations, cancellationToken);
+                    return;
+                }
 
-            if (workflowKind == MeterTestWorkflowKind.CreepingWait)
-            {
-                await ExecuteCreepingWaitAsync(context, selectedStations, cancellationToken);
-                return;
-            }
+                if (workflowKind == MeterTestWorkflowKind.ControlPcbCreepingStart)
+                {
+                    await ExecuteControlPcbCreepingStartAsync(context, selectedStations, cancellationToken);
+                    return;
+                }
 
-            if (workflowKind == MeterTestWorkflowKind.ControlPcbCreepingRead)
-            {
-                await ExecuteControlPcbCreepingReadAsync(context, selectedStations, cancellationToken);
-                return;
-            }
+                if (workflowKind == MeterTestWorkflowKind.CreepingWait)
+                {
+                    await ExecuteCreepingWaitAsync(context, selectedStations, cancellationToken);
+                    return;
+                }
 
-            if (workflowKind == MeterTestWorkflowKind.CreepingPulseJudge)
-            {
-                ExecuteCreepingPulseJudgeStep(context, selectedStations);
-                return;
-            }
+                if (workflowKind == MeterTestWorkflowKind.ControlPcbCreepingRead)
+                {
+                    await ExecuteControlPcbCreepingReadAsync(context, selectedStations, cancellationToken);
+                    return;
+                }
 
-            if (workflowKind == MeterTestWorkflowKind.ControlPcbStartingError)
-            {
-                await ExecuteControlPcbStartingErrorStepAsync(context, selectedStations, cancellationToken);
-                return;
-            }
+                if (workflowKind == MeterTestWorkflowKind.CreepingPulseJudge)
+                {
+                    ExecuteCreepingPulseJudgeStep(context, selectedStations);
+                    return;
+                }
 
-            if (workflowKind == MeterTestWorkflowKind.StartingTimeWait)
-            {
-                await ExecuteStartingTimeWaitAsync(context, selectedStations, cancellationToken);
-                return;
-            }
+                if (workflowKind == MeterTestWorkflowKind.ControlPcbStartingError)
+                {
+                    await ExecuteControlPcbStartingErrorStepAsync(context, selectedStations, cancellationToken);
+                    return;
+                }
 
-            if (workflowKind == MeterTestWorkflowKind.ControlPcbStartingErrorRead)
-            {
-                await ExecuteControlPcbStartingErrorReadStepAsync(context, selectedStations, cancellationToken);
-                return;
-            }
+                if (workflowKind == MeterTestWorkflowKind.StartingTimeWait)
+                {
+                    await ExecuteStartingTimeWaitAsync(context, selectedStations, cancellationToken);
+                    return;
+                }
 
-            if (workflowKind == MeterTestWorkflowKind.StartingErrorJudge)
-            {
-                ExecuteStartingErrorJudgeStep(context, selectedStations);
-                return;
-            }
+                if (workflowKind == MeterTestWorkflowKind.ControlPcbStartingErrorRead)
+                {
+                    await ExecuteControlPcbStartingErrorReadStepAsync(context, selectedStations, cancellationToken);
+                    return;
+                }
 
-            if (workflowKind == MeterTestWorkflowKind.ConstantEnergyRead)
-            {
-                await ExecuteConstantEnergyReadAsync(context, selectedStations, cancellationToken);
-                return;
-            }
+                if (workflowKind == MeterTestWorkflowKind.StartingErrorJudge)
+                {
+                    ExecuteStartingErrorJudgeStep(context, selectedStations);
+                    return;
+                }
 
-            if (workflowKind == MeterTestWorkflowKind.ControlPcbWalkingStart)
-            {
-                await ExecuteControlPcbWalkingStartAsync(context, selectedStations, cancellationToken);
-                return;
-            }
+                if (workflowKind == MeterTestWorkflowKind.ConstantEnergyRead)
+                {
+                    await ExecuteConstantEnergyReadAsync(context, selectedStations, cancellationToken);
+                    return;
+                }
 
-            if (workflowKind == MeterTestWorkflowKind.ConstantWait)
-            {
-                await ExecuteConstantWaitAsync(context, selectedStations, cancellationToken);
-                return;
-            }
+                if (workflowKind == MeterTestWorkflowKind.ControlPcbWalkingStart)
+                {
+                    await ExecuteControlPcbWalkingStartAsync(context, selectedStations, cancellationToken);
+                    return;
+                }
 
-            if (workflowKind == MeterTestWorkflowKind.ControlPcbWalkingStop)
-            {
-                await ExecuteControlPcbWalkingStopAsync(context, selectedStations, cancellationToken);
-                return;
-            }
+                if (workflowKind == MeterTestWorkflowKind.ConstantWait)
+                {
+                    await ExecuteConstantWaitAsync(context, selectedStations, cancellationToken);
+                    return;
+                }
 
-            if (workflowKind == MeterTestWorkflowKind.ControlPcbWalkingRead)
-            {
-                await ExecuteControlPcbWalkingReadAsync(context, selectedStations, cancellationToken);
-                return;
-            }
+                if (workflowKind == MeterTestWorkflowKind.ControlPcbWalkingStop)
+                {
+                    await ExecuteControlPcbWalkingStopAsync(context, selectedStations, cancellationToken);
+                    return;
+                }
 
-            if (workflowKind == MeterTestWorkflowKind.ConstantResultJudge)
-            {
-                ExecuteConstantResultJudgeStep(context, selectedStations);
-                return;
-            }
+                if (workflowKind == MeterTestWorkflowKind.ControlPcbWalkingRead)
+                {
+                    await ExecuteControlPcbWalkingReadAsync(context, selectedStations, cancellationToken);
+                    return;
+                }
 
-            List<Task> stationTasks = selectedStations
-                .Select(station => ExecuteStationSubItemAsync(station, context, cancellationToken))
-                .ToList();
+                if (workflowKind == MeterTestWorkflowKind.ConstantResultJudge)
+                {
+                    ExecuteConstantResultJudgeStep(context, selectedStations);
+                    return;
+                }
 
-            await Task.WhenAll(stationTasks);
+                List<Task> stationTasks = selectedStations
+                    .Select(station => ExecuteStationSubItemAsync(station, context, cancellationToken))
+                    .ToList();
+
+                await Task.WhenAll(stationTasks);
             }
             finally
             {
@@ -2060,8 +2084,7 @@ namespace ModelTest.MeterTest
 
         /// <summary>
         /// 根据测试小项stationTcpChannel配置切换485通信通道。
-        /// 通信测试、通信测试-2等工位TCP流程都通过该能力从MeterTestStationConfig.xml读取指定485通道的IP/Port；
-        /// 为空时保持测试过程区域当前选中工位端点。
+        /// 通信测试-2使用该能力从MeterTestStationConfig.xml读取485-1的IP/Port；为空时保持原选中工位端点。
         /// </summary>
         private List<StationCommunicationConfig> ResolveStationTcpChannelStations(
             SelectedSubItemContext context,
@@ -2730,7 +2753,7 @@ namespace ModelTest.MeterTest
                 tbxBarcodeSecondStart.Visible = false;
                 lblBarcodeSecondLength.Visible = false;
                 tbxBarcodeSecondLength.Visible = false;
-                    processGrid.Visible = true;
+                processGrid.Visible = true;
                 countdownPanel.Visible = true;
                 SetProcessLogVisibility(true);
 
@@ -3636,6 +3659,72 @@ namespace ModelTest.MeterTest
         }
 
         /// <summary>
+        /// 执行单相电表密钥恢复流程。服务内部保证六步按工位顺序一收一发，方案树的六个节点只负责展示结果。
+        /// </summary>
+        private async Task ExecuteKeyRecoveryStepAsync(
+            SelectedSubItemContext context,
+            List<StationCommunicationConfig> selectedStations,
+            CancellationToken cancellationToken)
+        {
+            List<Task> tasks = selectedStations.Select(async station =>
+            {
+                MeterTestFlowStepResult result = await keyRecoveryService.ExecuteStepAsync(
+                    context,
+                    station,
+                    message => LogStationCommunicationBlock(
+                        context.TestItemName,
+                        station,
+                        message),
+                    cancellationToken);
+
+                RunOnUiThread(() =>
+                {
+                    ApplyStationExecutionResult(station, context, result.Message, result.Success);
+                    AddProcessLog(
+                        $"{context.SchemeName}/{context.TestItemName}/工位{station.StationNo}",
+                        context.SubItem.Name,
+                        result.Success,
+                        result.Message,
+                        result.ElapsedMilliseconds);
+                });
+            }).ToList();
+
+            await Task.WhenAll(tasks);
+        }
+        /// <summary>
+        /// 执行单相电表密钥更新流程。服务内部保证十三步按工位顺序一收一发，方案树节点只负责展示结果。
+        /// </summary>
+        private async Task ExecuteKeyUpdateStepAsync(
+            SelectedSubItemContext context,
+            List<StationCommunicationConfig> selectedStations,
+            CancellationToken cancellationToken)
+        {
+            List<Task> tasks = selectedStations.Select(async station =>
+            {
+                MeterTestFlowStepResult result = await keyRecoveryService.ExecuteKeyUpdateStepAsync(
+                    context,
+                    station,
+                    message => LogStationCommunicationBlock(
+                        context.TestItemName,
+                        station,
+                        message),
+                    cancellationToken);
+
+                RunOnUiThread(() =>
+                {
+                    ApplyStationExecutionResult(station, context, result.Message, result.Success);
+                    AddProcessLog(
+                        $"{context.SchemeName}/{context.TestItemName}/工位{station.StationNo}",
+                        context.SubItem.Name,
+                        result.Success,
+                        result.Message,
+                        result.ElapsedMilliseconds);
+                });
+            }).ToList();
+
+            await Task.WhenAll(tasks);
+        }
+        /// <summary>
         /// 执行潜动试验启动节点。各控制PCB分组并发，组内按配置间隔逐表位下发0x25+01。
         /// 只有收到数据项严格为01的启动应答，才会记录为后续等待/读取的有效工位。
         /// </summary>
@@ -3950,17 +4039,6 @@ namespace ModelTest.MeterTest
                 : action();
         }
 
-        /// <summary>在UI线程执行需要返回复杂结果的交互操作。</summary>
-        private T? RunOnUiThreadWithValue<T>(Func<T?> action)
-        {
-            if (IsDisposed || Disposing)
-                return default;
-
-            return InvokeRequired
-                ? (T?)Invoke(action)
-                : action();
-        }
-
         /// <summary>
         /// 执行方案树中的一个设备自检小项。
         /// 短路检测先自动降源并复核无压，再由用户通过红色安全弹窗手动确认。
@@ -4057,37 +4135,10 @@ namespace ModelTest.MeterTest
             List<StationCommunicationConfig> selectedStations,
             CancellationToken cancellationToken)
         {
-            MeterTestSubItem marqueeSubItem = context.SubItem;
-            MeterTestSubItem blinkSubItem = context.SubItem;
-            MeterTestItem? ledTestItem = meterTestPlanConfig.Schemes
-                .FirstOrDefault(scheme => scheme.Name.Equals(context.SchemeName, StringComparison.OrdinalIgnoreCase))
-                ?.TestItems.FirstOrDefault(item => item.Name.Equals(context.TestItemName, StringComparison.OrdinalIgnoreCase));
-            if (ledTestItem is not null)
-            {
-                marqueeSubItem = ledTestItem.TestSubItems.FirstOrDefault(subItem =>
-                    subItem.Enabled &&
-                    subItem.ExecutionMode.Equals(MeterTestExecutionMode.LedEffectTest.ToString(), StringComparison.OrdinalIgnoreCase) &&
-                    subItem.LedEffectStep.Equals("Marquee", StringComparison.OrdinalIgnoreCase)) ?? marqueeSubItem;
-                blinkSubItem = ledTestItem.TestSubItems.FirstOrDefault(subItem =>
-                    subItem.Enabled &&
-                    subItem.ExecutionMode.Equals(MeterTestExecutionMode.LedEffectTest.ToString(), StringComparison.OrdinalIgnoreCase) &&
-                    subItem.LedEffectStep.Equals("Blink", StringComparison.OrdinalIgnoreCase)) ?? blinkSubItem;
-            }
-
-            List<SelectedSubItemContext> ledSubContexts = (ledTestItem?.TestSubItems ?? new List<MeterTestSubItem> { context.SubItem })
-                .Where(subItem =>
-                    subItem.Enabled &&
-                    subItem.ExecutionMode.Equals(MeterTestExecutionMode.LedEffectTest.ToString(), StringComparison.OrdinalIgnoreCase))
-                .Select(subItem => new SelectedSubItemContext(context.SchemeName, context.TestItemName, subItem))
-                .ToList();
-            if (ledSubContexts.Count == 0)
-                ledSubContexts.Add(context);
-
-            MeterTestFlowStepResult result = await indicatorLightService.ExecuteLedEffectSuiteAsync(
+            MeterTestFlowStepResult result = await indicatorLightService.ExecuteLedEffectTestAsync(
                 meterTestPlanConfig,
                 controlPcbConnectionManager,
-                marqueeSubItem,
-                blinkSubItem,
+                context.SubItem,
                 selectedStations,
                 (stationNo, lines) => LogTestItemStationBlock(
                     context.TestItemName,
@@ -4095,39 +4146,15 @@ namespace ModelTest.MeterTest
                     stationNo,
                     "LED效果灯测试日志",
                     lines.ToArray()),
-                message => RunOnUiThreadWithResult(() => ShowLedEffectStartConfirmation(message)),
-                (message, stationNos) => RunOnUiThreadWithValue(
-                    () => ShowLedEffectPanelResultConfirmation(message, stationNos)),
-                (stationNos, passedStations, sendSucceeded, message) => RunOnUiThreadWithResult(() =>
-                {
-                    foreach (int stationNo in stationNos)
-                    {
-                        bool passed = sendSucceeded && passedStations.Contains(stationNo);
-                        foreach (SelectedSubItemContext ledContext in ledSubContexts)
-                        {
-                            ApplyStationExecutionResult(stationNo, ledContext, passed, message);
-                        }
-                    }
-                    return true;
-                }),
                 cancellationToken);
 
             foreach (StationCommunicationConfig station in selectedStations)
             {
-                RunOnUiThread(() =>
-                {
-                    foreach (SelectedSubItemContext ledContext in ledSubContexts)
-                    {
-                        if (!stationResultCache.ContainsKey(new StationResultKey(
-                                ledContext.SchemeName,
-                                ledContext.TestItemName,
-                                ledContext.SubItem.Name,
-                                station.StationNo)))
-                        {
-                            ApplyStationExecutionResult(station.StationNo, ledContext, result.Success, result.Message);
-                        }
-                    }
-                });
+                RunOnUiThread(() => ApplyStationExecutionResult(
+                    station.StationNo,
+                    context,
+                    result.Success,
+                    result.Message));
             }
 
             AddProcessLog(
@@ -4137,109 +4164,6 @@ namespace ModelTest.MeterTest
                 result.Message,
                 result.ElapsedMilliseconds);
             RestoreStationDisplayForSelectedNode();
-        }
-
-        /// <summary>LED效果灯测试开始前的人工确认，避免现场错过目视观察起点。</summary>
-        private bool ShowLedEffectStartConfirmation(string message)
-        {
-            return MessageBox.Show(
-                this,
-                $"{message}\r\n\r\n点击“确定”后将从第一个灯光控制面板开始测试。",
-                "LED效果灯测试确认",
-                MessageBoxButtons.OKCancel,
-                MessageBoxIcon.Warning,
-                MessageBoxDefaultButton.Button2) == DialogResult.OK;
-        }
-
-        /// <summary>
-        /// 每个灯光控制面板测试结束后的人工判定确认。
-        /// 面板下的工位默认全部勾选，取消勾选的工位单独判为不合格。
-        /// </summary>
-        private IReadOnlyList<int>? ShowLedEffectPanelResultConfirmation(
-            string message,
-            IReadOnlyList<int> stationNumbers)
-        {
-            using Form dialog = new()
-            {
-                Text = "LED效果灯测试结果确认",
-                FormBorderStyle = FormBorderStyle.FixedDialog,
-                StartPosition = FormStartPosition.CenterParent,
-                ClientSize = new Size(560, 300),
-                MaximizeBox = false,
-                MinimizeBox = false,
-                ShowInTaskbar = false
-            };
-            Label messageLabel = new()
-            {
-                Dock = DockStyle.Top,
-                Height = 92,
-                Padding = new Padding(18, 14, 18, 8),
-                Text = $"{message}\r\n\r\n请勾选目视确认合格的工位："
-            };
-            FlowLayoutPanel stationPanel = new()
-            {
-                Dock = DockStyle.Fill,
-                Padding = new Padding(18, 4, 18, 4),
-                FlowDirection = FlowDirection.LeftToRight,
-                WrapContents = true,
-                AutoScroll = true
-            };
-            List<CheckBox> stationChecks = new();
-            foreach (int stationNo in stationNumbers.OrderBy(item => item))
-            {
-                CheckBox checkBox = new()
-                {
-                    Text = $"工位{stationNo}",
-                    Checked = true,
-                    AutoSize = true,
-                    Margin = new Padding(4, 4, 18, 4),
-                    Font = new Font(Font.FontFamily, 10F, FontStyle.Bold)
-                };
-                stationChecks.Add(checkBox);
-                stationPanel.Controls.Add(checkBox);
-            }
-
-            FlowLayoutPanel buttons = new()
-            {
-                Dock = DockStyle.Bottom,
-                Height = 58,
-                FlowDirection = FlowDirection.RightToLeft,
-                Padding = new Padding(10)
-            };
-            Button cancelButton = new()
-            {
-                Text = "取消测试",
-                Width = 110,
-                Height = 36,
-                DialogResult = DialogResult.Cancel
-            };
-            Button confirmButton = new()
-            {
-                Text = "确认并继续",
-                Width = 130,
-                Height = 36,
-                DialogResult = DialogResult.OK,
-                BackColor = Color.FromArgb(36, 137, 95),
-                ForeColor = Color.White,
-                FlatStyle = FlatStyle.Flat
-            };
-            buttons.Controls.Add(cancelButton);
-            buttons.Controls.Add(confirmButton);
-            dialog.Controls.Add(stationPanel);
-            dialog.Controls.Add(buttons);
-            dialog.Controls.Add(messageLabel);
-            dialog.AcceptButton = confirmButton;
-            dialog.CancelButton = cancelButton;
-
-            if (dialog.ShowDialog(this) != DialogResult.OK)
-                return null;
-
-            return stationChecks
-                .Where(checkBox => checkBox.Checked)
-                .Select(checkBox => int.Parse(
-                    checkBox.Text["工位".Length..],
-                    CultureInfo.InvariantCulture))
-                .ToArray();
         }
 
         /// <summary>

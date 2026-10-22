@@ -894,6 +894,80 @@ public sealed class MeterTestAccessDatabaseService
         transaction.Commit();
     }
 
+    /// <summary>保存密钥恢复流程最新一次读取到的 ESAM 状态。</summary>
+    public void SaveMeterEsamData(MeterEsamData data)
+    {
+        EnsureInitialized();
+        using SqliteConnection connection = CreateOpenConnection();
+        using SqliteCommand command = connection.CreateCommand();
+        command.CommandText =
+            """
+            INSERT INTO MeterEsamData
+            (
+                StationNo, MeterAddress, SecureModeEnabled, EsamNumber,
+                SymmetricKeyVersion, ApplicationCounter, ActiveReportCounter,
+                BroadcastCounter, UpdatedAt
+            )
+            VALUES
+            (
+                $StationNo, $MeterAddress, $SecureModeEnabled, $EsamNumber,
+                $SymmetricKeyVersion, $ApplicationCounter, $ActiveReportCounter,
+                $BroadcastCounter, $UpdatedAt
+            )
+            ON CONFLICT (StationNo, MeterAddress)
+            DO UPDATE SET
+                SecureModeEnabled = excluded.SecureModeEnabled,
+                EsamNumber = excluded.EsamNumber,
+                SymmetricKeyVersion = excluded.SymmetricKeyVersion,
+                ApplicationCounter = excluded.ApplicationCounter,
+                ActiveReportCounter = excluded.ActiveReportCounter,
+                BroadcastCounter = excluded.BroadcastCounter,
+                UpdatedAt = excluded.UpdatedAt;
+            """;
+        AddParameter(command, "$StationNo", data.StationNo);
+        AddParameter(command, "$MeterAddress", data.MeterAddress);
+        AddParameter(command, "$SecureModeEnabled", data.SecureModeEnabled ? 1 : 0);
+        AddParameter(command, "$EsamNumber", data.EsamNumber);
+        AddParameter(command, "$SymmetricKeyVersion", data.SymmetricKeyVersion);
+        AddParameter(command, "$ApplicationCounter", (long)data.ApplicationCounter);
+        AddParameter(command, "$ActiveReportCounter", (long)data.ActiveReportCounter);
+        AddParameter(command, "$BroadcastCounter", (long)data.BroadcastCounter);
+        AddParameter(command, "$UpdatedAt", data.UpdatedAt.ToString("yyyy-MM-dd HH:mm:ss.fff"));
+        command.ExecuteNonQuery();
+    }
+
+    /// <summary>读取指定工位和电表地址的 ESAM 状态。</summary>
+    public MeterEsamData? LoadMeterEsamData(int stationNo, string meterAddress)
+    {
+        EnsureInitialized();
+        using SqliteConnection connection = CreateOpenConnection();
+        using SqliteCommand command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT StationNo, MeterAddress, SecureModeEnabled, EsamNumber,
+                   SymmetricKeyVersion, ApplicationCounter, ActiveReportCounter,
+                   BroadcastCounter, UpdatedAt
+            FROM MeterEsamData
+            WHERE StationNo = $StationNo AND MeterAddress = $MeterAddress;
+            """;
+        AddParameter(command, "$StationNo", stationNo);
+        AddParameter(command, "$MeterAddress", meterAddress?.Trim() ?? string.Empty);
+        using SqliteDataReader reader = command.ExecuteReader();
+        if (!reader.Read())
+            return null;
+
+        return new MeterEsamData(
+            reader.GetInt32(0),
+            reader.GetString(1),
+            reader.GetInt32(2) != 0,
+            reader.GetString(3),
+            reader.GetString(4),
+            checked((uint)reader.GetInt64(5)),
+            checked((uint)reader.GetInt64(6)),
+            checked((uint)reader.GetInt64(7)),
+            DateTime.Parse(reader.GetString(8)));
+    }
+
     /// <summary>
     /// 保存一次完整测试任务快照。
     /// 同一 RunId 重复保存时覆盖快照内容，支持自动保存后再手动保存。
@@ -1350,6 +1424,22 @@ public sealed class MeterTestAccessDatabaseService
                 MeterAddress TEXT NOT NULL,
                 BaudRate TEXT NOT NULL DEFAULT '9600-8-E-1',
                 UpdatedAt TEXT NOT NULL
+            );
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS MeterEsamData
+            (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                StationNo INTEGER NOT NULL,
+                MeterAddress TEXT NOT NULL,
+                SecureModeEnabled INTEGER NOT NULL,
+                EsamNumber TEXT NOT NULL,
+                SymmetricKeyVersion TEXT NOT NULL,
+                ApplicationCounter INTEGER NOT NULL,
+                ActiveReportCounter INTEGER NOT NULL,
+                BroadcastCounter INTEGER NOT NULL,
+                UpdatedAt TEXT NOT NULL,
+                UNIQUE (StationNo, MeterAddress)
             );
             """,
             """

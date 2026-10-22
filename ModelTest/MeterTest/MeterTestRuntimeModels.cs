@@ -14,6 +14,18 @@ internal sealed record StationCommunicationConfig(
     string MeterAddress,
     string BaudRate);
 
+/// <summary>密钥恢复流程读取到的 ESAM 状态，字段均保存为大写 HEX 或明确的数值。</summary>
+public sealed record MeterEsamData(
+    int StationNo,
+    string MeterAddress,
+    bool SecureModeEnabled,
+    string EsamNumber,
+    string SymmetricKeyVersion,
+    uint ApplicationCounter,
+    uint ActiveReportCounter,
+    uint BroadcastCounter,
+    DateTime UpdatedAt);
+
 /// <summary>
 /// 当前被执行的小项上下文。
 /// 把 Scheme、TestItem、TestSubItem 三层信息打包，便于流程服务脱离 WinForms 控件执行。

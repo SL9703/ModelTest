@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using ModelTest.Socket_DLL.Socket_Client;
 using ModelTest.Tools;
+using ModelTest.Protocol;
 
 namespace ModelTest.CustomControl
 {
@@ -27,9 +28,20 @@ namespace ModelTest.CustomControl
         public TerminalV1YXUserControl()
         {
             InitializeComponent();
+            ConfigureResponsiveLayout();
             this.BackColor = Color.FromArgb(88, 149, 127);
             cbxChange232And485.SelectionLength = 0;
             Disposed += TerminalV1YXUserControl_Disposed;
+        }
+
+        /// <summary>
+        /// 保留既有控件位置，在低分辨率窗口中通过纵向滚动访问底部操作项。
+        /// </summary>
+        private void ConfigureResponsiveLayout()
+        {
+            AutoScroll = true;
+            AutoScrollMinSize = new Size(0, 930);
+            tableLayoutPanel1.AutoScroll = true;
         }
 
         private async void btn_YXConnect_Click(object sender, EventArgs e)
@@ -551,22 +563,36 @@ namespace ModelTest.CustomControl
             await SendTerminalProtocolCommandAsync("C2", data, $"设置遥信防抖脉宽：{width}ms");
         }
 
-        /// <summary>启动遥信雪崩测试，时间和次数均按协议限制在60~255。</summary>
+        /// <summary>启动遥信雪崩测试，数据项为通道掩码、16位小端变位次数和毫秒间隔。</summary>
         private async void btnAvalancheTest_Click(object sender, EventArgs e)
         {
-            if (!byte.TryParse(tbxAvalancheSeconds.Text.Trim(), out byte seconds) ||
-                !byte.TryParse(tbxAvalancheCount.Text.Trim(), out byte count) ||
-                seconds is < 60 or > 255 ||
-                count is < 60 or > 255)
+            byte channelMask = GetSelectedRemoteSignalMask();
+            if (channelMask == 0)
             {
-                PublishLog("雪崩测试失败：时间和次数都必须在60~255之间。");
+                PublishLog("雪崩测试失败：至少选择一个遥信通道。");
                 return;
             }
 
+            if (!ushort.TryParse(tbxAvalancheSeconds.Text.Trim(), out ushort intervalMilliseconds) ||
+                intervalMilliseconds == 0)
+            {
+                PublishLog("雪崩测试失败：间隔时间必须是1~65535毫秒。");
+                return;
+            }
+
+            if (!ushort.TryParse(tbxAvalancheCount.Text.Trim(), out ushort changeCount) ||
+                changeCount is < 2 or > 65534)
+            {
+                PublishLog("雪崩测试失败：变位次数必须是2~65534。");
+                return;
+            }
+
+            string data = $"{channelMask:X2}{changeCount & 0xFF:X2}{changeCount >> 8:X2}" +
+                $"{intervalMilliseconds & 0xFF:X2}{intervalMilliseconds >> 8:X2}";
             await SendTerminalProtocolCommandAsync(
                 "C3",
-                $"{seconds:X2}{count:X2}01",
-                $"启动遥信雪崩测试：{seconds}秒，{count}次");
+                data,
+                $"启动遥信雪崩测试：通道={channelMask:X2}，{changeCount}次，间隔{intervalMilliseconds}毫秒");
         }
 
         /// <summary>修改CAN波特率，协议数据为以1K为单位的两字节高字节在前。</summary>
@@ -606,7 +632,7 @@ namespace ModelTest.CustomControl
         {
             try
             {
-                string frame = BuildTerminalCommandFrame(command, data);
+                string frame = TerminalControlPcbProtocol.BuildFrame(tbx_YXAddr.Text, command, data);
                 PublishLog($"{description}，发送报文：{frame}");
                 await SendMCUToPC(frame);
             }
@@ -637,10 +663,21 @@ namespace ModelTest.CustomControl
             {
                 0x09 when dataLength >= 2 =>
                     ParseClosingState(rawData, dataStart, dataLength),
+                0xC3 when dataLength >= 5 =>
+                    ParseAvalancheTest(rawData, dataStart),
                 0x0C when dataLength >= 4 =>
                     ParseTemperatureHumidity(rawData, dataStart, dataLength),
                 _ => string.Empty
             };
+        }
+
+        /// <summary>解析0xC3回显的5字节数据项，并验证其通道、次数和间隔字段。</summary>
+        private static string ParseAvalancheTest(byte[] data, int start)
+        {
+            byte channelMask = data[start];
+            ushort changeCount = (ushort)(data[start + 1] | (data[start + 2] << 8));
+            ushort intervalMilliseconds = (ushort)(data[start + 3] | (data[start + 4] << 8));
+            return $"遥信雪崩测试响应：通道={channelMask:X2}，变位次数={changeCount}次，间隔时间={intervalMilliseconds}毫秒。";
         }
 
         /// <summary>解析0x09返回的合闸当前状态和变化状态。</summary>
@@ -683,60 +720,17 @@ namespace ModelTest.CustomControl
                    $"4={((value & 0x08) != 0 ? "闭合" : "断开")}";
         }
 
-        /// <summary>
-        /// 生成终端V1控制协议帧：
-        /// 55 + 长度 + 方向00 + 地址 + 协议类型00 + 命令码 + 数据项 + 校验和 + AA。
-        /// 长度和校验和均按协议示例计算，地址沿用当前遥信地址。
-        /// </summary>
-        private string BuildTerminalCommandFrame(string command, string data)
+        private byte GetSelectedRemoteSignalMask()
         {
-            string address = AddressToHexChange.MeassageAddr(tbx_YXAddr.Text.Trim());
-            if (!byte.TryParse(command, System.Globalization.NumberStyles.HexNumber, null, out byte commandByte))
-                throw new ArgumentException($"命令码无效：{command}");
-
-            if (!string.IsNullOrWhiteSpace(data) && (!IsEvenHex(data) || data.Length % 2 != 0))
-                throw new ArgumentException($"数据项不是有效偶数位HEX：{data}");
-
-            byte[] dataBytes = string.IsNullOrWhiteSpace(data)
-                ? Array.Empty<byte>()
-                : ModelTool.HexStringToByteArray(data);
-
-            if (!byte.TryParse(address, System.Globalization.NumberStyles.HexNumber, null, out byte addressByte))
-                throw new ArgumentException($"终端地址无效：{tbx_YXAddr.Text}");
-
-            int length = 1 + 4 + dataBytes.Length + 1;
-            if (length > byte.MaxValue)
-                throw new ArgumentException("终端协议数据长度超出单字节范围。");
-
-            var frame = new List<byte>
-            {
-                0x55,
-                (byte)length,
-                0x00,
-                addressByte,
-                0x00,
-                commandByte
-            };
-            frame.AddRange(dataBytes);
-
-            byte checksum = 0;
-            for (int i = 1; i < frame.Count; i++)
-                checksum = unchecked((byte)(checksum + frame[i]));
-
-            frame.Add(checksum);
-            frame.Add(0xAA);
-            return string.Join(" ", frame.Select(value => value.ToString("X2")));
-        }
-
-        /// <summary>
-        /// 校验协议数据项是否只包含偶数位十六进制字符。
-        /// </summary>
-        private static bool IsEvenHex(string value)
-        {
-            if (string.IsNullOrWhiteSpace(value) || value.Length % 2 != 0)
-                return false;
-
-            return value.All(Uri.IsHexDigit);
+            return (byte)(
+                (cbx_YX0.Checked ? 1 : 0)
+                | (cbx_YX1.Checked ? 1 << 1 : 0)
+                | (cbx_YX2.Checked ? 1 << 2 : 0)
+                | (cbx_YX3.Checked ? 1 << 3 : 0)
+                | (cbx_YX4.Checked ? 1 << 4 : 0)
+                | (cbx_YX5.Checked ? 1 << 5 : 0)
+                | (cbx_YX6.Checked ? 1 << 6 : 0)
+                | (cbx_YX7.Checked ? 1 << 7 : 0));
         }
     }
 }

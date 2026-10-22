@@ -33,7 +33,9 @@ internal enum MeterTestWorkflowKind
     ControlPcbWalkingStop,
     ControlPcbWalkingRead,
     ConstantResultJudge,
-    LedEffectTest
+    LedEffectTest,
+    KeyRecovery,
+    KeyUpdate
 }
 
 /// <summary>
@@ -77,8 +79,25 @@ internal static class MeterTestWorkflowRouter
             MeterTestExecutionMode.ControlPcbWalkingRead => MeterTestWorkflowKind.ControlPcbWalkingRead,
             MeterTestExecutionMode.ConstantResultJudge => MeterTestWorkflowKind.ConstantResultJudge,
             MeterTestExecutionMode.LedEffectTest => MeterTestWorkflowKind.LedEffectTest,
+            MeterTestExecutionMode.KeyRecovery => MeterTestWorkflowKind.KeyRecovery,
+            MeterTestExecutionMode.KeyUpdate => MeterTestWorkflowKind.KeyUpdate,
             _ => MeterTestWorkflowKind.StationTcp
         };
+    }
+
+    /// <summary>
+    /// 按完整测试上下文解析流程。密钥恢复和密钥更新是完整流程服务，兼容旧方案中
+    /// 小项遗漏 executionMode 的情况，避免第一步回退到普通 TCP 空报文发送器。
+    /// </summary>
+    public static MeterTestWorkflowKind Resolve(SelectedSubItemContext context)
+    {
+        string testItemName = context.TestItemName.Trim();
+        if (testItemName.Equals(MeterTestKeyRecoveryService.KeyUpdateTestItemName, StringComparison.OrdinalIgnoreCase))
+            return MeterTestWorkflowKind.KeyUpdate;
+        if (testItemName.Equals(MeterTestKeyRecoveryService.TestItemName, StringComparison.OrdinalIgnoreCase))
+            return MeterTestWorkflowKind.KeyRecovery;
+
+        return Resolve(context.SubItem);
     }
 
     /// <summary>

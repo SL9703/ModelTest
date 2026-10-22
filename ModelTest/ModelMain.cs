@@ -8,10 +8,12 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using ModelTest.CustomControl;
+using ModelTest.Protocol;
 using ModelTest.SerialPortImp;
 using ModelTest.Socket_DLL;
 using ModelTest.Socket_DLL.Socket_Client;
 using ModelTest.Tools;
+using static System.Windows.Forms.AxHost;
 namespace ModelTest
 {
     public partial class ModelMain : Form
@@ -29,9 +31,6 @@ namespace ModelTest
         private SHUserControl _shUserControl;
         private SGCCEncryptionServiceUserControl? _sgccEncryptionService;
         private MultifunctionalcommunicationUserControl? _multifunctionalcommunicationUserControl;
-        string MCUStartByte = "55";
-        string MCUStopByte = "AA";
-        string STAPINSET = string.Empty;
         private TerminalTest? _terminalTestForm;
         private MeterTest.MeterTest? _meterTestForm;
         private DatabaseTestForm? _databaseTestForm;
@@ -512,17 +511,6 @@ namespace ModelTest
                 AddLog("地址不能为空");
             }
         }
-        string A0600_DataLength = "0600";
-        string A0700_DataLength = "0700";
-        string A0800_DataLength = "0800";
-        string MCUCtrl = "00";//控制协议
-        string MCUTransparent = "00";//透传协议
-        string MCUData_1 = string.Empty;
-        string MCUData_2 = string.Empty;
-        string MCUAddr = string.Empty;
-        string STA = string.Empty;
-        string STAPINREAD = string.Empty;
-        string RealModel = string.Empty;
         /// <summary>
         /// 直流上电按钮
         /// </summary>
@@ -539,12 +527,13 @@ namespace ModelTest
             //0E    校验码
             //AA     
             LogMessage.Info(sender.ToString());
-            MCUAddr = tbx_addr.Text;//地址
             string commandCode = ModuleModel.GetDcCommandCode(checkBox1.Checked, checkBox2.Checked);
-            MCUData_1 = ModuleModel.TerminalMeterAddr(GetSelectedTerminalClassValue());
-            MCUData_2 = ModuleModel.GetModuleNumberMask(tbxModelNumber.Text);
-            string MCUDCOn = ModuleModel.ModuleByte(MCUStartByte, A0800_DataLength, MCUAddr, MCUCtrl, commandCode, MCUData_1 + MCUData_2, MCUStopByte);
-            await SeedMethod(MCUDCOn);
+            string terminalAddress = ModuleModel.TerminalMeterAddr(GetSelectedTerminalClassValue());
+            string moduleMask = ModuleModel.GetModuleNumberMask(tbxModelNumber.Text);
+            await SeedMethod(TerminalControlPcbProtocol.BuildFrame(
+                tbx_addr.Text,
+                commandCode,
+                terminalAddress + moduleMask));
         }
         /// <summary>
         /// 直流下电按钮
@@ -554,11 +543,12 @@ namespace ModelTest
         private async void btnPowerDown_DC_Click(object sender, EventArgs e)
         {
             LogMessage.Info(sender.ToString());
-            MCUAddr = tbx_addr.Text;//地址
             string commandCode = ModuleModel.GetDcCommandCode(checkBox1.Checked, checkBox2.Checked);
-            MCUData_1 = ModuleModel.TerminalMeterAddr(GetSelectedTerminalClassValue());
-            var MCUDCDown = ModuleModel.ModuleByte(MCUStartByte, A0800_DataLength, MCUAddr, MCUCtrl, commandCode, MCUData_1 + "00", MCUStopByte);
-            await SeedMethod(MCUDCDown);
+            string terminalAddress = ModuleModel.TerminalMeterAddr(GetSelectedTerminalClassValue());
+            await SeedMethod(TerminalControlPcbProtocol.BuildFrame(
+                tbx_addr.Text,
+                commandCode,
+                terminalAddress + "00"));
         }
         /// <summary>
         /// 交流上电命令
@@ -568,15 +558,16 @@ namespace ModelTest
         private async void btnPowerOn_AC_Click(object sender, EventArgs e)
         {
             LogMessage.Info(sender.ToString());
-            MCUAddr = tbx_addr.Text;//地址
-            MCUData_1 = ModuleModel.TerminalMeterAddr(GetSelectedTerminalClassValue());//终端类型，表地址
-            MCUData_2 = ModuleModel.GetAcPhaseMask(
+            string terminalAddress = ModuleModel.TerminalMeterAddr(GetSelectedTerminalClassValue());
+            string phaseMask = ModuleModel.GetAcPhaseMask(
                 checkBoxA.Checked,
                 checkBoxB.Checked,
                 checkBoxC.Checked,
                 checkBoxN.Checked);
-            var MCUACOn = ModuleModel.ModuleByte(MCUStartByte, A0800_DataLength, MCUAddr, MCUCtrl, "21", MCUData_1 + MCUData_2, MCUStopByte);
-            await SeedMethod(MCUACOn);
+            await SeedMethod(TerminalControlPcbProtocol.BuildFrame(
+                tbx_addr.Text,
+                TerminalControlPcbProtocol.MeterAcCommand,
+                terminalAddress + phaseMask));
         }
         /// <summary>
         /// 交流下电命令
@@ -586,10 +577,11 @@ namespace ModelTest
         private async void btnPowerDown_AC_Click(object sender, EventArgs e)
         {
             LogMessage.Info(sender.ToString());
-            MCUAddr = tbx_addr.Text;//地址
-            MCUData_1 = ModuleModel.TerminalMeterAddr(GetSelectedTerminalClassValue());//终端类型，表地址
-            var MCUACDown = ModuleModel.ModuleByte(MCUStartByte, A0800_DataLength, MCUAddr, MCUCtrl, "21", MCUData_1 + "00", MCUStopByte);
-            await SeedMethod(MCUACDown);
+            string terminalAddress = ModuleModel.TerminalMeterAddr(GetSelectedTerminalClassValue());
+            await SeedMethod(TerminalControlPcbProtocol.BuildFrame(
+                tbx_addr.Text,
+                TerminalControlPcbProtocol.MeterAcCommand,
+                terminalAddress + "00"));
         }
         public void AddLog(string Message)
         {
@@ -769,11 +761,10 @@ namespace ModelTest
         {
             //55 07 00 addr MCUCtrl 01&31  01模组1  02模组2 check AA
             LogMessage.Info(sender.ToString());
-            MCUAddr = tbx_addr.Text;//地址
-            string commandCode = ModuleModel.GetDcCommandCode(checkBox1.Checked, checkBox2.Checked);
-            MCUData_2 = ModuleModel.GetModuleNumberMask(tbxModelNumber.Text);//得到模块地址01 02  
-            var CCODCOn = ModuleModel.ModuleByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUCtrl, commandCode, MCUData_2, MCUStopByte);
-            await SeedMethod(CCODCOn);
+            await SeedMethod(TerminalControlPcbProtocol.BuildFrame(
+                tbx_addr.Text,
+                ModuleModel.GetDcCommandCode(checkBox1.Checked, checkBox2.Checked),
+                 ModuleModel.GetModuleNumberMask(tbxModelNumber.Text)));
         }
         /// <summary>
         /// CCO直流下电
@@ -784,30 +775,33 @@ namespace ModelTest
         {
             //55 07 00 addr MCUCtrl 01&31  01模组1  02模组2 check AA
             LogMessage.Info(sender.ToString());
-            MCUAddr = tbx_addr.Text;//地址
-            string commandCode = ModuleModel.GetDcCommandCode(checkBox1.Checked, checkBox2.Checked);
-            var CCODCDown = ModuleModel.ModuleByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUCtrl, commandCode, MCUData_2, MCUStopByte);
-            await SeedMethod(CCODCDown);
+            await SeedMethod(TerminalControlPcbProtocol.BuildFrame(
+                tbx_addr.Text,
+                ModuleModel.GetDcCommandCode(checkBox1.Checked, checkBox2.Checked),
+               "00"
+                ));
         }
         private async void CCOACOn_Click(object sender, EventArgs e)
         {
             LogMessage.Info(sender.ToString());
-            MCUAddr = tbx_addr.Text;//地址
-            MCUData_2 = ModuleModel.GetAcPhaseMask(
-                checkBoxA.Checked,
-                checkBoxB.Checked,
-                checkBoxC.Checked,
-                checkBoxN.Checked);
-            var CCOACOn = ModuleModel.ModuleByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUCtrl, "02", MCUData_2, MCUStopByte);
-            await SeedMethod(CCOACOn);
+            string phaseMask = ModuleModel.GetAcPhaseMask(
+                 checkBoxA.Checked,
+                 checkBoxB.Checked,
+                 checkBoxC.Checked,
+                 checkBoxN.Checked);
+            await SeedMethod(TerminalControlPcbProtocol.BuildFrame(
+                tbx_addr.Text,
+                TerminalControlPcbProtocol.CcoAcCommand,
+                phaseMask));
         }
 
         private async void CCOACDown_Click(object sender, EventArgs e)
         {
             LogMessage.Info(sender.ToString());
-            MCUAddr = tbx_addr.Text;//地址
-            var CCOACDown = ModuleModel.ModuleByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUCtrl, "02", "00", MCUStopByte);
-            await SeedMethod(CCOACDown);
+            await SeedMethod(TerminalControlPcbProtocol.BuildFrame(
+                 tbx_addr.Text,
+                 TerminalControlPcbProtocol.CcoAcCommand,
+                 "00"));
         }
         /// <summary>
         /// 终端单元切换终端类型
@@ -817,10 +811,8 @@ namespace ModelTest
         private async void btnChangeTerminalClass_Click(object sender, EventArgs e)
         {
             LogMessage.Info(sender.ToString());
-            MCUAddr = tbxTerminalAdds.Text;//地址
-            MCUData_1 = TerminalModel.GetTerminalClass(GetSelectedTerminalV1ClassValue());//选择终端类型
-            var ChangeTerminalCls = TerminalModel.TerminalByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUCtrl, "2D", MCUData_1, MCUStopByte);//07 00 01 00 2d 00
-            await SeedMethod(ChangeTerminalCls);
+            string frame = TerminalControlPcbProtocol.BuildFrame(tbxTerminalAdds.Text,TerminalControlPcbProtocol.TerminalTypeCommand,GetSelectedTerminalV1ClassValue().ToString("X2"));
+            await SeedMethod(frame);
         }
         /// <summary>
         /// 接入电压 21
@@ -830,13 +822,11 @@ namespace ModelTest
         private async void btnTerminalBW_VOn_Click(object sender, EventArgs e)
         {
             LogMessage.Info(sender.ToString());
-            MCUAddr = tbxTerminalAdds.Text;//地址
-            string uabc = TerminalModel.GetThreePhaseSelectionByte(
+            string phaseMask = TerminalModel.GetThreePhaseSelectionByte(
                 cbx_TerminalV1_UA.Checked,
                 cbx_TerminalV1_UB.Checked,
                 cbx_TerminalV1_UC.Checked);
-            var Terminal_PowerOn_V = TerminalModel.TerminalByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUCtrl, "21", uabc, MCUStopByte);//07 00 01 00 21 Uabc
-            await SeedMethod(Terminal_PowerOn_V);
+            await SeedMethod(TerminalControlPcbProtocol.BuildFrame(tbxTerminalAdds.Text,TerminalControlPcbProtocol.VoltageCommand,phaseMask));
         }
         /// <summary>
         /// 断开电压21
@@ -846,9 +836,7 @@ namespace ModelTest
         private async void btnTerminalBW_VDown_Click(object sender, EventArgs e)
         {
             LogMessage.Info(sender.ToString());
-            MCUAddr = tbxTerminalAdds.Text;//地址
-            var Terminal_PowerDown_V = TerminalModel.TerminalByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUCtrl, "21", "00", MCUStopByte);//07 00 01 00 21 00
-            await SeedMethod(Terminal_PowerDown_V);
+            await SeedMethod(TerminalControlPcbProtocol.BuildFrame(tbxTerminalAdds.Text,TerminalControlPcbProtocol.VoltageCommand,"00"));
         }
         /// <summary>
         /// 接入电流22
@@ -858,13 +846,14 @@ namespace ModelTest
         private async void btnTerminalBW_AOn_Click(object sender, EventArgs e)
         {
             LogMessage.Info(sender.ToString());
-            MCUAddr = tbxTerminalAdds.Text;//地址
-            string iabcn = TerminalModel.GetThreePhaseSelectionByte(
-              cbx_TerminalV1_IA.Checked,
-              cbx_TerminalV1_IB.Checked,
-              cbx_TerminalV1_IC.Checked);
-            var Terminal_PowerOn_A = TerminalModel.TerminalByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUCtrl, "22", iabcn, MCUStopByte);//07 00 01 00 22 Iabc
-            await SeedMethod(Terminal_PowerOn_A);
+            string phaseMask = TerminalModel.GetThreePhaseSelectionByte(
+               cbx_TerminalV1_IA.Checked,
+               cbx_TerminalV1_IB.Checked,
+               cbx_TerminalV1_IC.Checked);
+            await SeedMethod(TerminalControlPcbProtocol.BuildFrame(
+               tbxTerminalAdds.Text,
+               TerminalControlPcbProtocol.CurrentCommand,
+               phaseMask));
         }
         /// <summary>
         /// 断开电流22
@@ -874,9 +863,10 @@ namespace ModelTest
         private async void btnTerminalBW_ADown_Click(object sender, EventArgs e)
         {
             LogMessage.Info(sender.ToString());
-            MCUAddr = tbxTerminalAdds.Text;//地址
-            var Terminal_PowerDown_A = TerminalModel.TerminalByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUCtrl, "22", "00", MCUStopByte);
-            await SeedMethod(Terminal_PowerDown_A);
+            await SeedMethod(TerminalControlPcbProtocol.BuildFrame(
+                tbxTerminalAdds.Text,
+                TerminalControlPcbProtocol.CurrentCommand,
+                "00"));
         }
         /// <summary>
         /// 电机压接
@@ -886,9 +876,10 @@ namespace ModelTest
         private async void btnTerminalV1MotorCrimping_Click(object sender, EventArgs e)
         {
             LogMessage.Info(sender.ToString());
-            MCUAddr = tbxTerminalAdds.Text;//地址
-            var Terminal_MotorCrimping = TerminalModel.TerminalByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUCtrl, "29", "01", MCUStopByte);
-            await SeedMethod(Terminal_MotorCrimping);
+            await SeedMethod(TerminalControlPcbProtocol.BuildFrame(
+                 tbxTerminalAdds.Text,
+                 TerminalControlPcbProtocol.MotorCrimpingCommand,
+                 "01"));
         }
         /// <summary>
         /// 电机退压接
@@ -898,9 +889,10 @@ namespace ModelTest
         private async void btnTerminalV1MotorCrimpingreturn_Click(object sender, EventArgs e)
         {
             LogMessage.Info(sender.ToString());
-            MCUAddr = tbxTerminalAdds.Text;//地址
-            var Terminal_MotorCrimping = TerminalModel.TerminalByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUCtrl, "29", "00", MCUStopByte);
-            await SeedMethod(Terminal_MotorCrimping);
+            await SeedMethod(TerminalControlPcbProtocol.BuildFrame(
+                           tbxTerminalAdds.Text,
+                           TerminalControlPcbProtocol.MotorCrimpingCommand,
+                           "00"));
         }
         /// <summary>
         /// 红灯控制
@@ -911,28 +903,13 @@ namespace ModelTest
         private async void pictureBoxRed_Click(object sender, EventArgs e)
         {
             LogMessage.Info(sender.ToString());
-            MCUAddr = tbxTerminalAdds.Text;//地址
-            if (!REDFlas)
-            {
-                var Terminal_RedLoop = TerminalModel.TerminalByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUCtrl, "2A", "20", MCUStopByte);
-                await SeedMethod(Terminal_RedLoop);
-                //if (Terminal_RedLoop.Contains(BitConverter.ToString(buffer)))
-                //{
-                //    this.pictureBoxRed.Image = Image.FromFile(Application.StartupPath + "\\png\\" + "红灯.png");
-                //    REDFlas = true;
-                //}
-            }
-            else
-            {
-                var Terminal_RedLoop = TerminalModel.TerminalByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUCtrl, "2A", "10", MCUStopByte);
-                await SeedMethod(Terminal_RedLoop);
-                //if (Terminal_RedLoop.Contains(BitConverter.ToString(buffer)))
-                //{
-                //    this.pictureBoxRed.Image = Image.FromFile(Application.StartupPath + "\\png\\" + "灰灯.png");
-                //    REDFlas = false;
-                //}
-            }
-
+            string data = REDFlas
+                 ? "10"
+                 : "20";
+            await SeedMethod(TerminalControlPcbProtocol.BuildFrame(
+                tbxTerminalAdds.Text,
+                TerminalControlPcbProtocol.IndicatorLightCommand,
+                data));
         }
         /// <summary>
         /// 绿灯控制
@@ -943,28 +920,13 @@ namespace ModelTest
         private async void pictureBoxGreen_Click(object sender, EventArgs e)
         {
             LogMessage.Info(sender.ToString());
-            MCUAddr = tbxTerminalAdds.Text;//地址
-            if (!GreenFlas)
-            {
-                var Terminal_GreenLoop = TerminalModel.TerminalByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUCtrl, "2A", "40", MCUStopByte);
-                await SeedMethod(Terminal_GreenLoop);
-                //if (Terminal_GreenLoop.Contains(BitConverter.ToString(buffer)))
-                //{
-                //    this.pictureBoxRed.Image = Image.FromFile(Application.StartupPath + "\\png\\" + "绿灯.png");
-                //    GreenFlas = true;
-                //}
-            }
-            else
-            {
-                var Terminal_GreenLoop = TerminalModel.TerminalByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUCtrl, "2A", "10", MCUStopByte);
-                await SeedMethod(Terminal_GreenLoop);
-                //if (Terminal_GreenLoop.Contains(BitConverter.ToString(buffer)))
-                //{
-                //    this.pictureBoxRed.Image = Image.FromFile(Application.StartupPath + "\\png\\" + "灰灯.png");
-                //    GreenFlas = false;
-                //}
-
-            }
+            string data = GreenFlas
+                 ? "10"
+                 : "40";
+            await SeedMethod(TerminalControlPcbProtocol.BuildFrame(
+                tbxTerminalAdds.Text,
+                TerminalControlPcbProtocol.IndicatorLightCommand,
+                data));
         }
         /// <summary>
         /// 清空日志
@@ -1048,27 +1010,8 @@ namespace ModelTest
         private async void pBTaiti_Red_Click(object sender, EventArgs e)
         {
             LogMessage.Info(sender.ToString());
-            MCUAddr = tbxTerminalAdds.Text;//地址
-            if (TaiTiRed)
-            {
-                var Terminal_TaiTiRed = TerminalModel.TerminalByte(MCUStartByte, A0800_DataLength, MCUAddr, MCUCtrl, "2C", "0101", MCUStopByte);
-                await SeedMethod(Terminal_TaiTiRed);
-                //if (Terminal_TaiTiRed.Contains(BitConverter.ToString(buffer)))
-                //{
-                //    this.pictureBoxRed.Image = Image.FromFile(Application.StartupPath + "\\png\\" + "红灯.png");
-                //    GreenFlas = true;
-                //}
-            }
-            else
-            {
-                var Terminal_TaiTiRed = TerminalModel.TerminalByte(MCUStartByte, A0800_DataLength, MCUAddr, MCUCtrl, "2C", "0100", MCUStopByte);
-                await SeedMethod(Terminal_TaiTiRed);
-                //if (Terminal_TaiTiRed.Contains(BitConverter.ToString(buffer)))
-                //{
-                //    this.pictureBoxRed.Image = Image.FromFile(Application.StartupPath + "\\png\\" + "灰灯.png");
-                //    GreenFlas = true;
-                //}
-            }
+            string data = TaiTiRed ? "0101" : "0100";
+            await SeedMethod(TerminalControlPcbProtocol.BuildFrame(tbxTerminalAdds.Text, TerminalControlPcbProtocol.TaitiIndicatorlLightCommand, data));
         }
         /// <summary>
         /// 台体运行指示绿灯
@@ -1078,27 +1021,8 @@ namespace ModelTest
         private async void pBTaiti_Green_Click(object sender, EventArgs e)
         {
             LogMessage.Info(sender.ToString());
-            MCUAddr = tbxTerminalAdds.Text;//地址
-            if (TaiTiGreen)
-            {
-                var Terminal_TaiTiGreen = TerminalModel.TerminalByte(MCUStartByte, A0800_DataLength, MCUAddr, MCUCtrl, "2C", "0201", MCUStopByte);
-                await SeedMethod(Terminal_TaiTiGreen);
-                //if (Terminal_TaiTiGreen.Contains(BitConverter.ToString(buffer)))
-                //{
-                //    this.pictureBoxRed.Image = Image.FromFile(Application.StartupPath + "\\png\\" + "绿灯.png");
-                //    GreenFlas = true;
-                //}
-            }
-            else
-            {
-                var Terminal_TaiTiGreen = TerminalModel.TerminalByte(MCUStartByte, A0800_DataLength, MCUAddr, MCUCtrl, "2C", "0200", MCUStopByte);
-                await SeedMethod(Terminal_TaiTiGreen);
-                //if (Terminal_TaiTiGreen.Contains(BitConverter.ToString(buffer)))
-                //{
-                //    this.pictureBoxRed.Image = Image.FromFile(Application.StartupPath + "\\png\\" + "灰灯.png");
-                //    GreenFlas = true;
-                //}
-            }
+            string data = TaiTiGreen ? "0201" : "0200";
+            await SeedMethod(TerminalControlPcbProtocol.BuildFrame(tbxTerminalAdds.Text, TerminalControlPcbProtocol.TaitiIndicatorlLightCommand, data));
         }
         /// <summary>
         /// 台体运行指示黄灯
@@ -1108,27 +1032,8 @@ namespace ModelTest
         private async void pBTaiti_yellow_Click(object sender, EventArgs e)
         {
             LogMessage.Info(sender.ToString());
-            MCUAddr = tbxTerminalAdds.Text;//地址
-            if (TaiTiYellow)
-            {
-                var Terminal_TaiTiYellow = TerminalModel.TerminalByte(MCUStartByte, A0800_DataLength, MCUAddr, MCUCtrl, "2C", "0301", MCUStopByte);
-                await SeedMethod(Terminal_TaiTiYellow);
-                //if (Terminal_TaiTiYellow.Contains(BitConverter.ToString(buffer)))
-                //{
-                //    this.pictureBoxRed.Image = Image.FromFile(Application.StartupPath + "\\png\\" + "红灯.png");
-                //    GreenFlas = true;
-                //}
-            }
-            else
-            {
-                var Terminal_TaiTiYellow = TerminalModel.TerminalByte(MCUStartByte, A0800_DataLength, MCUAddr, MCUCtrl, "2C", "0300", MCUStopByte);
-                await SeedMethod(Terminal_TaiTiYellow);
-                //if (Terminal_TaiTiYellow.Contains(BitConverter.ToString(buffer)))
-                //{
-                //    this.pictureBoxRed.Image = Image.FromFile(Application.StartupPath + "\\png\\" + "灰灯.png");
-                //    GreenFlas = true;
-                //}
-            }
+            string data = TaiTiYellow ? "0301" : "0300";
+            await SeedMethod(TerminalControlPcbProtocol.BuildFrame(tbxTerminalAdds.Text, TerminalControlPcbProtocol.TaitiIndicatorlLightCommand, data));
         }
         /// <summary>
         /// 真实模组上下电（直流电）
@@ -1141,9 +1046,7 @@ namespace ModelTest
             {
                 LogMessage.Info(sender?.ToString() ?? nameof(btnRealModelDCUP_Click));
 
-                RealModel = TerminalModel.GetTerminalRealModelByte(cbbxrealModel.Text);
-                MCUAddr = tbxTerminalAdds.Text;
-
+                var RealModel = TerminalModel.GetTerminalRealModelByte(cbbxrealModel.Text);
                 string? moduleCode = cbxRealModel01.Checked
                     ? "01"
                     : cbxRealModel31.Checked
@@ -1159,17 +1062,7 @@ namespace ModelTest
                 bool isPowerOn = btnRealModelDCUP.Text == "模块上电";
                 string modelValue = isPowerOn ? RealModel : "00";
 
-                var command = TerminalModel.TerminalByte(
-                    MCUStartByte,
-                    A0700_DataLength,
-                    MCUAddr,
-                    MCUCtrl,
-                    moduleCode,
-                    modelValue,
-                    MCUStopByte);
-
-                await SeedMethod(command);
-
+                await SeedMethod(TerminalControlPcbProtocol.BuildFrame(tbxTerminalAdds.Text, moduleCode, modelValue));
                 btnRealModelDCUP.Text = isPowerOn ? "模块下电" : "模块上电";
             }
             catch (Exception ex)
@@ -1189,18 +1082,14 @@ namespace ModelTest
             try
             {
                 LogMessage.Info(sender.ToString());
-                STA = TerminalModel.GetTerminalSTA1STA2Byte(cbbxSTAModel.Text);
-                MCUAddr = tbxTerminalAdds.Text;//地址
                 if (btnT1_DCCTRL.Text == "上直流电")
                 {
-                    var Terminal_STADCUP = TerminalModel.TerminalByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUCtrl, "3A", STA, MCUStopByte);
-                    await SeedMethod(Terminal_STADCUP);
+                    await SeedMethod(TerminalControlPcbProtocol.BuildFrame(tbxTerminalAdds.Text, TerminalControlPcbProtocol.StaDcCommand, TerminalModel.GetTerminalSTA1STA2Byte(cbbxSTAModel.Text)));
                     btnT1_DCCTRL.Text = "下直流电";
                 }
                 else if (btnT1_DCCTRL.Text == "下直流电")
                 {
-                    var Terminal_STADCDown = TerminalModel.TerminalByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUCtrl, "3A", "00", MCUStopByte);
-                    await SeedMethod(Terminal_STADCDown);
+                    await SeedMethod(TerminalControlPcbProtocol.BuildFrame(tbxTerminalAdds.Text, TerminalControlPcbProtocol.StaDcCommand, "00"));
                     btnT1_DCCTRL.Text = "上直流电";
                 }
             }
@@ -1219,18 +1108,14 @@ namespace ModelTest
             try
             {
                 LogMessage.Info(sender.ToString());
-                STA = TerminalModel.GetTerminalSTA1STA2Byte(cbbxSTAModel.Text);
-                MCUAddr = tbxTerminalAdds.Text;//地址
                 if (btnT1_ACCTRL.Text == "上交流电")
                 {
-                    var Terminal_STAACUP = TerminalModel.TerminalByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUCtrl, "85", STA, MCUStopByte);
-                    await SeedMethod(Terminal_STAACUP);
+                    await SeedMethod(TerminalControlPcbProtocol.BuildFrame(tbxTerminalAdds.Text, TerminalControlPcbProtocol.StaAcCommand, TerminalModel.GetTerminalSTA1STA2Byte(cbbxSTAModel.Text)));
                     btnT1_ACCTRL.Text = "下交流电";
                 }
                 else if (btnT1_ACCTRL.Text == "下交流电")
                 {
-                    var Terminal_STAACUP = TerminalModel.TerminalByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUCtrl, "85", "00", MCUStopByte);
-                    await SeedMethod(Terminal_STAACUP);
+                    await SeedMethod(TerminalControlPcbProtocol.BuildFrame(tbxTerminalAdds.Text, TerminalControlPcbProtocol.StaAcCommand, "00"));
                     btnT1_ACCTRL.Text = "上交流电";
                 }
             }
@@ -1247,19 +1132,15 @@ namespace ModelTest
         private async void bttnSTAHPin_Click(object sender, EventArgs e)
         {
             LogMessage.Info(sender.ToString());
-            string STAPINSTATUS = TerminalModel.GetTerminalSTAPINByte(cbxSTAModePinStatus.Text);//获取设置)RST、SET、EVENT
-            MCUAddr = tbxTerminalAdds.Text;//地址
-            if (cbxSTAModePinStatus.Text.Contains("_1"))
+            var staPinStatus = cbxSTAModePinStatus.Text;
+            var command = staPinStatus switch
             {
-                //设置单相表模块(STA1)RST、SET、EVENT引脚状态命令（0x3B）
-                STAPINSET = TerminalModel.TerminalByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUCtrl, "3B", STAPINSTATUS, MCUStopByte); //sta1设置高
-            }
-            else if (cbxSTAModePinStatus.Text.Contains("_2"))
-            {
-                //设置单相表模块(STA2)RST、SET、EVENT引脚状态命令（0x86）
-                STAPINSET = TerminalModel.TerminalByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUCtrl, "86", STAPINSTATUS, MCUStopByte); //sta1设置高
-            }
-            await SeedMethod(STAPINSET);
+
+                "_1" => TerminalControlPcbProtocol.Sta1SetPinCommand, //设置单相表模块(STA1)RST、SET、EVENT引脚状态命令（0x3B）
+                "_2" => TerminalControlPcbProtocol.Sta2SetPinCommand,//设置单相表模块(STA2)RST、SET、EVENT引脚状态命令（0x86）
+                _ => throw new InvalidOperationException($"参数不正确: {staPinStatus}")
+            };
+            await SeedMethod(TerminalControlPcbProtocol.BuildFrame(tbxTerminalAdds.Text, command, TerminalModel.GetTerminalSTAPINByte(cbxSTAModePinStatus.Text)));
         }
         /// <summary>
         /// 设置sta模组低电平
@@ -1269,18 +1150,14 @@ namespace ModelTest
         private async void bttnSTALPin_Click(object sender, EventArgs e)
         {
             LogMessage.Info(sender.ToString());
-            MCUAddr = tbxTerminalAdds.Text;//地址
-            if (cbxSTAModePinStatus.Text.Contains("_1"))
+            var staPinStatus = cbxSTAModePinStatus.Text;
+            var command = staPinStatus switch
             {
-                //设置单相表模块(STA1)RST、SET、EVENT引脚状态命令（0x3B）
-                STAPINSET = TerminalModel.TerminalByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUCtrl, "3B", "00", MCUStopByte); //sta1设置高
-            }
-            else if (cbxSTAModePinStatus.Text.Contains("_2"))
-            {
-                //设置单相表模块(STA2)RST、SET、EVENT引脚状态命令（0x86）
-                STAPINSET = TerminalModel.TerminalByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUCtrl, "86", "00", MCUStopByte); //sta1设置高
-            }
-            await SeedMethod(STAPINSET);
+                "_1" => TerminalControlPcbProtocol.Sta1SetPinCommand, //设置单相表模块(STA1)RST、SET、EVENT引脚状态命令（0x3B）
+                "_2" => TerminalControlPcbProtocol.Sta2SetPinCommand,//设置单相表模块(STA2)RST、SET、EVENT引脚状态命令（0x86）
+                _ => throw new InvalidOperationException($"参数不正确: {staPinStatus}")
+            };
+            await SeedMethod(TerminalControlPcbProtocol.BuildFrame(tbxTerminalAdds.Text, command, "00"));
         }
         /// <summary>
         /// 读取sta模组电平状态
@@ -1290,16 +1167,14 @@ namespace ModelTest
         private async void bttnReadSTAPinStatus_Click(object sender, EventArgs e)
         {
             LogMessage.Info(sender.ToString());
-            MCUAddr = tbxTerminalAdds.Text;//地址
-            if (comboBoxSTAStutas.Text.Contains("1"))
+            var staText = comboBoxSTAStutas.Text;
+            var command = staText switch
             {
-                STAPINREAD = TerminalModel.TerminalByte(MCUStartByte, A0600_DataLength, MCUAddr, MCUCtrl, "3C", null, MCUStopByte);//读取sta1状态
-            }
-            if (comboBoxSTAStutas.Text.Contains("2"))
-            {
-                STAPINREAD = TerminalModel.TerminalByte(MCUStartByte, A0600_DataLength, MCUAddr, MCUCtrl, "87", null, MCUStopByte);//读取sta1状态
-            }
-            await SeedMethod(STAPINREAD);
+                "1" => TerminalControlPcbProtocol.Sta1ReadPinCommand,
+                "2" => TerminalControlPcbProtocol.Sta2ReadPinCommand,
+                _ => throw new InvalidOperationException($"未知的STA状态: {staText}")
+            };
+            await SeedMethod(TerminalControlPcbProtocol.BuildFrame(tbxTerminalAdds.Text, command));
         }
         /// <summary>
         /// led1点灯
@@ -1308,45 +1183,8 @@ namespace ModelTest
         /// <param name="e"></param>
         private async void button_SETLED1_Click(object sender, EventArgs e)
         {
-            //55 0700 01 00 30 f1   xxAA
-            //BIT0~BIT2分别表示LED亮红色1、绿色2、黄色4
-            //BIT4~BIT8分别表示控制LED1=8,LED2,LED3,LED4（可以同时控制，也可单独控制）
             LogMessage.Info(sender.ToString());
-            var LED_OneCtrl = string.Empty;
-            MCUAddr = tbxTerminalAdds.Text;//地址
-            if (chexblx_LEDRGY.GetItemChecked(0))
-            {
-                LED_OneCtrl = TerminalModel.TerminalByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUCtrl, "30", "09", MCUStopByte);
-                button_SETLED1.BackColor = Color.Red;
-                button_SETLED1.ForeColor = Color.White;
-            }
-            else if (chexblx_LEDRGY.GetItemChecked(1))
-            {
-                LED_OneCtrl = TerminalModel.TerminalByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUCtrl, "30", "0A", MCUStopByte);
-                button_SETLED1.BackColor = Color.Green;
-                button_SETLED1.ForeColor = Color.White;
-            }
-            else if (chexblx_LEDRGY.GetItemChecked(2))
-            {
-                LED_OneCtrl = TerminalModel.TerminalByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUCtrl, "30", "0C", MCUStopByte);
-                button_SETLED1.BackColor = Color.Yellow;
-                button_SETLED1.ForeColor = Color.Black;
-            }
-            else
-            {
-                LED_OneCtrl = TerminalModel.TerminalByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUCtrl, "30", "00", MCUStopByte);
-                button_SETLED1.BackColor = Color.Transparent;
-                button_SETLED1.ForeColor = Color.Black;
-            }
-            try
-            {
-                await SeedMethod(LED_OneCtrl);
-            }
-            catch (Exception ex)
-            {
-                AddLog(ex.ToString());
-            }
-
+            await SetLedAsync(button_SETLED1, 0);
         }
         /// <summary>
         /// led2点灯
@@ -1355,44 +1193,8 @@ namespace ModelTest
         /// <param name="e"></param>
         private async void button_SETLED2_Click(object sender, EventArgs e)
         {
-            //55 0700 01 00 30 f1   xxAA
-            //BIT0~BIT2分别表示LED亮红色1、绿色2、黄色4
-            //BIT4~BIT8分别表示控制LED1=8,LED2=16,LED3=32,LED4=32（可以同时控制，也可单独控制）
             LogMessage.Info(sender.ToString());
-            var LED_TwoCtrl = string.Empty;
-            MCUAddr = tbxTerminalAdds.Text;//地址
-            if (chexblx_LEDRGY.GetItemChecked(0))
-            {
-                LED_TwoCtrl = TerminalModel.TerminalByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUCtrl, "30", "11", MCUStopByte);
-                button_SETLED2.BackColor = Color.Red;
-                button_SETLED2.ForeColor = Color.White;
-            }
-            else if (chexblx_LEDRGY.GetItemChecked(1))
-            {
-                LED_TwoCtrl = TerminalModel.TerminalByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUCtrl, "30", "12", MCUStopByte);
-                button_SETLED2.BackColor = Color.Green;
-                button_SETLED2.ForeColor = Color.White;
-            }
-            else if (chexblx_LEDRGY.GetItemChecked(2))
-            {
-                LED_TwoCtrl = TerminalModel.TerminalByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUCtrl, "30", "14", MCUStopByte);
-                button_SETLED2.BackColor = Color.Yellow;
-                button_SETLED2.ForeColor = Color.Black;
-            }
-            else
-            {
-                LED_TwoCtrl = TerminalModel.TerminalByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUCtrl, "30", "00", MCUStopByte);
-                button_SETLED2.BackColor = Color.Transparent;
-                button_SETLED2.ForeColor = Color.Black;
-            }
-            try
-            {
-                await SeedMethod(LED_TwoCtrl);
-            }
-            catch (Exception ex)
-            {
-                AddLog(ex.ToString());
-            }
+            await SetLedAsync(button_SETLED2, 1);
         }
         /// <summary>
         /// led3点灯
@@ -1401,44 +1203,8 @@ namespace ModelTest
         /// <param name="e"></param>
         private async void button_SETLED3_Click(object sender, EventArgs e)
         {
-            //55 0700 01 00 30 f1   xxAA
-            //BIT0~BIT2分别表示LED亮红色1、绿色2、黄色4
-            //BIT4~BIT8分别表示控制LED1=8,LED2=16,LED3=32,LED4=32（可以同时控制，也可单独控制）
             LogMessage.Info(sender.ToString());
-            var LED_ThreeCtrl = string.Empty;
-            MCUAddr = tbxTerminalAdds.Text;//地址
-            if (chexblx_LEDRGY.GetItemChecked(0))
-            {
-                LED_ThreeCtrl = TerminalModel.TerminalByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUCtrl, "30", "21", MCUStopByte);
-                button_SETLED3.BackColor = Color.Red;
-                button_SETLED3.ForeColor = Color.White;
-            }
-            else if (chexblx_LEDRGY.GetItemChecked(1))
-            {
-                LED_ThreeCtrl = TerminalModel.TerminalByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUCtrl, "30", "22", MCUStopByte);
-                button_SETLED3.BackColor = Color.Green;
-                button_SETLED3.ForeColor = Color.White;
-            }
-            else if (chexblx_LEDRGY.GetItemChecked(2))
-            {
-                LED_ThreeCtrl = TerminalModel.TerminalByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUCtrl, "30", "24", MCUStopByte);
-                button_SETLED3.BackColor = Color.Yellow;
-                button_SETLED3.ForeColor = Color.Black;
-            }
-            else
-            {
-                LED_ThreeCtrl = TerminalModel.TerminalByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUCtrl, "30", "00", MCUStopByte);
-                button_SETLED3.BackColor = Color.Transparent;
-                button_SETLED3.ForeColor = Color.Black;
-            }
-            try
-            {
-                await SeedMethod(LED_ThreeCtrl);
-            }
-            catch (Exception ex)
-            {
-                AddLog(ex.ToString());
-            }
+            await SetLedAsync(button_SETLED3, 2);
         }
         /// <summary>
         /// led4点灯
@@ -1448,39 +1214,41 @@ namespace ModelTest
         private async void button_SETLED4_Click(object sender, EventArgs e)
         {
 
-            //55 0700 01 00 30 f1   xxAA
-            //BIT0~BIT2分别表示LED亮红色1、绿色2、黄色4
-            //BIT4~BIT8分别表示控制LED1=8,LED2=16,LED3=32,LED4=64（可以同时控制，也可单独控制）
             LogMessage.Info(sender.ToString());
-            var LED_FourCtrl = string.Empty;
-            MCUAddr = tbxTerminalAdds.Text;//地址
-            if (chexblx_LEDRGY.GetItemChecked(0))
+            await SetLedAsync(button_SETLED4, 3);
+        }
+        private async Task SetLedAsync(Button button, int ledIndex)
+        {
+            int selectedColor = chexblx_LEDRGY.GetItemChecked(0) ? 0
+                : chexblx_LEDRGY.GetItemChecked(1) ? 1
+                : chexblx_LEDRGY.GetItemChecked(2) ? 2
+                : -1;
+            byte colorMask = selectedColor switch
             {
-                LED_FourCtrl = TerminalModel.TerminalByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUCtrl, "30", "41", MCUStopByte);
-                button_SETLED4.BackColor = Color.Red;
-                button_SETLED4.ForeColor = Color.White;
-            }
-            else if (chexblx_LEDRGY.GetItemChecked(1))
+                0 => 0x01,
+                1 => 0x02,
+                2 => 0x04,
+                _ => 0x00
+            };
+            byte ledMask = (byte)(0x08 << ledIndex);
+            string data = (colorMask == 0 ? 0 : ledMask | colorMask).ToString("X2");
+
+            button.BackColor = selectedColor switch
             {
-                LED_FourCtrl = TerminalModel.TerminalByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUCtrl, "30", "42", MCUStopByte);
-                button_SETLED4.BackColor = Color.Green;
-                button_SETLED4.ForeColor = Color.White;
-            }
-            else if (chexblx_LEDRGY.GetItemChecked(2))
-            {
-                LED_FourCtrl = TerminalModel.TerminalByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUCtrl, "30", "44", MCUStopByte);
-                button_SETLED4.BackColor = Color.Yellow;
-                button_SETLED4.ForeColor = Color.Black;
-            }
-            else
-            {
-                LED_FourCtrl = TerminalModel.TerminalByte(MCUStartByte, A0700_DataLength, MCUAddr, MCUCtrl, "30", "00", MCUStopByte);
-                button_SETLED4.BackColor = Color.Transparent;
-                button_SETLED4.ForeColor = Color.Black;
-            }
+                0 => Color.Red,
+                1 => Color.Green,
+                2 => Color.Yellow,
+                _ => Color.Transparent
+            };
+            button.ForeColor = selectedColor is 0 or 1 ? Color.White : Color.Black;
+
             try
             {
-                await SeedMethod(LED_FourCtrl);
+                string frame = TerminalControlPcbProtocol.BuildFrame(
+                    tbxTerminalAdds.Text,
+                    TerminalControlPcbProtocol.LedCommand,
+                    data);
+                await SeedMethod(frame);
             }
             catch (Exception ex)
             {
@@ -1495,9 +1263,11 @@ namespace ModelTest
         private async void btn_changePCBUPAC_Click(object sender, EventArgs e)
         {
             LogMessage.Info(sender.ToString());
-            MCUAddr = tbxTerminalAdds.Text;//地址
             var sourcestatus = TerminalModel.GetTerminalSourceType(cbx_changePCBUPAC.SelectedIndex);
-            var Terminal_ChangePCBUpAC = TerminalModel.TerminalByte(MCUStartByte, A0800_DataLength, MCUAddr, MCUCtrl, "41", $"{sourcestatus}01", MCUStopByte);//07 00 01 00 41 01 00
+            var Terminal_ChangePCBUpAC = TerminalControlPcbProtocol.BuildFrame(
+                tbxTerminalAdds.Text,
+                TerminalControlPcbProtocol.SwitchBoardAcCommand,
+                $"{sourcestatus}01");
             await SeedMethod(Terminal_ChangePCBUpAC);
         }
         /// <summary>
@@ -1509,10 +1279,32 @@ namespace ModelTest
         private async void btn_changePCBDownAC_Click(object sender, EventArgs e)
         {
             LogMessage.Info(sender.ToString());
-            MCUAddr = tbxTerminalAdds.Text;//地址
             var sourcestatus = TerminalModel.GetTerminalSourceType(cbx_changePCBUPAC.SelectedIndex);
-            var Terminal_ChangePCBDownAC = TerminalModel.TerminalByte(MCUStartByte, A0800_DataLength, MCUAddr, MCUCtrl, "41", $"{sourcestatus}00", MCUStopByte);//07 00 01 00 41 01 00
+            var Terminal_ChangePCBDownAC = TerminalControlPcbProtocol.BuildFrame(
+                tbxTerminalAdds.Text,
+                TerminalControlPcbProtocol.SwitchBoardAcCommand,
+                $"{sourcestatus}00");
             await SeedMethod(Terminal_ChangePCBDownAC);
+        }
+        /// <summary>
+        /// 切换电源
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private async void btnChangePower_Click(object sender, EventArgs e)
+        {
+            LogMessage.Info(sender.ToString());
+            await SeedMethod(TerminalControlPcbProtocol.BuildFrame(tbxTerminalAdds.Text, TerminalControlPcbProtocol.ChangePowerCommand,"01"));
+        }
+        /// <summary>
+        /// 不切换电源
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private async void btnNoChangePower_Click(object sender, EventArgs e)
+        {
+            LogMessage.Info(sender.ToString());
+            await SeedMethod(TerminalControlPcbProtocol.BuildFrame(tbxTerminalAdds.Text, TerminalControlPcbProtocol.ChangePowerCommand, "00"));
         }
         /// <summary>
         /// 标准表切换源 0x42 0x00 切换标准表源
@@ -1709,6 +1501,7 @@ namespace ModelTest
         {
             ShowNonModalToolWindow(_protocolParserForm, () => new ProtocolParserForm(), form => _protocolParserForm = form);
         }
+       
 
         private void ShowNonModalToolWindow<TForm>(TForm? form, Func<TForm> factory, Action<TForm?> setForm)
                     where TForm : Form

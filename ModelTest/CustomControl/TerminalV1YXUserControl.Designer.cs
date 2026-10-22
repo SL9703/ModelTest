@@ -603,13 +603,13 @@
             labelAvalanche.Name = "labelAvalanche";
             labelAvalanche.Size = new Size(250, 28);
             labelAvalanche.TabIndex = 26;
-            labelAvalanche.Text = "雪崩测试：时间/次数";
+            labelAvalanche.Text = "雪崩测试：间隔(ms)/次数";
             // tbxAvalancheSeconds
             tbxAvalancheSeconds.Location = new Point(280, 232);
             tbxAvalancheSeconds.Name = "tbxAvalancheSeconds";
             tbxAvalancheSeconds.Size = new Size(90, 34);
             tbxAvalancheSeconds.TabIndex = 27;
-            tbxAvalancheSeconds.Text = "60";
+            tbxAvalancheSeconds.Text = "1";
             // tbxAvalancheCount
             tbxAvalancheCount.Location = new Point(380, 232);
             tbxAvalancheCount.Name = "tbxAvalancheCount";

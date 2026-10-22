@@ -107,6 +107,9 @@ namespace ModelTest.MeterTest;
 /// - BaudRate：电表通信波特率，默认 9600-8-E-1。
 /// - UpdatedAt：配置更新时间。
 ///
+/// 表：MeterEsamData
+/// 用途：保存密钥恢复流程读取的安全模式、ESAM序列号、对称密钥版本和三个计数器。
+///
 /// 表：MeterTestResultTask
 /// 用途：保存一次自动或手动保存的测试任务，是测试结果查询页面最上层对象。
 /// 字段：RunId为运行唯一值；Status为运行状态；SaveMode区分自动保存和手动保存；ResultSummary为汇总文本。
@@ -263,6 +266,22 @@ public static class MeterTestAccessSchema
         )
         """,
         """
+        CREATE TABLE MeterEsamData
+        (
+            Id INTEGER PRIMARY KEY AUTOINCREMENT,
+            StationNo INTEGER NOT NULL,
+            MeterAddress TEXT NOT NULL,
+            SecureModeEnabled INTEGER NOT NULL,
+            EsamNumber TEXT NOT NULL,
+            SymmetricKeyVersion TEXT NOT NULL,
+            ApplicationCounter INTEGER NOT NULL,
+            ActiveReportCounter INTEGER NOT NULL,
+            BroadcastCounter INTEGER NOT NULL,
+            UpdatedAt TEXT NOT NULL,
+            UNIQUE (StationNo, MeterAddress)
+        )
+        """,
+        """
         CREATE TABLE MeterTestResultTask
         (
             Id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -333,6 +352,7 @@ public static class MeterTestAccessSchema
         "CREATE UNIQUE INDEX ux_MeterTestAssetOption_Key ON MeterTestAssetOption (Category, Scope, Value)",
         "CREATE UNIQUE INDEX ux_MeterTestPowerFactorAngle_Key ON MeterTestPowerFactorAngle (Direction, PowerFactor)",
         "CREATE UNIQUE INDEX ux_MeterTestMeterArchive_StationNo ON MeterTestMeterArchive (StationNo)",
+        "CREATE UNIQUE INDEX ux_MeterEsamData_Key ON MeterEsamData (StationNo, MeterAddress)",
         "CREATE UNIQUE INDEX ux_MeterTestResultTask_RunId ON MeterTestResultTask (RunId)",
         "CREATE UNIQUE INDEX ux_MeterTestResultStation_TaskStation ON MeterTestResultStation (TaskId, StationNo)",
         "CREATE INDEX idx_MeterTestResultDetail_TaskStation ON MeterTestResultDetail (TaskId, StationNo, TestItemName, TestSubItemName)",

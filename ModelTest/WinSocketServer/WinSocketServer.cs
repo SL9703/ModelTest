@@ -231,7 +231,7 @@ namespace ModelTest
 
         [DllImport("WinSocketServer.dll")]
         private static extern int Obj_Meter_Formal_GetGrpBrdCstData(
-            [In, Out] int iKeyState, int iOperateMode, string cESAMNO, string cGrpKID, string cDIV, string aGSEQ,
+            [In, Out] int iKeyState, int iOperateMode, string cESAMNO, string cDIV, string aGSEQ,
             string cBrdCstData, [Out] byte[] cOutSID, [Out] byte[] cOutAttachData, [Out] byte[] cOutData, [Out] byte[] cOutMac);
 
         [DllImport("WinSocketServer.dll")]
@@ -761,7 +761,7 @@ namespace ModelTest
         }
 
         public DllResult CallObj_Meter_Formal_GetGrpBrdCstData(
-            int iKeyState, int iOperateMode, string cESAMNO, string cGrpKID, string cDIV, string aGSEQ,
+            int iKeyState, int iOperateMode, string cESAMNO, string cDIV, string aGSEQ,
             string cBrdCstData, byte[] cOutSID, byte[] cOutAttachData, byte[] cOutData, byte[] cOutMac)
         {
             ValidateByteArrayParams((cOutSID, nameof(cOutSID)), (cOutAttachData, nameof(cOutAttachData)),
@@ -769,7 +769,7 @@ namespace ModelTest
 
             return ExecuteDllCallWithByteOutputs(
                 nameof(Obj_Meter_Formal_GetGrpBrdCstData),
-                () => Obj_Meter_Formal_GetGrpBrdCstData(iKeyState, iOperateMode, cESAMNO, cGrpKID, cDIV, aGSEQ, cBrdCstData,
+                () => Obj_Meter_Formal_GetGrpBrdCstData(iKeyState, iOperateMode, cESAMNO, cDIV, aGSEQ, cBrdCstData,
                                                         cOutSID, cOutAttachData, cOutData, cOutMac),
                 (nameof(cOutSID), cOutSID), (nameof(cOutAttachData), cOutAttachData),
                 (nameof(cOutData), cOutData), (nameof(cOutMac), cOutMac));

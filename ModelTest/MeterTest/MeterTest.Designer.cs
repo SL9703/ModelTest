@@ -21,6 +21,10 @@
             {
                 components.Dispose();
             }
+            if (disposing)
+            {
+                keyRecoveryService?.Dispose();
+            }
             base.Dispose(disposing);
         }
 
